@@ -1,0 +1,26 @@
+{
+  "name": "@orbitchat/server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Orbitchat backend server (Bun + Hono)",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun run src/index.ts",
+    "start": "bun src/index.ts",
+    "lint": "eslint src --max-warnings 0",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.0.0"
+  },
+  "devDependencies": {
+    "@orbitchat/shared-types": "workspace:*",
+    "@orbitchat/shared-utils": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@orbitchat/ui",
+  "version": "0.0.1",
+  "private": true,
+  "description": "UI Component Library for Orbitchat (Reserved for future use)",
+  "main": "src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

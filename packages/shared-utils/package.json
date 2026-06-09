@@ -1,0 +1,13 @@
+{
+  "name": "@orbitchat/shared-utils",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared utility functions for Orbitchat",
+  "main": "src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
