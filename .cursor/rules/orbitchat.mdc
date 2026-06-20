@@ -1,0 +1,59 @@
+---
+description: Orbitchat core agent constraints — read AGENTS.md, spec-first, strict TS
+alwaysApply: true
+---
+
+# Orbitchat Agent Rules
+
+## Start here
+
+1. Read `AGENTS.md`, then task-relevant docs under `docs/`.
+2. Phase 1 focus: user auth (`ADR 06–08`), Postgres + Drizzle, `/api/v1/*`.
+
+## Non-negotiable
+
+- TypeScript **strict**; never use `any`.
+- Business REST lives on Hono (`apps/server`), prefix **`/api/v1/`** only.
+- `/health` is infra-only (no SuccessResponse envelope).
+- Cross-client types in `@orbitchat/shared-types`; do not duplicate API shapes.
+- **Spec before code**: update `docs/api-spec.md` + shared-types before routes.
+
+## Auth & multi-client
+
+- Follow `docs/multi-client.md` and `docs/decisions/08-auth-strategy.md`.
+- Web refresh token: **httpOnly Cookie**, not localStorage.
+- Headers on `/api/v1/*`: `X-Client-Platform`, `X-Client-Version`, `X-Device-Id`.
+
+## Document roles (avoid duplication)
+
+| Doc | Purpose |
+|-----|---------|
+| `docs/decisions/*.md` | **Why** (ADR) |
+| `docs/api-spec.md` | HTTP **contract** |
+| `docs/db-schema.md` | Table **structure** |
+| `docs/multi-client.md` | Client **how-to** |
+| `docs/env.md` | Environment variables |
+
+## Phase 1 implementation order
+
+1. Drizzle schema (`users`, `profiles`, `user_sessions`)
+2. `shared-types` domain + `api/v1`
+3. Server scaffold: `routes/v1/`, `middleware/`, `services/`
+4. Web `lib/api` client
+
+## Do not
+
+- Implement business logic without updating docs when design changes.
+- Put core REST in Next.js Route Handlers.
+- Commit `.env` or secrets.
+
+## Commands
+
+```bash
+pnpm install
+pnpm dev          # all apps
+pnpm lint
+pnpm type-check   # when wired at root
+```
+
+See `CONTRIBUTING.md` and `docs/env.md` for workflow and env setup.
