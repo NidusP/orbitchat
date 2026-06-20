@@ -1,29 +1,26 @@
-export default function Home(): JSX.Element {
+import Link from 'next/link';
+import { SiteNav } from '@/components/site-nav';
+
+export default function Home() {
   return (
-    <main style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>🚀 Orbitchat</h1>
-      <p>Welcome to Orbitchat - A learning project for modern full-stack TypeScript development</p>
+    <main>
+      <SiteNav />
+      <header className="page-header">
+        <h1>Orbitchat</h1>
+        <p>A learning project for modern full-stack TypeScript development.</p>
+      </header>
 
-      <h2>Phase 0: Foundation</h2>
-      <p>Currently setting up the basic infrastructure and development standards.</p>
-
-      <h3>Getting Started</h3>
-      <ul>
-        <li>📚 Read AGENTS.md - AI Agent guide</li>
-        <li>📚 Read docs/product.md - Product overview</li>
-        <li>📚 Read docs/architecture.md - System design</li>
-        <li>📚 Read docs/coding-rules.md - Coding standards</li>
-      </ul>
-
-      <h3>Next Steps</h3>
-      <ul>
-        <li>✅ Backend initialized (Bun + Hono)</li>
-        <li>✅ Frontend initialized (Next.js)</li>
-        <li>✅ Shared packages setup</li>
-        <li>✅ Development toolchain</li>
-      </ul>
-
-      <p>For more information, see the documentation in the docs/ directory.</p>
+      <div className="card">
+        <p>Phase 1: user registration, login, and profile editing.</p>
+        <div className="nav" style={{ marginTop: 16, marginBottom: 0 }}>
+          <Link href="/register" className="btn btn-primary">
+            Get started
+          </Link>
+          <Link href="/login" className="btn btn-secondary">
+            Login
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }
