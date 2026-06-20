@@ -1,0 +1,53 @@
+# Orbitchat 本地开发基础设施
+#
+# 默认容器名与常见本机实例对齐：im-postgres / im-redis
+# 若本机已有同名容器在跑（例如其他项目的 im-postgres），请勿重复 up postgres/redis，
+# 直接复用现有实例并在其中创建 orbitchat 库即可 — 见 docs/env.md
+#
+# 用法：pnpm docker:up
+# Phase 1 必需：postgres
+# Phase 3+ 可选：redis（Session 缓存 / WS Pub-Sub，见 ADR 08、realtime-spec）
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: im-postgres
+    restart: unless-stopped
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orbitchat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orbitchat}
+      POSTGRES_DB: ${POSTGRES_DB:-orbitchat}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-orbitchat} -d ${POSTGRES_DB:-orbitchat}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: im-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  redis_data:
