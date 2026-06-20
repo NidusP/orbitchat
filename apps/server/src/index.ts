@@ -1,12 +1,19 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { env } from './env';
+import { handleError, handleNotFound } from './middleware/error';
+import { v1Router } from './routes/v1';
 
-const app = new Hono();
+export const app = new Hono();
 
-// Middleware
-app.use('*', cors());
+app.use(
+  '*',
+  cors({
+    origin: env.CORS_ORIGIN,
+    credentials: true,
+  })
+);
 
-// Health check endpoint
 app.get('/health', (c) => {
   return c.json(
     {
@@ -18,7 +25,6 @@ app.get('/health', (c) => {
   );
 });
 
-// Root endpoint
 app.get('/', (c) => {
   return c.json(
     {
@@ -30,36 +36,14 @@ app.get('/', (c) => {
   );
 });
 
-// Not found handler
-app.notFound((c) => {
-  return c.json(
-    {
-      code: 'NOT_FOUND',
-      message: 'Endpoint not found',
-      timestamp: new Date().toISOString(),
-    },
-    404
-  );
-});
+app.route('/api/v1', v1Router);
 
-// Error handler
-app.onError((err, c) => {
-  console.error('Error:', err);
-  return c.json(
-    {
-      code: 'INTERNAL_ERROR',
-      message: 'Internal server error',
-      timestamp: new Date().toISOString(),
-    },
-    500
-  );
-});
+app.notFound(handleNotFound);
+app.onError((err, c) => handleError(err, c));
 
-const port = process.env.PORT || 3001;
-
-export default {
-  port,
+const server = Bun.serve({
+  port: env.PORT,
   fetch: app.fetch,
-};
+});
 
-console.log(`✅ Server running at http://localhost:${port}`);
+console.log(`✅ Server running at http://localhost:${server.port}`);
