@@ -47,19 +47,20 @@
 
 ### 已完成（Phase 0）
 
-- [ ] 01-monorepo-strategy.md - Monorepo vs 多仓库
-- [ ] 02-backend-framework.md - 为什么选择 Bun + Hono
-- [ ] 03-frontend-framework.md - 为什么选择 Next.js
-- [ ] 04-shared-packages.md - 共享包策略
-- [ ] 05-doc-first.md - 文档驱动开发
+- [x] [01-monorepo-strategy.md](./01-monorepo-strategy.md) - Monorepo vs 多仓库
+- [x] [02-backend-framework.md](./02-backend-framework.md) - 为什么选择 Bun + Hono
+- [x] [03-frontend-framework.md](./03-frontend-framework.md) - 为什么选择 Next.js
+- [x] [04-shared-packages.md](./04-shared-packages.md) - 共享包策略
+- [x] [05-doc-first.md](./05-doc-first.md) - 文档驱动与 Harness Engineering
 
 ### 待做（后续阶段）
 
-- [ ] 06-database-choice.md - Phase 1 中数据库的选择
-- [ ] 07-orm-selection.md - Phase 1 中 ORM 的选择
-- [ ] 08-auth-strategy.md - Phase 1 认证方案
-- [ ] 09-api-versioning.md - API 版本管理
-- [ ] 10-testing-framework.md - 测试框架选择
+- [x] [06-database-choice.md](./06-database-choice.md) - PostgreSQL
+- [x] [07-orm-selection.md](./07-orm-selection.md) - Drizzle ORM
+- [x] [08-auth-strategy.md](./08-auth-strategy.md) - 多端认证与会话
+- [ ] [09-server-layout-and-api-codegen.md](./09-server-layout-and-api-codegen.md) - 服务端目录与 API Client 生成（**Deferred**，Phase 1 后期评审）
+- [ ] 10-api-versioning.md - API 版本管理
+- [ ] 11-testing-framework.md - 测试框架选择
 
 ---
 
@@ -69,9 +70,10 @@
 
 | 决策 | 相关阶段 | 优先级 |
 |-----|---------|--------|
-| 数据库选择 | Phase 1 | P0 |
-| ORM 框架 | Phase 1 | P0 |
-| 认证方案 | Phase 1 | P0 |
+| 数据库选择 | Phase 1 | P0 | ✅ ADR 06 PostgreSQL |
+| ORM 框架 | Phase 1 | P0 | ✅ ADR 07 Drizzle |
+| 认证方案 | Phase 1 | P0 | ✅ ADR 08 Session + 双 Token |
+| 服务端目录 / API Client 生成 | Phase 1 后期 | P2 | 📋 ADR 09 Deferred |
 | 错误追踪 | Phase 2 | P1 |
 | 缓存策略 | Phase 3 | P2 |
 | 消息队列 | Phase 3 | P2 |

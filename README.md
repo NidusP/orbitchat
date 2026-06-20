@@ -39,6 +39,16 @@
 pnpm install
 ```
 
+### 本地基础设施（Docker）
+
+```bash
+cp .env.example .env    # 可选
+pnpm docker:up          # Postgres + Redis
+cd apps/server && pnpm db:migrate
+```
+
+详见 [docs/env.md](./docs/env.md#docker-compose本地开发)。
+
 ### 启动开发服务器
 
 ```bash
@@ -94,7 +104,10 @@ pnpm dev
 | [docs/architecture.md](./docs/architecture.md) | 系统架构设计 |
 | [docs/coding-rules.md](./docs/coding-rules.md) | 编码规范 |
 | [docs/api-spec.md](./docs/api-spec.md) | API 规范 |
-| [docs/db-schema.md](./docs/db-schema.md) | 数据库设计（Phase 1+） |
+| [docs/multi-client.md](./docs/multi-client.md) | 多端客户端规范 |
+| [docs/db-schema.md](./docs/db-schema.md) | 数据库设计 |
+| [docs/env.md](./docs/env.md) | 环境变量 |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | 贡献指南 |
 | [docs/roadmap.md](./docs/roadmap.md) | 项目路线图 |
 
 ---
@@ -117,6 +130,8 @@ orbitchat/
 │   ├── shared-utils/        # 共享工具函数
 │   └── ui/                  # UI 组件库（预留）
 ├── docs/                    # 📚 完整文档
+├── .cursor/rules/           # Cursor Agent 规则
+├── CONTRIBUTING.md          # 贡献指南
 ├── AGENTS.md                # 🤖 AI Agent 工作指南
 ├── pnpm-workspace.yaml      # Monorepo 配置
 ├── tsconfig.json            # TypeScript 根配置
@@ -158,9 +173,9 @@ orbitchat/
 
 ---
 
-## 🎓 当前阶段（Phase 0）
+## 🎓 当前阶段
 
-**目标**：完成所有基础工程搭建和开发规范建设
+**Phase 0 已完成**（2026-06-14）。下一步进入 Phase 1 用户系统。ADR 见 [docs/decisions/](./docs/decisions/)。
 
 ### ✅ 已完成
 
@@ -175,7 +190,7 @@ orbitchat/
 
 | 阶段 | 目标 | 时间 |
 |------|------|------|
-| Phase 0 | 基础工程搭建 | ✅ 完成 |
+| Phase 0 | 基础工程搭建 | ✅ 已完成（2026-06-14） |
 | Phase 1 | 用户系统 | ~4-6 周 |
 | Phase 2 | 社交功能 | ~6-8 周 |
 | Phase 3 | 聊天功能 | ~4-6 周 |
@@ -345,7 +360,7 @@ import { isValidEmail } from '@orbitchat/shared-utils';
 
 ### Q: 项目何时实现具体功能？
 
-**A**: 见 [docs/roadmap.md](./docs/roadmap.md)。Phase 0（当前）仅做基础工程。Phase 1 开始实现用户认证系统。
+**A**: 见 [docs/roadmap.md](./docs/roadmap.md)。Phase 0 已完成；Phase 1 开始实现用户认证系统。
 
 ---
 

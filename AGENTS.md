@@ -15,7 +15,9 @@
 2. `docs/product.md` - 理解产品目标
 3. `docs/architecture.md` - 理解系统设计
 4. `docs/coding-rules.md` - 理解编码规范
-5. 开始开发 😊
+5. `docs/env.md` - 环境变量（开发前）
+6. `CONTRIBUTING.md` - 贡献与 PR 流程
+7. 开始开发
 
 ---
 
@@ -27,9 +29,10 @@
 
 ### 项目阶段
 
-**Phase 0: Foundation（基础工程搭建）**
+**Phase 1: User System — 主链路与本地验证已完成，进入补强阶段**（2026-06-20）
 
-当前阶段的唯一目标是完成基础工程和开发规范建设，**不实现任何业务逻辑**。
+Phase 0 交付：Monorepo、基础框架、文档体系、ADR 01–08。  
+Phase 1 交付：Drizzle 迁移、auth/users API、Web 登录/注册/Profile、Bun 单测、Playwright E2E；本地 Docker/复用 `im-postgres` 路径已验证。
 
 ### 项目特征
 
@@ -196,25 +199,22 @@ app.onError((err, c) => {
 
 ---
 
-## 当前阶段范围
+## 当前阶段范围（Phase 1）
 
-### ✅ 可以做
+### ✅ 可以做 / 已完成
 
-- [x] 初始化项目结构
-- [x] 编写文档
-- [x] 创建基础框架
-- [x] 配置开发工具
-- [x] 实现健康检查端点
+- Phase 1 用户系统：注册、登录、Session、Profile（见「会话交接」）
+- 本地 Docker + migrate + 端到端验证
+- 可选：设备与会话 Web UI、ESLint flat config
 
-### ❌ 不要做
+### ❌ 暂不做（Phase 2+）
 
-- [ ] 实现用户认证
-- [ ] 创建数据库表
-- [ ] 实现业务逻辑
-- [ ] 集成第三方服务
-- [ ] 优化性能
+- 动态 / Feed / 关注 / 搜索
+- 文字聊天 / WebSocket
+- Redis 接入（Compose 已预置）
+- 性能优化与生产部署
 
-**原因**：Phase 0 只关注基础工程，业务逻辑留给 Phase 1。
+**下一步优先**：继续补强 Phase 1 体验与测试覆盖，优先看 AGENTS.md → 会话交接 → 次要缺口。
 
 ---
 
@@ -230,6 +230,9 @@ app.onError((err, c) => {
 | `docs/architecture.md` | 系统架构、目录结构、设计原因 | 第二步 |
 | `docs/coding-rules.md` | 编码规范、命名约定、最佳实践 | 开发前 |
 | `docs/api-spec.md` | API 规范、数据契约、端点定义 | API 开发时 |
+| `docs/multi-client.md` | 多端 Token 存储、API Client、Session | 客户端开发时 |
+| `docs/env.md` | 环境变量 | 本地启动 / 部署前 |
+| `CONTRIBUTING.md` | 贡献流程与 PR 规范 | 提交代码前 |
 
 ### 参考文档
 
@@ -237,7 +240,7 @@ app.onError((err, c) => {
 |-----|------|
 | `docs/db-schema.md` | 数据库设计（当前为空） |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
-| `docs/decisions/` | 架构决策记录 |
+| `docs/decisions/` | 架构决策记录（ADR 01–08） |
 
 ---
 
@@ -288,7 +291,7 @@ app.onError((err, c) => {
 
 ### Q4: 当前阶段应该专注什么？
 
-**A**：**只做基础工程**。确保项目结构清晰、工具链完善、文档完整。业务逻辑留给 Phase 1。
+**A**：优先完成 **Phase 1 补强**。主链路已打通，当前更适合继续做浏览器 E2E 扩展、设备与会话页、账号字段编辑，或在此基础上开始 Phase 2 规划。
 
 ### Q5: 我发现代码和文档不一致怎么办？
 
@@ -334,10 +337,11 @@ app.onError((err, c) => {
 ### 特别提醒
 
 ⚠️ **重要**：
-- 不要在 Phase 0 实现业务逻辑
+- 先读 `.cursor/rules/orbitchat.mdc` 与本文件
+- Phase 1 代码：spec → shared-types → 实现（见 CONTRIBUTING.md）
 - 不要使用 `any` 类型
 - 文档即真理，代码遵循文档
-- 每次变更都要更新相关文档
+- 业务 API 必须使用 `/api/v1/*` 前缀
 
 ---
 
@@ -350,12 +354,126 @@ app.onError((err, c) => {
 3. ✅ 查看项目目录结构
 4. ✅ 运行 `pnpm install` 安装依赖
 
-### Phase 0 待完成的工作
+### Phase 0 已完成 ✅
 
-- [ ] 创建 apps/server 完整项目
-- [ ] 创建 apps/web 完整项目
-- [ ] 创建 packages/* 所有包
-- [ ] 验证所有项目可运行
+- [x] 创建 apps/server 基础项目（Bun + Hono，含 `/health`）
+- [x] 创建 apps/web 基础项目（Next.js App Router）
+- [x] 创建 packages/*（shared-types、shared-utils、ui）
+- [x] 编写 Phase 0 ADR（`docs/decisions/01`–`05`）
+- [x] 文档第一批完善（product、api-spec、roadmap 同步）
+
+### Phase 1 代码实现
+
+#### 已完成 ✅
+
+- [x] 2.9 Drizzle schema（`users`、`profiles`、`user_sessions`）+ 迁移
+- [x] 2.10 `shared-types` domain + `api/v1` 类型
+- [x] 2.11 后端 scaffold（`routes/v1/`、`middleware/`、`services/`、`lib/`、`env.ts`）
+- [x] 2.12 Web `lib/api` client
+- [x] Docker Compose 本地基础设施（Postgres、Redis）
+- [x] 2.13 auth service + `/api/v1/auth/*` 业务逻辑
+- [x] 2.14 `/api/v1/users/*` 业务逻辑
+- [x] 2.14 Web 登录 / 注册 / Profile 页（`auth-context`）
+
+#### 待办 📋
+
+- [x] **2.15** 初次开发启动测试（Docker + migrate + 端到端验证）
+- [ ] **可选** 次要缺口择项处理 — 见下方「会话交接 → 次要缺口」表（#2–#8）
+
+> 评审待定：服务端目录组织、API Client 自动生成 — 见 [ADR 09](./docs/decisions/09-server-layout-and-api-codegen.md)
+
+---
+
+### 会话交接（下次继续）
+
+**结论（2026-06-20）**：Phase 1 用户系统**主链路代码与本地验证已贯通**；已复用现有 `im-postgres` 完成 migrate 与手动链路验证，`pnpm test`、`pnpm type-check`、`pnpm lint` 通过。
+
+| 维度 | 状态 |
+|------|------|
+| Phase 0 | ✅ 完成 |
+| Phase 1 代码 2.9–2.14 | ✅ 完成 |
+| Phase 1 本地验证 | ✅ 完成 — migrate / API / Web 已验证 |
+| Phase 2+ | 未开始 |
+
+**本地环境状态（末次会话 2026-06-20）**
+
+| 项 | 状态 |
+|----|------|
+| Docker 守护进程 | ✅ 正常 |
+| `apps/server/.env` | ✅ 已存在 |
+| `apps/web/.env.local` | ✅ 已创建 |
+| `im-postgres` | ✅ 复用中；已创建 `orbitchat` role + DB |
+| `im-redis` | ✅ 运行中；Phase 1 未接入代码 |
+| `orbitchat-postgres` | ⚠️ 历史失败残留容器，可后续清理 |
+| DB migrate | ✅ 已执行 |
+| API 手动验证 | ✅ 注册 / 登录 / Profile 编辑 / 登出 / refresh 失效 已验证 |
+| Web 启动验证 | ✅ 首页 `/` 与登录页 `/login` 已返回 200 |
+
+**本次采用路径**：未删除 `im-*` 容器；直接复用 `im-postgres`，在其中创建 `orbitchat` 用户与独立数据库，保持 `apps/server/.env` 现有 `DATABASE_URL` 不变。
+
+**下次 Agent 建议执行顺序**
+
+0. **可选清理历史残留**（非阻塞）：
+   ```bash
+   docker rm -f orbitchat-postgres 2>/dev/null || true   # 清除失败的 Created 容器
+   ```
+1. 若继续复用 `im-postgres`：确认数据库可达
+   ```bash
+   docker exec im-postgres psql -U im -d postgres -tAc "SELECT datname FROM pg_database;"
+   ```
+2. 启动应用（根目录或分终端）：
+   ```bash
+   cd /Users/populus/workspace/orbitchat/apps/server && pnpm start
+   cd /Users/populus/workspace/orbitchat/apps/web && pnpm dev
+   ```
+   - API：默认 `http://localhost:3001/health`
+   - Web：默认 `http://localhost:3000`
+3. **优先扩展 Playwright E2E**：当前已覆盖 3 条场景
+   - 注册 → 登录 → Profile 编辑 → 登出
+   - 未登录访问 `/profile` 自动跳转 `/login`
+   - 错误密码登录显示 `Invalid credentials`
+   下一步更值得补“会话管理 / 登出后刷新保持未登录 / 注册表单校验”等场景
+4. 可选：设备与会话 Web UI、账号字段编辑、Phase 2 规划
+
+> 若后续不再复用 `im-postgres`：可改回专属 compose 容器，或改 `docker-compose.yml` 端口（如 Postgres `5433`）并同步 `DATABASE_URL` — 见 [env.md](./docs/env.md#端口冲突)。
+
+**已实现能力**
+
+| 模块 | 内容 |
+|------|------|
+| DB | Drizzle schema + `drizzle/0000_*.sql` |
+| API | `/api/v1/auth/*`（8 端点）、`/api/v1/users/*`（4 端点） |
+| 认证 | Session + 双 Token、同端 SSO、refresh rotation、信任设备（API 层） |
+| Web | `/login`、`/register`、`/profile`、`lib/api`、`auth-context` |
+| 密码 | bcrypt（`Bun.password`，cost 10） |
+| 测试 | `bun:test` + Playwright 已覆盖服务层 / 路由 / 中间件 / Web API client / 浏览器 3 条核心场景 |
+
+**次要缺口（不阻塞主链路，下次可择项处理）**
+
+| # | 类别 | 缺口 | 说明 |
+|---|------|------|------|
+| 1 | 测试 | Playwright 核心场景 | ✅ 7 条：主链路、未登录跳转、错误登录、弱密码、账号编辑、会话页 |
+| 2 | Web UI | 设备与会话设置页 | ✅ `/settings/sessions` |
+| 3 | Web UI | 账号字段编辑 | ✅ Profile 接 `PATCH /users/:id` |
+| 4 | Web UX | 注册后自动登录 | ✅ 注册成功前端串联 login |
+| 5 | 基础设施 | Redis 未接入代码 | `docker-compose.yml` 已起 Redis，server 无 `REDIS_URL` 使用（Phase 3+ 规划） |
+| 6 | 基础设施 | 专属 compose 数据库未使用 | 当前默认复用 `im-postgres`；后续若要彻底隔离，可恢复专属容器 |
+| 7 | 架构 | ADR 09 待定 | 按域目录 vs 按层、API Client codegen — 状态 **Deferred**，见 ADR 09 |
+| 8 | 文档 | 后续需随新 E2E / UI 缺口继续同步 | 当前会话已同步 Phase 1 本地验证与浏览器 E2E 状态 |
+
+> 以上不影响「注册 → 登录 → 编辑 Profile → 登出」主路径；当前更适合优先补设备与会话页、账号字段编辑，或进入 Phase 2 规划。
+
+**关键文件索引**
+
+```
+apps/server/src/services/auth-service.ts   # 认证编排
+apps/server/src/routes/v1/auth.ts          # auth 路由
+apps/server/src/routes/v1/users.ts         # users 路由
+apps/web/src/contexts/auth-context.tsx     # Web 认证状态
+apps/web/src/app/login|register|profile/   # 页面
+docker-compose.yml                         # Postgres + Redis
+docs/env.md                                # 环境变量与 Docker 说明
+```
 
 ### 联系和反馈
 
@@ -378,6 +496,6 @@ app.onError((err, c) => {
 
 ## 版本
 
-- **当前版本**：0.0.1
-- **最后更新**：2024-06-09
-- **下次审查**：Phase 1 开始时
+- **当前版本**：0.0.6
+- **最后更新**：2026-06-20（2.15 已完成：复用 `im-postgres` 跑通 migrate、本地 API 与 Web 验证）
+- **下次审查**：扩展 Playwright E2E；评估设备与会话页 / 账号字段编辑 / Phase 2 规划

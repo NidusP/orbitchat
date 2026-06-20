@@ -38,8 +38,13 @@
 | [architecture.md](./architecture.md) | 系统设计和架构 | 开发前 |
 | [coding-rules.md](./coding-rules.md) | 编码规范和最佳实践 | 编写代码时 |
 | [api-spec.md](./api-spec.md) | API 规范和数据契约 | 实现 API 时 |
-| [db-schema.md](./db-schema.md) | 数据库设计（Phase 1+） | 数据库设计时 |
+| [multi-client.md](./multi-client.md) | 多端 Token、API Client、设备 Session | Web/RN 开发时 |
+| [env.md](./env.md) | 环境变量 | 本地启动前 |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献与 PR 流程 | 提交代码前 |
+| [realtime-spec.md](./realtime-spec.md) | WebSocket 规范（Phase 3+ 活文档） | 聊天/信令开发时 |
+| [db-schema.md](./db-schema.md) | 数据库设计（分阶段迭代） | 数据库设计时 |
 | [roadmap.md](./roadmap.md) | 项目路线图和里程碑 | 了解长期计划时 |
+| [decisions/](./decisions/) | 架构决策记录（ADR） | 理解技术选型时 |
 
 ---
 
@@ -80,10 +85,21 @@ docs/
 ├── architecture.md        # 系统架构
 ├── coding-rules.md        # 编码规范
 ├── api-spec.md            # API 规范
+├── multi-client.md        # 多端客户端规范
+├── env.md                 # 环境变量
+├── realtime-spec.md       # 实时通信（Phase 3+）
 ├── db-schema.md           # 数据库设计
 ├── roadmap.md             # 项目路线图
-└── decisions/             # 架构决策记录
-    └── README.md
+└── decisions/             # 架构决策记录（ADR）
+    ├── README.md
+    ├── 01-monorepo-strategy.md
+    ├── 02-backend-framework.md
+    ├── 03-frontend-framework.md
+    ├── 04-shared-packages.md
+    ├── 05-doc-first.md
+    ├── 06-database-choice.md
+    ├── 07-orm-selection.md
+    └── 08-auth-strategy.md
 ```
 
 ---
@@ -111,9 +127,9 @@ docs/
 
 ## 🏗️ 文档演进
 
-### Phase 0（当前）
+### Phase 0（当前）✅
 
-所有基础文档已创建。
+基础文档与 Phase 0 ADR 已完成。Phase 1 将补充 testing、env、OpenAPI 等文档。
 
 ### Phase 1+
 
@@ -175,4 +191,6 @@ docs/
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.0.1 | 2024-06-09 | 初始文档体系 |
+| 0.0.2 | 2026-06-14 | Phase 0 ADR、product/api-spec 完善 |
+| 0.0.3 | 2026-06-14 | CONTRIBUTING、env、Cursor rules；ADR 08 精简 |
 

@@ -215,5 +215,68 @@ API Routes → 完整的 CRUD
 
 ## 详细设计决策
 
-详见 `decisions/` 目录的具体决策文档。
+详见 `decisions/` 目录（Phase 0：01–05；Phase 1：06–08）。
+
+---
+
+## 多端架构（简要）
+
+> 详细客户端规范见 [multi-client.md](./multi-client.md)。实现 Phase 1 时可再细化本节。
+
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│  Web        │  │ Orbitchat-rn│  │  Desktop    │
+│  Next.js    │  │  iOS/Android│  │  (future)   │
+└──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+       │    HTTPS /api/v1 + WS /ws/v1     │
+       └────────────────┬─────────────────┘
+                        ▼
+              ┌───────────────────┐
+              │  Hono API (Bun)   │
+              │  apps/server      │
+              └─────────┬─────────┘
+                        │
+         ┌──────────────┼──────────────┐
+         ▼              ▼              ▼
+   PostgreSQL      (Redis 未来)   Storefront 服务
+   Drizzle ORM     Phase 3+       Go 等 Phase 4+
+```
+
+**原则**：
+- 所有客户端共享 `/api/v1/*`；类型 SSOT 在 `@orbitchat/shared-types`
+- 认证：Session 表 + 双 Token（ADR 08）；同平台单 Session，跨平台可同时在线
+- 业务 API 不在 Next.js 实现（ADR 03）
+
+---
+
+## 服务边界（简要）
+
+| 模块 | 运行时 | 阶段 |
+|------|--------|------|
+| 用户 / 认证 / 社交 / 聊天 API | Hono monolith | Phase 1–3 |
+| 个人橱窗（交易、库存） | 独立服务（Go 等，待定） | Phase 4–5 |
+| 静态资源 / 媒体 | 对象存储 + CDN | Phase 4 |
+
+橱窗服务通过 Hono **网关路由** 代理（如 `/api/v1/storefront/*` → 内部 gRPC/HTTP），认证仍由 Hono 统一 JWT 校验。
+
+*具体网关配置、服务间契约在 Phase 4 启动前补充 ADR。*
+
+---
+
+## 后端目标结构（Phase 1 scaffold）
+
+```
+apps/server/src/
+├── index.ts
+├── env.ts
+├── db/schema/          # Drizzle（ADR 07）
+├── routes/v1/          # auth, users, ...
+├── middleware/         # auth, client-meta, error
+├── services/           # 业务逻辑
+└── lib/                # errors, crypto
+```
+
+*目录随模块增加；每新增域路由时更新本节或链接至 ADR 02。*
+
+**待定选型**（初期功能完备后再评审，暂不变更）：服务端 **按层 vs 按域（feature module）** 目录、以及 **API Client 手写 vs 自动生成**（Hono RPC / OpenAPI codegen 等）。见 [ADR 09 — server-layout-and-api-codegen](./decisions/09-server-layout-and-api-codegen.md)。
 
