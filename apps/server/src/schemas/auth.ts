@@ -30,11 +30,14 @@ export const loginSchema = z.object({
 });
 
 export const refreshSchema = z.object({
-  refreshToken: z.string().min(1).optional(),
+  refreshToken: z.string().min(1, 'Refresh token must not be empty').optional(),
 });
 
 export const trustSessionSchema = z.object({
-  trust: z.boolean(),
+  trust: z.boolean({
+    required_error: 'Trust flag is required',
+    invalid_type_error: 'Trust flag must be true or false',
+  }),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

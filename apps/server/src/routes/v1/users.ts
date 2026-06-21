@@ -2,11 +2,12 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { AppError } from '../../lib/errors';
 import { successResponse } from '../../lib/response';
+import { parseUuidParam } from '../../lib/validation';
+import { zodValidationHook } from '../../lib/zod-hook';
 import { authMiddleware } from '../../middleware/auth';
 import {
   updateProfileSchema,
   updateUserSchema,
-  userIdParamSchema,
 } from '../../schemas/users';
 import {
   getProfileByUserId,
@@ -18,11 +19,7 @@ import {
 export const usersRouter = new Hono();
 
 function parseUserId(rawId: string): string {
-  const parsed = userIdParamSchema.safeParse(rawId);
-  if (!parsed.success) {
-    throw new AppError('VALIDATION_ERROR', 'Invalid user id', 400, { field: 'id' });
-  }
-  return parsed.data;
+  return parseUuidParam(rawId, 'id', 'Invalid user id');
 }
 
 function assertSelf(actorUserId: string, targetUserId: string): void {
@@ -40,7 +37,7 @@ usersRouter.get('/:id/profile', async (c) => {
 usersRouter.patch(
   '/:id/profile',
   authMiddleware,
-  zValidator('json', updateProfileSchema),
+  zValidator('json', updateProfileSchema, zodValidationHook),
   async (c) => {
     const userId = parseUserId(c.req.param('id'));
     const auth = c.get('auth');
@@ -58,7 +55,7 @@ usersRouter.get('/:id', async (c) => {
   return c.json(successResponse(user), 200);
 });
 
-usersRouter.patch('/:id', authMiddleware, zValidator('json', updateUserSchema), async (c) => {
+usersRouter.patch('/:id', authMiddleware, zValidator('json', updateUserSchema, zodValidationHook), async (c) => {
   const userId = parseUserId(c.req.param('id'));
   const auth = c.get('auth');
   assertSelf(auth.userId, userId);

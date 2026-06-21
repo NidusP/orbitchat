@@ -29,10 +29,10 @@
 
 ### 项目阶段
 
-**Phase 1: User System — 主链路与本地验证已完成，进入补强阶段**（2026-06-20）
+**Phase 1: User System — 完整验收已完成**（2026-06-21）
 
 Phase 0 交付：Monorepo、基础框架、文档体系、ADR 01–08。  
-Phase 1 交付：Drizzle 迁移、auth/users API、Web 登录/注册/Profile、Bun 单测、Playwright E2E；本地 Docker/复用 `im-postgres` 路径已验证。
+Phase 1 交付：Drizzle 迁移、auth/users API、Web 全链路 UI（含 `/settings/sessions`）、注册自动登录、统一校验错误信封；代码在分支 `feat/phase-1-user-system`（**10 commits，待 push / PR**）。
 
 ### 项目特征
 
@@ -203,18 +203,18 @@ app.onError((err, c) => {
 
 ### ✅ 可以做 / 已完成
 
-- Phase 1 用户系统：注册、登录、Session、Profile（见「会话交接」）
-- 本地 Docker + migrate + 端到端验证
-- 可选：设备与会话 Web UI、ESLint flat config
+- Phase 1 用户系统（完整验收 B）：注册/登录/Session/Profile/账号编辑/会话页
+- 本地 Docker + migrate + 单测 + Playwright E2E + 浏览器粗测
+- Phase 1 代码批次 commit（分支 `feat/phase-1-user-system`）
 
 ### ❌ 暂不做（Phase 2+）
 
 - 动态 / Feed / 关注 / 搜索
 - 文字聊天 / WebSocket
-- Redis 接入（Compose 已预置）
-- 性能优化与生产部署
+- Redis 接入代码（Compose 已预置，Phase 3+）
+- 生产部署编排（Compose prod 草案未写）
 
-**下一步优先**：继续补强 Phase 1 体验与测试覆盖，优先看 AGENTS.md → 会话交接 → 次要缺口。
+**下一步优先**：push 分支并开 PR 合 `main`；或开始 Phase 2 规划。
 
 ---
 
@@ -291,7 +291,7 @@ app.onError((err, c) => {
 
 ### Q4: 当前阶段应该专注什么？
 
-**A**：优先完成 **Phase 1 补强**。主链路已打通，当前更适合继续做浏览器 E2E 扩展、设备与会话页、账号字段编辑，或在此基础上开始 Phase 2 规划。
+**A**：Phase 1 完整验收已完成；下一步 **push + PR** 合 `main`，或进入 Phase 2 规划（见 roadmap）。
 
 ### Q5: 我发现代码和文档不一致怎么办？
 
@@ -378,7 +378,9 @@ app.onError((err, c) => {
 #### 待办 📋
 
 - [x] **2.15** 初次开发启动测试（Docker + migrate + 端到端验证）
-- [ ] **可选** 次要缺口择项处理 — 见下方「会话交接 → 次要缺口」表（#2–#8）
+- [x] **完整验收 B**（会话页、账号编辑、注册自动登录、7 E2E、错误信封统一）
+- [ ] **push + PR** 合 `main`（分支已在本地，未 push）
+- [ ] **可选** Redis 接入、Compose 生产草案、ADR 09 — 见「会话交接 → 剩余项」
 
 > 评审待定：服务端目录组织、API Client 自动生成 — 见 [ADR 09](./docs/decisions/09-server-layout-and-api-codegen.md)
 
@@ -386,93 +388,61 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-06-20）**：Phase 1 用户系统**主链路代码与本地验证已贯通**；已复用现有 `im-postgres` 完成 migrate 与手动链路验证，`pnpm test`、`pnpm type-check`、`pnpm lint` 通过。
+**结论（2026-06-21）**：Phase 1 **完整验收 B 已完成**；`feat/phase-1-user-system` 上 **10 commits**（含统一 Zod 校验 → `ErrorResponse`）；门禁 `pnpm type-check` / `lint` / `test`（server 34 + web 5）/ `e2e`（7）通过；用户浏览器粗测通过。
 
 | 维度 | 状态 |
 |------|------|
 | Phase 0 | ✅ 完成 |
-| Phase 1 代码 2.9–2.14 | ✅ 完成 |
-| Phase 1 本地验证 | ✅ 完成 — migrate / API / Web 已验证 |
+| Phase 1 代码 + 验收 B | ✅ 完成 |
+| Git | ⚠️ 分支本地完成，**未 push / 未 PR** |
 | Phase 2+ | 未开始 |
 
-**本地环境状态（末次会话 2026-06-20）**
+**本地开发速查**
 
-| 项 | 状态 |
+| 项 | 说明 |
 |----|------|
-| Docker 守护进程 | ✅ 正常 |
-| `apps/server/.env` | ✅ 已存在 |
-| `apps/web/.env.local` | ✅ 已创建 |
-| `im-postgres` | ✅ 复用中；已创建 `orbitchat` role + DB |
-| `im-redis` | ✅ 运行中；Phase 1 未接入代码 |
-| `orbitchat-postgres` | ⚠️ 历史失败残留容器，可后续清理 |
-| DB migrate | ✅ 已执行 |
-| API 手动验证 | ✅ 注册 / 登录 / Profile 编辑 / 登出 / refresh 失效 已验证 |
-| Web 启动验证 | ✅ 首页 `/` 与登录页 `/login` 已返回 200 |
+| 启动 | 根目录 `pnpm dev`（并行 server `--hot` + web） |
+| API | http://localhost:3001/health |
+| Web | http://localhost:3000 |
+| DB | 复用 `im-postgres` + `orbitchat` 库；`docker-compose.yml` 容器名 `im-postgres` / `im-redis` |
+| 注册密码 | 至少 8 位 + 大小写 + 数字（例 `Password123`） |
 
-**本次采用路径**：未删除 `im-*` 容器；直接复用 `im-postgres`，在其中创建 `orbitchat` 用户与独立数据库，保持 `apps/server/.env` 现有 `DATABASE_URL` 不变。
+**下次 Agent 建议顺序**
 
-**下次 Agent 建议执行顺序**
-
-0. **可选清理历史残留**（非阻塞）：
-   ```bash
-   docker rm -f orbitchat-postgres 2>/dev/null || true   # 清除失败的 Created 容器
-   ```
-1. 若继续复用 `im-postgres`：确认数据库可达
-   ```bash
-   docker exec im-postgres psql -U im -d postgres -tAc "SELECT datname FROM pg_database;"
-   ```
-2. 启动应用（根目录或分终端）：
-   ```bash
-   cd /Users/populus/workspace/orbitchat/apps/server && pnpm start
-   cd /Users/populus/workspace/orbitchat/apps/web && pnpm dev
-   ```
-   - API：默认 `http://localhost:3001/health`
-   - Web：默认 `http://localhost:3000`
-3. **优先扩展 Playwright E2E**：当前已覆盖 3 条场景
-   - 注册 → 登录 → Profile 编辑 → 登出
-   - 未登录访问 `/profile` 自动跳转 `/login`
-   - 错误密码登录显示 `Invalid credentials`
-   下一步更值得补“会话管理 / 登出后刷新保持未登录 / 注册表单校验”等场景
-4. 可选：设备与会话 Web UI、账号字段编辑、Phase 2 规划
-
-> 若后续不再复用 `im-postgres`：可改回专属 compose 容器，或改 `docker-compose.yml` 端口（如 Postgres `5433`）并同步 `DATABASE_URL` — 见 [env.md](./docs/env.md#端口冲突)。
+1. `git push -u origin feat/phase-1-user-system` → 开 PR 合 `main`
+2. 或：Phase 2 规划（roadmap / product 对齐）
+3. 可选：`docker-compose.prod.yml` + 反向代理草案；清理 `orbitchat-postgres` 残留容器
 
 **已实现能力**
 
 | 模块 | 内容 |
 |------|------|
 | DB | Drizzle schema + `drizzle/0000_*.sql` |
-| API | `/api/v1/auth/*`（8 端点）、`/api/v1/users/*`（4 端点） |
-| 认证 | Session + 双 Token、同端 SSO、refresh rotation、信任设备（API 层） |
-| Web | `/login`、`/register`、`/profile`、`lib/api`、`auth-context` |
-| 密码 | bcrypt（`Bun.password`，cost 10） |
-| 测试 | `bun:test` + Playwright 已覆盖服务层 / 路由 / 中间件 / Web API client / 浏览器 3 条核心场景 |
+| API | `/api/v1/auth/*`（8）、`/api/v1/users/*`（4）；校验失败统一 `ErrorResponse` |
+| 认证 | Session + 双 Token、同端 SSO、refresh rotation、信任设备 |
+| Web | `/login`、`/register`、`/profile`、`/settings/sessions`；注册后自动登录 |
+| 测试 | server 34 单测 + web 5 单测 + Playwright 7 条 |
 
-**次要缺口（不阻塞主链路，下次可择项处理）**
+**剩余项（不阻塞 Phase 1 关闭）**
 
-| # | 类别 | 缺口 | 说明 |
-|---|------|------|------|
-| 1 | 测试 | Playwright 核心场景 | ✅ 7 条：主链路、未登录跳转、错误登录、弱密码、账号编辑、会话页 |
-| 2 | Web UI | 设备与会话设置页 | ✅ `/settings/sessions` |
-| 3 | Web UI | 账号字段编辑 | ✅ Profile 接 `PATCH /users/:id` |
-| 4 | Web UX | 注册后自动登录 | ✅ 注册成功前端串联 login |
-| 5 | 基础设施 | Redis 未接入代码 | `docker-compose.yml` 已起 Redis，server 无 `REDIS_URL` 使用（Phase 3+ 规划） |
-| 6 | 基础设施 | 专属 compose 数据库未使用 | 当前默认复用 `im-postgres`；后续若要彻底隔离，可恢复专属容器 |
-| 7 | 架构 | ADR 09 待定 | 按域目录 vs 按层、API Client codegen — 状态 **Deferred**，见 ADR 09 |
-| 8 | 文档 | 后续需随新 E2E / UI 缺口继续同步 | 当前会话已同步 Phase 1 本地验证与浏览器 E2E 状态 |
-
-> 以上不影响「注册 → 登录 → 编辑 Profile → 登出」主路径；当前更适合优先补设备与会话页、账号字段编辑，或进入 Phase 2 规划。
+| # | 项 | 说明 |
+|---|-----|------|
+| 1 | Git | push + PR 合 `main` |
+| 2 | Redis | Phase 3+；Compose 已预置，代码未接 |
+| 3 | 生产部署 | Compose+VPS 可行；prod compose / Caddy 草案未写 |
+| 4 | ADR 09 | Deferred |
 
 **关键文件索引**
 
 ```
-apps/server/src/services/auth-service.ts   # 认证编排
-apps/server/src/routes/v1/auth.ts          # auth 路由
-apps/server/src/routes/v1/users.ts         # users 路由
-apps/web/src/contexts/auth-context.tsx     # Web 认证状态
-apps/web/src/app/login|register|profile/   # 页面
-docker-compose.yml                         # Postgres + Redis
-docs/env.md                                # 环境变量与 Docker 说明
+apps/server/src/lib/zod-hook.ts            # Zod → ErrorResponse
+apps/server/src/routes/v1/error-envelope.test.ts
+apps/server/src/services/auth-service.ts
+apps/server/src/routes/v1/auth.ts
+apps/web/src/app/settings/sessions/        # 会话管理页
+apps/web/src/contexts/auth-context.tsx
+docker-compose.yml                         # im-postgres / im-redis
+docs/env.md
 ```
 
 ### 联系和反馈
@@ -496,6 +466,6 @@ docs/env.md                                # 环境变量与 Docker 说明
 
 ## 版本
 
-- **当前版本**：0.0.6
-- **最后更新**：2026-06-20（2.15 已完成：复用 `im-postgres` 跑通 migrate、本地 API 与 Web 验证）
-- **下次审查**：扩展 Playwright E2E；评估设备与会话页 / 账号字段编辑 / Phase 2 规划
+- **当前版本**：0.0.7
+- **最后更新**：2026-06-21（Phase 1 完整验收 B；统一 API 校验错误信封；分支待 PR）
+- **下次审查**：push + PR 合 `main`；或 Phase 2  kickoff

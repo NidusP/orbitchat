@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
+import { isValidPassword } from '@orbitchat/shared-utils';
 import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
@@ -22,6 +23,12 @@ export default function RegisterPage() {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
+
+    if (!isValidPassword(password)) {
+      setError('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       await register({
@@ -109,7 +116,10 @@ export default function RegisterPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <span className="text-muted">At least 8 characters with upper, lower, and a number.</span>
+            <span className="text-muted">
+              At least 8 characters with an uppercase letter, a lowercase letter, and a number (e.g.
+              Password123).
+            </span>
           </div>
 
           <label className="field-checkbox">

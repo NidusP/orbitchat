@@ -10,6 +10,8 @@ import {
 import { AppError } from '../../lib/errors';
 import { readOptionalJsonBody } from '../../lib/request';
 import { successResponse } from '../../lib/response';
+import { parseUuidParam, validationErrorFromZod } from '../../lib/validation';
+import { zodValidationHook } from '../../lib/zod-hook';
 import { authMiddleware } from '../../middleware/auth';
 import { trustedDeviceMiddleware } from '../../middleware/trusted-device';
 import type { AuthTokenBundle } from '../../services/auth-service';
@@ -65,13 +67,13 @@ function resolveRefreshToken(
   return refreshToken;
 }
 
-authRouter.post('/register', zValidator('json', registerSchema), async (c) => {
+authRouter.post('/register', zValidator('json', registerSchema, zodValidationHook), async (c) => {
   const input = c.req.valid('json');
   const result = await register(input);
   return c.json(successResponse(result), 201);
 });
 
-authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
+authRouter.post('/login', zValidator('json', loginSchema, zodValidationHook), async (c) => {
   const input = c.req.valid('json');
   const clientMeta = c.get('clientMeta');
   const result = await login(input, clientMeta);
@@ -93,7 +95,7 @@ authRouter.post('/refresh', async (c) => {
   if (raw !== undefined) {
     const parsed = refreshSchema.safeParse(raw);
     if (!parsed.success) {
-      throw new AppError('VALIDATION_ERROR', 'Invalid refresh request', 400, parsed.error.flatten());
+      throw validationErrorFromZod(parsed.error);
     }
     bodyRefreshToken = parsed.data.refreshToken;
   }
@@ -136,7 +138,7 @@ authRouter.get('/sessions', authMiddleware, trustedDeviceMiddleware, async (c) =
 
 authRouter.delete('/sessions/:sessionId', authMiddleware, async (c) => {
   const auth = c.get('auth');
-  const sessionId = c.req.param('sessionId');
+  const sessionId = parseUuidParam(c.req.param('sessionId'), 'sessionId', 'Invalid session id');
   const result = await revokeSession(sessionId, auth.userId, auth.sessionId, auth.isTrusted);
 
   if (sessionId === auth.sessionId) {
@@ -149,7 +151,7 @@ authRouter.delete('/sessions/:sessionId', authMiddleware, async (c) => {
   return c.json(successResponse(result), 200);
 });
 
-authRouter.post('/sessions/trust', authMiddleware, zValidator('json', trustSessionSchema), async (c) => {
+authRouter.post('/sessions/trust', authMiddleware, zValidator('json', trustSessionSchema, zodValidationHook), async (c) => {
   const auth = c.get('auth');
   const input = c.req.valid('json');
   const result = await trustSession(auth.userId, auth.sessionId, input.trust);

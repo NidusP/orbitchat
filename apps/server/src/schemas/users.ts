@@ -26,9 +26,14 @@ export const updateUserSchema = z
 
 export const updateProfileSchema = z
   .object({
-    displayName: z.string().trim().min(1).max(128).optional(),
-    bio: z.string().max(500).nullable().optional(),
-    avatarUrl: z.string().url().max(512).nullable().optional(),
+    displayName: z
+      .string()
+      .trim()
+      .min(1, 'Display name is required')
+      .max(128, 'Display name must be at most 128 characters')
+      .optional(),
+    bio: z.string().max(500, 'Bio must be at most 500 characters').nullable().optional(),
+    avatarUrl: z.string().url('Invalid avatar URL').max(512).nullable().optional(),
   })
   .refine(
     (data) =>
