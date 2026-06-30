@@ -199,22 +199,20 @@ app.onError((err, c) => {
 
 ---
 
-## 当前阶段范围（Phase 1）
+## 当前阶段范围（Phase 2 已完成 → Phase 3 规划）
 
-### ✅ 可以做 / 已完成
+### ✅ Phase 1–2 已完成
 
-- Phase 1 用户系统（完整验收 B）：注册/登录/Session/Profile/账号编辑/会话页
-- 本地 Docker + migrate + 单测 + Playwright E2E + 浏览器粗测
-- Phase 1 代码批次 commit（分支 `feat/phase-1-user-system`）
+- Phase 1：用户系统（auth、profile、sessions、E2E）
+- Phase 2：社交（posts、feed、follow、search、评论；ADR 10–12；见 [phase-2-closeout.md](./docs/phase-2-closeout.md)）
 
-### ❌ 暂不做（Phase 2+）
+### ❌ 暂不做（Phase 3+）
 
-- 动态 / Feed / 关注 / 搜索
-- 文字聊天 / WebSocket
-- Redis 接入代码（Compose 已预置，Phase 3+）
-- 生产部署编排（Compose prod 草案未写）
+- 文字聊天 / WebSocket（见 [phase-3-kickoff.md](./docs/phase-3-kickoff.md)）
+- Redis 接入代码（Compose 已预置）
+- 生产部署编排
 
-**下一步优先**：push 分支并开 PR 合 `main`；或开始 Phase 2 规划。
+**下一步优先**：Phase 3A kickoff（ADR 13–15、`realtime-spec` 定稿）→ 1:1 私聊。
 
 ---
 
@@ -238,9 +236,10 @@ app.onError((err, c) => {
 
 | 文档 | 内容 |
 |-----|------|
-| `docs/db-schema.md` | 数据库设计（当前为空） |
+| `docs/db-schema.md` | 数据库设计 | 数据库设计时 |
+| `docs/sql-learning.md` | SQL / 索引学习与实战对照 | 写查询、Feed、调性能时 |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
-| `docs/decisions/` | 架构决策记录（ADR 01–08） |
+| `docs/decisions/` | 架构决策记录（ADR 01–12） |
 
 ---
 
@@ -388,14 +387,14 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-06-21）**：Phase 1 **完整验收 B 已完成**；`feat/phase-1-user-system` 上 **10 commits**（含统一 Zod 校验 → `ErrorResponse`）；门禁 `pnpm type-check` / `lint` / `test`（server 34 + web 5）/ `e2e`（7）通过；用户浏览器粗测通过。
+**结论（2026-06-30）**：Phase 2 **Closeout B 已完成**（分支 `feat/phase-2-social`）；Phase 3 启动评审见 [phase-3-kickoff.md](./docs/phase-3-kickoff.md)（建议 3A 私聊 / 3B 群聊拆分）。
 
 | 维度 | 状态 |
 |------|------|
-| Phase 0 | ✅ 完成 |
-| Phase 1 代码 + 验收 B | ✅ 完成 |
-| Git | ⚠️ 分支本地完成，**未 push / 未 PR** |
-| Phase 2+ | 未开始 |
+| Phase 0–1 | ✅ 完成 |
+| Phase 2 代码 + 验收 | ✅ 完成 |
+| Git | ⚠️ `feat/phase-2-social` 待 push / PR 合 `main` |
+| Phase 3 | 📋 评审完成；**3A 未开始** |
 
 **本地开发速查**
 
@@ -409,19 +408,20 @@ app.onError((err, c) => {
 
 **下次 Agent 建议顺序**
 
-1. `git push -u origin feat/phase-1-user-system` → 开 PR 合 `main`
-2. 或：Phase 2 规划（roadmap / product 对齐）
-3. 可选：`docker-compose.prod.yml` + 反向代理草案；清理 `orbitchat-postgres` 残留容器
+1. `git push -u origin feat/phase-2-social` → PR 合 `main`（若 P1 未合，可 stacked PR 或先合 P1）
+2. Phase 3A：ADR 13–15 → 定稿 `realtime-spec.md` + `db-schema` conversations/messages
+3. `shared-types` → WS 事件 + messages REST
+4. 实现 `WS /ws/v1/chat` + Web `/messages`
 
 **已实现能力**
 
 | 模块 | 内容 |
 |------|------|
-| DB | Drizzle schema + `drizzle/0000_*.sql` |
-| API | `/api/v1/auth/*`（8）、`/api/v1/users/*`（4）；校验失败统一 `ErrorResponse` |
-| 认证 | Session + 双 Token、同端 SSO、refresh rotation、信任设备 |
-| Web | `/login`、`/register`、`/profile`、`/settings/sessions`；注册后自动登录 |
-| 测试 | server 34 单测 + web 5 单测 + Playwright 7 条 |
+| DB | P1 三表 + P2 四表（`drizzle/0001_*`） |
+| API | auth、users、**feed/posts/follow/search** |
+| Web | `/feed`、`/search`、`/users/[id]`；发帖/赞/评论/编辑删帖 |
+| 测试 | server 42 + web 7 + e2e 12 |
+| 文档 | ADR 10–12、`sql-learning.md`、`phase-2-closeout.md`、`phase-3-kickoff.md` |
 
 **剩余项（不阻塞 Phase 1 关闭）**
 
@@ -466,6 +466,6 @@ docs/env.md
 
 ## 版本
 
-- **当前版本**：0.0.7
-- **最后更新**：2026-06-21（Phase 1 完整验收 B；统一 API 校验错误信封；分支待 PR）
-- **下次审查**：push + PR 合 `main`；或 Phase 2  kickoff
+- **当前版本**：0.1.0
+- **最后更新**：2026-06-30（Phase 2 Closeout B；Phase 3 kickoff 评审）
+- **下次审查**：PR 合 `main`；Phase 3A ADR + realtime-spec

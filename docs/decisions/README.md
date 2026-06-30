@@ -59,8 +59,17 @@
 - [x] [07-orm-selection.md](./07-orm-selection.md) - Drizzle ORM
 - [x] [08-auth-strategy.md](./08-auth-strategy.md) - 多端认证与会话
 - [ ] [09-server-layout-and-api-codegen.md](./09-server-layout-and-api-codegen.md) - 服务端目录与 API Client 生成（**Deferred**，Phase 1 后期评审）
-- [ ] 10-api-versioning.md - API 版本管理
-- [ ] 11-testing-framework.md - 测试框架选择
+
+### Phase 2（社交）
+
+- [x] [10-social-content-storage.md](./10-social-content-storage.md) - 社交内容存储模型
+- [x] [11-feed-timeline-strategy.md](./11-feed-timeline-strategy.md) - Feed 时间线策略
+- [x] [12-phase2-client-sync.md](./12-phase2-client-sync.md) - Phase 2 客户端同步（REST + 轮询）
+
+### 待做（后续阶段）
+
+- [ ] 13-api-versioning.md - API 版本管理
+- [ ] 14-testing-framework.md - 测试框架选择
 
 ---
 
@@ -74,6 +83,9 @@
 | ORM 框架 | Phase 1 | P0 | ✅ ADR 07 Drizzle |
 | 认证方案 | Phase 1 | P0 | ✅ ADR 08 Session + 双 Token |
 | 服务端目录 / API Client 生成 | Phase 1 后期 | P2 | 📋 ADR 09 Deferred |
+| **社交内容存储** | Phase 2 | P0 | ✅ ADR 10 Postgres 四表 |
+| **Feed 时间线** | Phase 2 | P0 | ✅ ADR 11 读扇出 + 时间倒序 |
+| **Phase 2 客户端同步** | Phase 2 | P0 | ✅ ADR 12 REST + 轮询 |
 | 错误追踪 | Phase 2 | P1 |
 | 缓存策略 | Phase 3 | P2 |
 | 消息队列 | Phase 3 | P2 |

@@ -51,3 +51,37 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
   await next();
 });
+
+/** Sets `auth` when a valid Bearer token is present; continues anonymously otherwise. */
+export const optionalAuthMiddleware = createMiddleware(async (c, next) => {
+  const authorization = c.req.header('Authorization');
+
+  if (!authorization?.startsWith('Bearer ')) {
+    await next();
+    return;
+  }
+
+  const token = authorization.slice('Bearer '.length);
+
+  try {
+    const payload = await verifyAccessToken(token);
+    const session = await assertValidSession(payload.sid);
+
+    if (session.userId !== payload.sub || session.platform !== payload.platform) {
+      await next();
+      return;
+    }
+
+    await touchSession(session.id);
+
+    c.set('auth', {
+      userId: session.userId,
+      sessionId: session.id,
+      isTrusted: session.isTrusted,
+    });
+  } catch {
+    // Invalid token on public routes — treat as anonymous
+  }
+
+  await next();
+});

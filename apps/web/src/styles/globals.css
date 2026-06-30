@@ -197,6 +197,143 @@ h1 {
   color: #047857;
 }
 
+.post-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.post-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.post-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.post-author-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.post-author-link:hover strong {
+  color: #2563eb;
+}
+
+.post-content {
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.post-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.post-owner-actions,
+.post-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.comment-delete-btn {
+  margin-left: auto;
+}
+
+.btn-like-active {
+  background: #fce7f3;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+}
+
+.post-composer textarea {
+  min-height: 72px;
+}
+
+.user-result-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.post-comments {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.post-comments-panel {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.comment-form {
+  margin-bottom: 12px;
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-item {
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.comment-item-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 0.875rem;
+}
+
+.comment-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 p {
   margin: 0 0 16px;
   color: #444;

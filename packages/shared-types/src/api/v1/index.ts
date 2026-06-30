@@ -13,6 +13,27 @@ export type {
   TrustSessionResponse,
 } from './auth';
 export type {
+  CommentListResponse,
+  CreateCommentRequest,
+  CreateCommentResponse,
+  CreatePostRequest,
+  CreatePostResponse,
+  GetPostResponse,
+  HomeFeedResponse,
+  LikePostResponse,
+  UnlikePostResponse,
+  UpdatePostRequest,
+  UpdatePostResponse,
+  UserPostsResponse,
+} from './posts';
+export type {
+  FollowersListResponse,
+  FollowingListResponse,
+  FollowUserResponse,
+  UnfollowUserResponse,
+  UserSearchResponse,
+} from './social';
+export type {
   GetProfileResponse,
   GetUserResponse,
   UpdateProfileRequest,

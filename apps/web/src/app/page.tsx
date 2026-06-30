@@ -11,13 +11,16 @@ export default function Home() {
       </header>
 
       <div className="card">
-        <p>Phase 1: user registration, login, and profile editing.</p>
+        <p>Phase 2: posts, home feed, follow, and user search.</p>
         <div className="nav" style={{ marginTop: 16, marginBottom: 0 }}>
-          <Link href="/register" className="btn btn-primary">
-            Get started
+          <Link href="/feed" className="btn btn-primary">
+            Open feed
           </Link>
           <Link href="/login" className="btn btn-secondary">
             Login
+          </Link>
+          <Link href="/register" className="btn btn-secondary">
+            Register
           </Link>
         </div>
       </div>

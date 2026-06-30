@@ -217,17 +217,28 @@ PATCH  /api/v1/users/:id/profile
 
 ### Phase 2 — 动态与社交
 
+> 设计依据：[ADR 10](./decisions/10-social-content-storage.md)、[ADR 11](./decisions/11-feed-timeline-strategy.md)、[ADR 12](./decisions/12-phase2-client-sync.md)
+
 ```
-GET    /api/v1/posts
+GET    /api/v1/feed/home                 # 首页时间线（关注 + 自己）；cursor 分页
+GET    /api/v1/users/:id/posts           # 用户主页动态；cursor 分页
 POST   /api/v1/posts
 GET    /api/v1/posts/:id
-PATCH  /api/v1/posts/:id
-DELETE /api/v1/posts/:id
+PATCH  /api/v1/posts/:id                 # 仅作者
+DELETE /api/v1/posts/:id                 # 软删除；仅作者
+POST   /api/v1/posts/:id/like
+DELETE /api/v1/posts/:id/like
+GET    /api/v1/posts/:id/comments        # cursor 分页
+POST   /api/v1/posts/:id/comments
+DELETE /api/v1/comments/:id            # 软删除；作者或帖主
 POST   /api/v1/users/:id/follow
 DELETE /api/v1/users/:id/follow
-GET    /api/v1/users/:id/followers
-GET    /api/v1/users/:id/following
+GET    /api/v1/users/:id/followers       # cursor 分页
+GET    /api/v1/users/:id/following       # cursor 分页
+GET    /api/v1/users/search              # ?q=&cursor=&limit=
 ```
+
+**分页**：`cursor` + `limit`（默认 20，最大 50）；响应 `data.items` + `data.nextCursor`（具体信封以实现时 `shared-types` 为准）。
 
 ### Phase 3 — 文字聊天
 

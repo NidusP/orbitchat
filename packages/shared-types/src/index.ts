@@ -12,6 +12,12 @@
 
 export type { ApiResponse, SuccessResponse, ErrorResponse } from './api/response';
 export { isErrorResponse, isSuccessResponse } from './api/response';
+export type { CursorPage, CursorPageParams } from './api/cursor-pagination';
+export {
+  clampCursorLimit,
+  DEFAULT_CURSOR_LIMIT,
+  MAX_CURSOR_LIMIT,
+} from './api/cursor-pagination';
 export type { PaginatedResponse, PaginationParams } from './api/pagination';
 export { calculateOffset, hasNextPage } from './api/pagination';
 
@@ -30,6 +36,25 @@ export type {
   TrustSessionResponse,
 } from './api/v1/auth';
 export type {
+  CommentListResponse,
+  CreateCommentRequest,
+  CreateCommentResponse,
+  CreatePostRequest,
+  CreatePostResponse,
+  FollowersListResponse,
+  FollowingListResponse,
+  FollowUserResponse,
+  GetPostResponse,
+  HomeFeedResponse,
+  LikePostResponse,
+  UnlikePostResponse,
+  UpdatePostRequest,
+  UpdatePostResponse,
+  UserPostsResponse,
+  UserSearchResponse,
+  UnfollowUserResponse,
+} from './api/v1';
+export type {
   GetProfileResponse,
   GetUserResponse,
   UpdateProfileRequest,
@@ -39,6 +64,9 @@ export type {
   UserWithProfile,
 } from './api/v1/users';
 
+export type { Comment, CommentAuthorSummary, CommentWithAuthor } from './domain/comment';
+export type { Follow, UserSearchResult } from './domain/follow';
+export type { Post, PostAuthorSummary, PostWithAuthor } from './domain/post';
 export type { ClientPlatform } from './domain/client';
 export { CLIENT_PLATFORMS, isClientPlatform } from './domain/client';
 export type { Profile } from './domain/profile';
