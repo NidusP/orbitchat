@@ -201,6 +201,15 @@ export default function UserProfilePage() {
           <h1>{profile.displayName}</h1>
           <p className="text-muted">@{profileUser.username}</p>
           {profile.bio && <p>{profile.bio}</p>}
+          <p className="text-muted" style={{ marginTop: 8 }}>
+            <Link href={`/users/${userId}/followers`} data-testid="profile-followers-link">
+              Followers
+            </Link>
+            {' · '}
+            <Link href={`/users/${userId}/following`} data-testid="profile-following-link">
+              Following
+            </Link>
+          </p>
         </div>
         {!isSelf && followKnown && (
           <button

@@ -175,6 +175,79 @@ describe('postsRouter', () => {
     expect(response.status).toBe(400);
     expect(body.code).toBe('VALIDATION_ERROR');
   });
+
+  test('rejects unauthenticated post create', async () => {
+    const app = createAuthedApp();
+    const response = await app.request('/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'Hello' }),
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe('UNAUTHORIZED');
+  });
+
+  test('rejects invalid post id format', async () => {
+    const app = createAuthedApp();
+    const response = await app.request('/posts/not-a-uuid', {
+      method: 'GET',
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('rejects empty comment content', async () => {
+    const app = createAuthedApp();
+    const response = await app.request(`/posts/${POST_ID}/comments`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: '   ' }),
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('maps forbidden update to error envelope', async () => {
+    const { AppError } = await import('../../lib/errors');
+    spyOn(postService, 'updatePost').mockImplementation(async () => {
+      throw new AppError('FORBIDDEN', 'You can only edit your own posts', 403);
+    });
+    const app = createAuthedApp();
+    const response = await app.request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: 'Nope' }),
+    });
+    const body = (await response.json()) as { code: string; message: string };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe('FORBIDDEN');
+  });
+
+  test('maps not found post to error envelope', async () => {
+    const { AppError } = await import('../../lib/errors');
+    spyOn(postService, 'getPostById').mockImplementation(async () => {
+      throw new AppError('NOT_FOUND', 'Post not found', 404);
+    });
+    const app = createAuthedApp();
+    const response = await app.request(`/posts/${POST_ID}`);
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(404);
+    expect(body.code).toBe('NOT_FOUND');
+  });
 });
 
 describe('feedRouter', () => {
@@ -202,5 +275,14 @@ describe('feedRouter', () => {
     expect(body.code).toBe('SUCCESS');
     expect(body.data.items.length).toBe(1);
     expect(feedSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects unauthenticated home feed', async () => {
+    const app = createAuthedApp();
+    const response = await app.request('/feed/home');
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(401);
+    expect(body.code).toBe('UNAUTHORIZED');
   });
 });

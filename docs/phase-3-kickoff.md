@@ -130,13 +130,16 @@ messages
 
 ---
 
-## 9. 建议的下一步（Phase 3 启动顺序）
+## 9. 详细实施计划
 
-1. 接受本评审 → 更新 `roadmap.md` Phase 3 为 3A / 3B
-2. 撰写 ADR 13–15（可合并为 2 篇）
-3. 定稿 `realtime-spec.md` + `db-schema` Phase 3A 表
-4. `shared-types` → WS + messages API
-5. 实现 3A（WS + Web 聊天窗）
+见 **[phase-3-plan.md](./phase-3-plan.md)**（Wave 0 并行 ADR/spec、3A 三轨道、3B 规划）。
+
+## 10. 建议的下一步
+
+1. ~~接受本评审 → 更新 `roadmap.md`~~ ✅
+2. 按 [phase-3-plan.md](./phase-3-plan.md) **Wave 0** 并行撰写 ADR 13–15 + 扩写 spec
+3. Wave 1 Track A：`shared-types` + Drizzle migration
+4. Wave 1 Track B/C：REST + WS + Web（见计划中的并行表）
 
 ---
 

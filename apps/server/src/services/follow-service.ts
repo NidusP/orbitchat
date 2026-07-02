@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import type { CursorPage, UserSearchResult } from '@orbitchat/shared-types';
 import { clampCursorLimit } from '@orbitchat/shared-types';
 import { db } from '../db';
@@ -9,31 +9,54 @@ import { AppError } from '../lib/errors';
 import { decodeTimelineCursor, encodeTimelineCursor, trimToPage } from '../lib/cursor';
 import { findUserById } from './user-service';
 
-function decodeUsernameCursor(raw: string): { username: string; id: string } {
+function decodeSearchCursor(raw: string): { score: number; username: string; id: string } {
   try {
     const decoded = Buffer.from(raw, 'base64url').toString('utf8');
-    const separatorIndex = decoded.indexOf('|');
-    if (separatorIndex === -1) {
+    const parts = decoded.split('|');
+    if (parts.length !== 3) {
       throw new Error('invalid');
     }
-    return {
-      username: decoded.slice(0, separatorIndex),
-      id: decoded.slice(separatorIndex + 1),
-    };
+    const score = Number(parts[0]);
+    if (!Number.isFinite(score)) {
+      throw new Error('invalid score');
+    }
+    return { score, username: parts[1] ?? '', id: parts[2] ?? '' };
   } catch {
     throw new AppError('VALIDATION_ERROR', 'Invalid cursor', 400, { field: 'cursor' });
   }
 }
 
-function encodeUsernameCursor(username: string, id: string): string {
-  return Buffer.from(`${username}|${id}`).toString('base64url');
+function encodeSearchCursor(score: number, username: string, id: string): string {
+  return Buffer.from(`${score}|${username}|${id}`).toString('base64url');
 }
 
-function usernameAfter(cursor: { username: string; id: string } | undefined) {
-  if (!cursor) {
-    return undefined;
-  }
-  return sql`(${users.username}, ${users.id}) > (${cursor.username}, ${cursor.id}::uuid)`;
+function searchScoreSql(query: string) {
+  return sql<number>`GREATEST(
+    similarity(${users.username}, ${query}),
+    similarity(${profiles.displayName}, ${query})
+  )`;
+}
+
+function searchMatches(query: string, pattern: string) {
+  return or(
+    ilike(users.username, pattern),
+    ilike(profiles.displayName, pattern),
+    sql`${users.username} % ${query}`,
+    sql`${profiles.displayName} % ${query}`
+  );
+}
+
+function searchAfterCursor(query: string, cursor: { score: number; username: string; id: string }) {
+  const score = searchScoreSql(query);
+  return sql`(
+    ${score} < ${cursor.score}
+    OR (${score} = ${cursor.score} AND ${users.username} > ${cursor.username})
+    OR (
+      ${score} = ${cursor.score}
+      AND ${users.username} = ${cursor.username}
+      AND ${users.id} > ${cursor.id}::uuid
+    )
+  )`;
 }
 
 function toUserSearchResult(row: {
@@ -158,9 +181,15 @@ export async function searchUsers(
   query: string,
   params: { cursor?: string; limit?: number }
 ): Promise<CursorPage<UserSearchResult>> {
+  const trimmed = query.trim();
+  if (trimmed === '') {
+    return { items: [], nextCursor: null };
+  }
+
   const limit = clampCursorLimit(params.limit);
-  const cursor = params.cursor ? decodeUsernameCursor(params.cursor) : undefined;
-  const pattern = `%${query}%`;
+  const cursor = params.cursor ? decodeSearchCursor(params.cursor) : undefined;
+  const pattern = `%${trimmed}%`;
+  const score = searchScoreSql(trimmed);
 
   const rows = await db
     .select({
@@ -168,25 +197,34 @@ export async function searchUsers(
       username: users.username,
       displayName: profiles.displayName,
       avatarUrl: profiles.avatarUrl,
+      score,
     })
     .from(users)
     .innerJoin(profiles, eq(profiles.userId, users.id))
     .where(
       and(
         eq(users.isActive, true),
-        or(ilike(users.username, pattern), ilike(profiles.displayName, pattern)),
-        usernameAfter(cursor)
+        searchMatches(trimmed, pattern),
+        cursor ? searchAfterCursor(trimmed, cursor) : undefined
       )
     )
-    .orderBy(users.username, users.id)
+    .orderBy(desc(score), asc(users.username), asc(users.id))
     .limit(limit + 1);
 
   const pageRows = trimToPage(rows, limit);
-  const items = pageRows.map(toUserSearchResult);
+  const items = pageRows.map((row) =>
+    toUserSearchResult({
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+    })
+  );
+
   const lastRow = rows[limit - 1];
   const nextCursor =
     rows.length > limit && lastRow
-      ? encodeUsernameCursor(lastRow.username, lastRow.id)
+      ? encodeSearchCursor(Number(lastRow.score), lastRow.username, lastRow.id)
       : null;
 
   return { items, nextCursor };

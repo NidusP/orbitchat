@@ -8,6 +8,7 @@ import { formatRelativeTime } from '@/lib/posts-utils';
 
 interface PostCommentsProps {
   postId: string;
+  postAuthorId: string;
   commentCount: number;
   currentUserId: string | null;
   onCommentCountChange?: (nextCount: number) => void;
@@ -15,6 +16,7 @@ interface PostCommentsProps {
 
 export function PostComments({
   postId,
+  postAuthorId,
   commentCount,
   currentUserId,
   onCommentCountChange,
@@ -132,7 +134,8 @@ export function PostComments({
             <ul className="comment-list">
               {comments.map((comment) => {
                 const canDelete =
-                  currentUserId !== null && comment.authorId === currentUserId;
+                  currentUserId !== null &&
+                  (comment.authorId === currentUserId || postAuthorId === currentUserId);
 
                 return (
                 <li

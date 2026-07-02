@@ -14,7 +14,8 @@
 | 第一次理解索引 | 读 §1 → §2 → 在本地跑 §6 练习 1 |
 | 写 Feed / 关注查询 | 读 §4.1、§4.2 |
 | 写列表接口怕慢 | 读 §3（N+1、IN、cursor） |
-| Phase 4 加媒体 | 读 §5 |
+| 用户搜索 / 模糊匹配 | 读 §4.6–§4.7 |
+| Phase 4 加媒体 / 搜索选型 | 读 §4.7、§5 |
 | 每完成一个 Phase | 回来补 §7「阶段索引」勾选 |
 
 ---
@@ -196,7 +197,114 @@ Web 展开评论面板时才请求（懒加载），列表页不会白打这条 
 
 ### 4.5 用户搜索 — `GET /users/search?q=`
 
-Phase 2 使用 `ILIKE '%q%'`（`follow-service.ts`）。数据量大后可启用 `pg_trgm` + GIN（ADR 10 规划）。
+Phase 2 使用 `ILIKE '%q%'`（`follow-service.ts`）。数据量大后可启用 `pg_trgm` + GIN（ADR 10 规划）— 详见 §4.6。
+
+### 4.6 Phase 2.1：`pg_trgm` 与 `ILIKE` 对比（用户搜索）
+
+> **当前实现**：`pg_trgm` + GIN（migration `0002`）+ `ILIKE`/`similarity` 组合  
+> **文档**：§4.7 选型对照
+
+#### 两者在解决什么问题？
+
+都是在 `GET /api/v1/users/search?q=` 里，按 **username**、**display_name** 找用户。
+
+| | `ILIKE '%q%'`（现在） | `pg_trgm` 扩展 |
+|--|----------------------|----------------|
+| 原理 | 逐行做**子串**大小写不敏感匹配 | 把字符串拆成 **trigram（三元组）**，比**集合重叠**算相似度 |
+| 例子 `q=john` | 必须包含 `john` 子串 | `jhon`、`jon` 也可能因 trigram 重叠而排前 |
+| 索引 | 前导 `%` 时 B-tree **很难**加速 → 易全表扫 | 可建 **GIN** 索引（`gin_trgm_ops`） |
+| 迁移成本 | 无 | `CREATE EXTENSION pg_trgm` + GIN 索引 |
+| 适用规模 | 用户几千以内通常够用 | 用户量大、搜索 QPS 高时更合适 |
+
+#### trigram 直觉（和 §1 索引类比）
+
+字符串 `"john"` 可拆成重叠 3 字符片段（两侧常补空格）：
+
+```text
+"  j"  " jo"  "joh"  "ohn"  "hn "
+```
+
+`"john"` 与 `"jhon"` 共享很多 trigram → **similarity 高**。  
+这是 **字符层面**的「像」，不是懂语义。
+
+索引侧：GIN 里存「某个 trigram 出现在哪些行」→ 查询时像 **倒排 Map**，避免对 `users` 全表 `find`。
+
+#### 代码对照
+
+**现在**（`apps/server/src/services/follow-service.ts`）：
+
+```sql
+WHERE username ILIKE '%' || $q || '%'
+   OR display_name ILIKE '%' || $q || '%'
+```
+
+**升级后（概念 SQL，Phase 2.1）**：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX users_username_trgm_idx
+  ON users USING gin (username gin_trgm_ops);
+CREATE INDEX profiles_display_name_trgm_idx
+  ON profiles USING gin (display_name gin_trgm_ops);
+
+-- 查询示例：相似度排序
+SELECT u.id, u.username, p.display_name,
+       greatest(
+         similarity(u.username, $q),
+         similarity(p.display_name, $q)
+       ) AS score
+FROM users u
+JOIN profiles p ON p.user_id = u.id
+WHERE u.username % $q OR p.display_name % $q   -- % 为 pg_trgm 相似度操作符
+ORDER BY score DESC, u.username
+LIMIT 20;
+```
+
+（`%` 操作符与 SQL 的 `LIKE` 通配符 `%` **不是同一个符号** — 在 pg_trgm 里表示「足够相似」。）
+
+#### 和 B-tree / UNIQUE 索引的关系
+
+- `users.username` **UNIQUE** 上的 B-tree：服务「**精确**登录 / 按 username 查一条」→ `Map.get(精确 key)`
+- `pg_trgm` GIN：服务「**模糊**搜索」→ 另一套索引，**不替代** UNIQUE
+
+#### 练习 5：对比 `ILIKE` 与 `pg_trgm` 计划
+
+```sql
+-- A. 当前风格（大数据量时看 Seq Scan）
+EXPLAIN ANALYZE
+SELECT id, username FROM users
+WHERE username ILIKE '%orbit%';
+
+-- B. 启用扩展后（需先 CREATE EXTENSION + GIN 索引）
+EXPLAIN ANALYZE
+SELECT id, username FROM users
+WHERE username % 'orbit'
+ORDER BY similarity(username, 'orbit') DESC
+LIMIT 20;
+```
+
+对比 `Seq Scan` vs `Bitmap Index Scan on users_username_trgm_idx`。
+
+### 4.7 搜索选型：`pg_trgm` vs 全文检索 vs `pgvector`
+
+> SSOT：[ADR 10](./decisions/10-social-content-storage.md) — 用户名用 trigram；正文关键词 Phase 4 再评；语义搜另议。
+
+| | `pg_trgm` | Postgres 全文检索（`tsvector`） | `pgvector` |
+|--|-----------|--------------------------------|------------|
+| 匹配什么 | 字符/拼写像（`jhon` ≈ `john`） | **词**匹配 + 词干/排序（`deploy` 命中 `deployment`） | **语义**近（「如何部署」≈「怎么上线」） |
+| 典型查询 | `username % $q` | `to_tsvector(content) @@ plainto_tsquery($q)` | 向量距离 `<=>` / ANN |
+| 索引 | GIN（trigram） | GIN（`tsvector`） | HNSW / IVFFlat |
+| 额外依赖 | `CREATE EXTENSION pg_trgm` | 内置；中文需 `zhparser` 等 | 扩展 + embedding 管线 |
+| **Orbitchat 阶段** | **Phase 2.1** — 用户搜索 | **Phase 4** — 帖子正文关键词（瓶颈前不引 ES） | **Phase 4+** — 语义搜 / RAG（另开 ADR） |
+
+**选型口诀**（三种不互替）：
+
+1. **搜人名 / handle** → `pg_trgm`（或 Phase 2 先用 `ILIKE`）
+2. **搜帖子里的词** → 全文检索；量再大再评 Elasticsearch
+3. **懂意思、找相似主题** → `pgvector` + 模型，成本高，非 MVP
+
+Phase 2 现状：`ILIKE` 够用；Phase 2.1 换 `pg_trgm` 只动用户搜索，**不动** `posts.content`。
 
 ---
 
@@ -269,6 +377,10 @@ WHERE user_id = '...'::uuid
 
 体会：**id 数组长度 20 vs 表总行数百万** — 耗时差别主要来自索引，而非表总大小。
 
+### 练习 5：用户搜索 — `ILIKE` vs `pg_trgm`
+
+见 §4.6 末尾 SQL；本地可先只跑 A（`ILIKE`），Phase 2.1 迁移后再跑 B 对比 `EXPLAIN`。
+
 ---
 
 ## 7. 阶段索引（随项目勾选）
@@ -277,8 +389,9 @@ WHERE user_id = '...'::uuid
 |-------|------------------|--------|
 | Phase 1 | `user_sessions` 部分索引 | — |
 | Phase 2 | §2、§4 全节 | — |
+| Phase 2.1 | §4.6–§4.7（用户搜索） | `pg_trgm` ✅；正式压测可选 |
 | Phase 3 | — | 消息表高写入、会话未读计数 |
-| Phase 4 | §5 `post_media` | 对象存储与 DB 一致性 |
+| Phase 4 | §4.7、§5 | 全文检索 / `post_media` 落地后勾选 |
 | Phase 5+ | — | 读写分离、缓存、写扇出 |
 
 ---
@@ -301,3 +414,5 @@ WHERE user_id = '...'::uuid
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.1.0 | 2026-06-30 | 初版：索引直觉、Phase 1–2 索引地图、N+1/IN/Feed/评论、练习与检查清单 |
+| 0.2.0 | 2026-06-30 | §4.6 Phase 2.1：pg_trgm 与 ILIKE 对比；练习 5 |
+| 0.2.1 | 2026-06-30 | §4.7 搜索选型：pg_trgm / 全文检索 / pgvector |

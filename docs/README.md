@@ -46,6 +46,7 @@
 | [sql-learning.md](./sql-learning.md) | SQL / 索引学习与项目实战 | 写查询、调性能时 |
 | [phase-2-closeout.md](./phase-2-closeout.md) | Phase 2 收尾清单与验收 | Phase 2 关闭时 |
 | [phase-3-kickoff.md](./phase-3-kickoff.md) | Phase 3 启动评审（3A/3B 拆分） | Phase 3 开工前 |
+| [phase-3-plan.md](./phase-3-plan.md) | Phase 3 实施计划（并行轨道） | Phase 3 排期与分工 |
 | [roadmap.md](./roadmap.md) | 项目路线图和里程碑 | 了解长期计划时 |
 | [decisions/](./decisions/) | 架构决策记录（ADR） | 理解技术选型时 |
 

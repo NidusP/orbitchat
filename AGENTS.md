@@ -212,7 +212,7 @@ app.onError((err, c) => {
 - Redis 接入代码（Compose 已预置）
 - 生产部署编排
 
-**下一步优先**：Phase 3A kickoff（ADR 13–15、`realtime-spec` 定稿）→ 1:1 私聊。
+**下一步优先**：① P2 **push/PR 合 main**（发布线）；② [phase-3-plan.md](./docs/phase-3-plan.md) Wave 0（与 P2.1 可选并行）。
 
 ---
 

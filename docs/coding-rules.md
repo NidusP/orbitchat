@@ -499,7 +499,10 @@ pnpm format
 ```bash
 pnpm lint       # 检查所有 lint 问题
 pnpm format     # 自动格式化
+pnpm test       # 单测（含边界 / 异常路径，见 testing.md）
 ```
+
+**测试原则**：happy path + 边界 + 异常路径 — 详见 [testing.md](./testing.md)。
 
 ---
 

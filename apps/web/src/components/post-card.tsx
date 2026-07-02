@@ -161,6 +161,7 @@ export function PostCard({
         </button>
         <PostComments
           postId={post.id}
+          postAuthorId={post.authorId}
           commentCount={post.commentCount}
           currentUserId={currentUserId}
           onCommentCountChange={(count) => onCommentCountChange?.(post.id, count)}
