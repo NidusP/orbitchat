@@ -43,6 +43,10 @@
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献与 PR 流程 | 提交代码前 |
 | [realtime-spec.md](./realtime-spec.md) | WebSocket 规范（Phase 3+ 活文档） | 聊天/信令开发时 |
 | [db-schema.md](./db-schema.md) | 数据库设计（分阶段迭代） | 数据库设计时 |
+| [sql-learning.md](./sql-learning.md) | SQL / 索引学习与项目实战 | 写查询、调性能时 |
+| [phase-2-closeout.md](./phase-2-closeout.md) | Phase 2 收尾清单与验收 | Phase 2 关闭时 |
+| [phase-3-kickoff.md](./phase-3-kickoff.md) | Phase 3 启动评审（3A/3B 拆分） | Phase 3 开工前 |
+| [phase-3-plan.md](./phase-3-plan.md) | Phase 3 实施计划（并行轨道） | Phase 3 排期与分工 |
 | [roadmap.md](./roadmap.md) | 项目路线图和里程碑 | 了解长期计划时 |
 | [decisions/](./decisions/) | 架构决策记录（ADR） | 理解技术选型时 |
 
@@ -68,7 +72,7 @@
 
 ### 我要参与数据库设计
 
-👉 阅读：[db-schema.md](./db-schema.md)
+👉 阅读：[db-schema.md](./db-schema.md) + [sql-learning.md](./sql-learning.md)
 
 ### 我是 AI Agent，第一次来这个项目
 
@@ -89,6 +93,7 @@ docs/
 ├── env.md                 # 环境变量
 ├── realtime-spec.md       # 实时通信（Phase 3+）
 ├── db-schema.md           # 数据库设计
+├── sql-learning.md        # SQL / 索引学习（与项目对照）
 ├── roadmap.md             # 项目路线图
 └── decisions/             # 架构决策记录（ADR）
     ├── README.md
@@ -193,4 +198,5 @@ docs/
 | 0.0.1 | 2024-06-09 | 初始文档体系 |
 | 0.0.2 | 2026-06-14 | Phase 0 ADR、product/api-spec 完善 |
 | 0.0.3 | 2026-06-14 | CONTRIBUTING、env、Cursor rules；ADR 08 精简 |
+| 0.0.4 | 2026-06-30 | 新增 sql-learning.md（SQL / 索引学习） |
 

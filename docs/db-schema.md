@@ -8,6 +8,8 @@
 - 数据库：**PostgreSQL 16+**（[ADR 06](./decisions/06-database-choice.md)）
 - ORM：**Drizzle**（[ADR 07](./decisions/07-orm-selection.md)）
 
+查询与索引学习见 [sql-learning.md](./sql-learning.md)（与 Phase 2+ 实现对照）。
+
 ---
 
 ## 文档维护策略
@@ -80,16 +82,85 @@
 
 ---
 
-## Phase 2：社交与动态（概要，待展开）
+## Phase 2：社交与动态（已定稿，见 ADR 10–12）
 
-| 表 | 用途 | 状态 |
-|----|------|------|
-| posts | 用户动态 | 📋 Phase 2 前定稿 |
-| comments | 评论 | 📋 |
-| likes | 点赞 | 📋 |
-| follows | 关注关系 | 📋 |
+**决策**：[ADR 10](./decisions/10-social-content-storage.md)、[ADR 11](./decisions/11-feed-timeline-strategy.md)、[ADR 12](./decisions/12-phase2-client-sync.md)
 
-*进入 Phase 2 时在本节补充完整字段与索引。*
+### posts
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| author_id | UUID FK → users | 发帖人 |
+| content | TEXT NOT NULL | 纯文字；API 最长 2000 字符 |
+| like_count | INTEGER | 默认 0；冗余计数 |
+| comment_count | INTEGER | 默认 0；冗余计数 |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+| deleted_at | TIMESTAMPTZ | 可空；软删除 |
+
+**索引**：
+- `(author_id, created_at DESC)` WHERE `deleted_at IS NULL` — 个人主页时间线
+- `(created_at DESC, id DESC)` WHERE `deleted_at IS NULL` — 辅助全局查询（可选）
+
+### comments
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| post_id | UUID FK → posts | |
+| author_id | UUID FK → users | |
+| content | TEXT NOT NULL | API 最长 1000 字符 |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+| deleted_at | TIMESTAMPTZ | 可空；软删除 |
+
+**索引**：`(post_id, created_at DESC)` WHERE `deleted_at IS NULL`
+
+Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
+
+### likes
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| user_id | UUID FK → users | |
+| post_id | UUID FK → posts | |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：`UNIQUE (user_id, post_id)`
+
+**索引**：`(post_id)` — 查某帖点赞用户（管理端/未来功能）
+
+### follows
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| follower_id | UUID FK → users | 关注者 |
+| followee_id | UUID FK → users | 被关注者 |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：
+- `UNIQUE (follower_id, followee_id)`
+- `CHECK (follower_id <> followee_id)`
+
+**索引**：
+- `(follower_id)` — 首页 Feed 读扇出
+- `(followee_id)` — 粉丝列表
+
+### 用户搜索（无新表）
+
+- 启用扩展 `pg_trgm`
+- GIN 索引：`users.username`、`profiles.display_name`（实现时定具体表达式索引）
+
+### Phase 2 延后
+
+| 表 | 用途 |
+|----|------|
+| blocks | 黑名单 |
+| notifications | 站内通知 |
+| tags / post_tags | 话题标签 |
 
 ---
 
@@ -122,7 +193,11 @@
 User (1) ──┬── (1) Profile
            └── (M) UserSession
 
-Phase 2+ : User ── Post, Follow, ...
+           ├── (M) Post ──┬── (M) Comment
+           │              └── (M) Like
+           ├── (M) Follow (follower) ──► User (followee)
+           └── (M) Follow (followee) ◄── User (follower)
+
 Phase 3+ : User ── Message, ChatGroup, ...
 ```
 
@@ -147,3 +222,5 @@ Phase 3+ : User ── Message, ChatGroup, ...
 |------|------|------|
 | 0.0.1 | 2024-06-09 | 初始规划 |
 | 0.1.0 | 2026-06-14 | 锁定 Postgres + Drizzle；Phase 1 详表；分阶段维护策略 |
+| 0.2.0 | 2026-06-23 | Phase 2 详表（posts/comments/likes/follows）；ADR 10–12 |
+| 0.2.1 | 2026-06-30 | 链至 [sql-learning.md](./sql-learning.md) |

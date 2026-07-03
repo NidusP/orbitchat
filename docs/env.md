@@ -173,6 +173,23 @@ pnpm docker:up
 
 **Compose 默认容器名**：`im-postgres`、`im-redis`（与常见本机实例一致）。若同名容器已在运行，不要重复 `docker compose up` postgres/redis，直接复用现有实例即可。
 
+### 本地开发测试账号（非生产）
+
+| 字段 | 值 |
+|------|-----|
+| Email | `test@test.com` |
+| Username | `test_popolus` |
+| Password | `Password123!` |
+
+- Web **Login** 页在 `NODE_ENV=development` 时显示 **「Login as test_popolus」** 一键登录。
+- 忘记密码或 hash 损坏时重置：
+
+```bash
+pnpm --dir apps/server db:reset-dev-user
+```
+
+（等价于更新 `users.password_hash` 为上述密码的 bcrypt。）
+
 ---
 
 ## CI

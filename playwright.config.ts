@@ -7,6 +7,7 @@ const API_URL = `http://127.0.0.1:${API_PORT}`;
 
 export default defineConfig({
   testDir: './apps/web/e2e',
+  testMatch: '**/*.spec.ts',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
