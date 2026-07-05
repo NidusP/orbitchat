@@ -1,8 +1,12 @@
+import { createBunWebSocket } from 'hono/bun';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { env } from './env';
 import { handleError, handleNotFound } from './middleware/error';
+import { registerChatWs } from './realtime/chat-ws';
 import { v1Router } from './routes/v1';
+
+const { upgradeWebSocket, websocket } = createBunWebSocket();
 
 export const app = new Hono();
 
@@ -38,12 +42,15 @@ app.get('/', (c) => {
 
 app.route('/api/v1', v1Router);
 
+registerChatWs(app, upgradeWebSocket);
+
 app.notFound(handleNotFound);
 app.onError((err, c) => handleError(err, c));
 
 const server = Bun.serve({
   port: env.PORT,
   fetch: app.fetch,
+  websocket,
 });
 
 console.log(`✅ Server running at http://localhost:${server.port}`);

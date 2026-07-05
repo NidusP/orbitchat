@@ -28,7 +28,7 @@
 2. 本文档是 **人类可读概览**；有冲突以 schema + migration 为准
 3. 新表：先在本文件写概要 → 写 ADR（若涉及新选型）→ 写 Drizzle schema → migrate
 
-**当前状态**：Phase 1 表已详细定义；Phase 2+ 为规划概要。
+**当前状态**：Phase 1–2 表已详细定义；Phase 3A 表为编码前草案。
 
 ---
 
@@ -164,24 +164,144 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 
 ---
 
-## Phase 3：聊天（概要，待展开）
+## Phase 3：聊天（3A 已定稿）
 
-| 表 | 用途 | 状态 |
-|----|------|------|
-| conversations | 1:1 对话 | 📋 Phase 3 前定稿 |
-| chat_groups | 群聊 | 📋 |
-| chat_group_members | 群成员 | 📋 |
-| messages | 消息（私聊/群聊多态或分表，实现时定） | 📋 |
+**决策**：[ADR 13](./decisions/13-websocket-stack.md)、[ADR 14](./decisions/14-message-delivery.md)、[ADR 15](./decisions/15-conversation-model.md)
+
+Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
+
+### conversations
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| type | ENUM | Phase 3A 固定 `direct` |
+| direct_key | VARCHAR UNIQUE | `minUserId:maxUserId`；仅 direct 会话 |
+| last_message_at | TIMESTAMPTZ | 可空；会话列表排序 |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+**约束与索引**：
+- `UNIQUE (direct_key)` — 保证两名用户只有一个 1:1 会话
+- `(last_message_at DESC, updated_at DESC)` — 会话列表排序
+
+### conversation_members
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → conversations | |
+| user_id | UUID FK → users | |
+| last_read_at | TIMESTAMPTZ | 可空；简化已读 |
+| joined_at | TIMESTAMPTZ | |
+| left_at | TIMESTAMPTZ | 可空；3A 默认不用 |
+
+**约束与索引**：
+- `UNIQUE (conversation_id, user_id)`
+- `(user_id, conversation_id)` — 查用户会话成员身份
+- `(conversation_id)` — 广播 / 权限检查时查成员
+
+### messages
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → conversations | |
+| sender_id | UUID FK → users | |
+| content | TEXT NOT NULL | Phase 3A 纯文字；API 最长 2000 字符 |
+| created_at | TIMESTAMPTZ | |
+| edited_at | TIMESTAMPTZ | 可空；3A 不开放编辑 |
+| deleted_at | TIMESTAMPTZ | 可空；3A 不开放删除 |
+
+**约束与索引**：
+- `(conversation_id, created_at DESC, id DESC)` — 历史消息 cursor 分页
+- `(sender_id, created_at DESC)` — 用户消息排查 / 未来审计
+
+### Phase 3B 延后
+
+| 表 | 用途 |
+|----|------|
+| chat_groups | 群元信息 |
+| chat_group_members | 群成员与权限 |
+| message_reads | 逐条已读回执（如需要） |
 
 *WS 协议见 [realtime-spec.md](./realtime-spec.md)。*
 
 ---
 
-## Phase 4+：AI / 橱窗 / 音视频（概要）
+## Phase 4A：AI Chat
+
+### agents
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| slug | VARCHAR(64) UNIQUE | 内置 Agent 稳定标识 |
+| name | VARCHAR(120) | 展示名 |
+| description | TEXT | 简介 |
+| system_prompt | TEXT | Agent 系统提示词 |
+| is_builtin | BOOLEAN | 4A 默认 true |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+**索引**：
+- `(is_builtin)` — 列出内置 Agent
+
+### ai_conversations
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| user_id | UUID FK → users | 会话拥有者 |
+| agent_id | UUID FK → agents | 选用 Agent |
+| title | VARCHAR(200) | 可空；默认可由首条消息生成 |
+| last_message_at | TIMESTAMPTZ | 可空；列表排序 |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+**索引**：
+- `(user_id, last_message_at)` — 当前用户 AI 会话列表
+- `(agent_id)` — Agent 使用情况排查
+
+### ai_messages
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → ai_conversations | |
+| role | ai_message_role | `user` / `assistant` / `system` / `tool` |
+| content | TEXT | 消息正文或 tool 输出摘要 |
+| tool_name | VARCHAR(64) | tool 消息时记录工具名 |
+| created_at | TIMESTAMPTZ | |
+
+**索引**：
+- `(conversation_id, created_at)` — AI 历史消息分页
+
+### ai_tool_calls
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → ai_conversations | |
+| requested_by_user_id | UUID FK → users | 发起确认的用户 |
+| tool_name | VARCHAR(64) | 如 `send_dm` |
+| status | ai_tool_call_status | `pending` / `approved` / `rejected` / `executed` / `failed` |
+| input | JSONB | Tool 输入草稿 |
+| output | JSONB | 执行结果 |
+| error | TEXT | 失败原因 |
+| created_at / updated_at | TIMESTAMPTZ | |
+| confirmed_at | TIMESTAMPTZ | 用户确认或拒绝时间 |
+| executed_at | TIMESTAMPTZ | 执行完成时间 |
+
+**索引**：
+- `(conversation_id, created_at)` — 会话内审计列表
+- `(requested_by_user_id, status)` — 用户待确认操作
+
+## Phase 4B+：橱窗 / 音视频（概要）
 
 | 表 / 服务 | 用途 | 状态 |
 |-----------|------|------|
-| ai_conversations, ai_messages | AI Chat | 📋 Phase 4 |
+| ai_tool_calls | Agent 写操作审计 | 📋 Phase 4B |
 | call_sessions | 通话记录 | 📋 Phase 4 |
 | storefront.* | 商品、订单 | 📋 可能独立 DB（Go 服务） |
 
@@ -209,7 +329,7 @@ Phase 3+ : User ── Message, ChatGroup, ...
 |------|----------|
 | Phase 1 | users, profiles, user_sessions |
 | Phase 2 | posts, comments, likes, follows |
-| Phase 3 | conversations, groups, messages |
+| Phase 3 | conversations, conversation_members, messages；groups 延后至 3B |
 | Phase 4+ | ai_*, call_*, 或橱窗独立库 |
 
 使用 `drizzle-kit generate` + `migrate`；每次 merge 前 migration 文件入库。
@@ -224,3 +344,4 @@ Phase 3+ : User ── Message, ChatGroup, ...
 | 0.1.0 | 2026-06-14 | 锁定 Postgres + Drizzle；Phase 1 详表；分阶段维护策略 |
 | 0.2.0 | 2026-06-23 | Phase 2 详表（posts/comments/likes/follows）；ADR 10–12 |
 | 0.2.1 | 2026-06-30 | 链至 [sql-learning.md](./sql-learning.md) |
+| 0.3.0 | 2026-07-03 | Phase 3A 详表（conversations/conversation_members/messages）；ADR 13–15 |

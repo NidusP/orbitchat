@@ -13,6 +13,29 @@ export type {
   TrustSessionResponse,
 } from './auth';
 export type {
+  AgentListResponse,
+  ApproveAiToolCallResponse,
+  AiConversationListResponse,
+  AiMessageListResponse,
+  AiToolCallListResponse,
+  CreateAiConversationRequest,
+  CreateAiConversationResponse,
+  CreateAiMessageRequest,
+  CreateAiMessageResponse,
+  RejectAiToolCallResponse,
+} from './ai';
+export type {
+  ConversationListResponse,
+  CreateConversationRequest,
+  CreateConversationResponse,
+  CreateMessageRequest,
+  CreateMessageResponse,
+  GetConversationResponse,
+  MarkConversationReadRequest,
+  MarkConversationReadResponse,
+  MessageListResponse,
+} from './conversations';
+export type {
   CommentListResponse,
   CreateCommentRequest,
   CreateCommentResponse,

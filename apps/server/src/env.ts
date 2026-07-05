@@ -10,6 +10,10 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  LLM_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
+  LLM_MODEL: z.string().min(1).default('llama3.2'),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  AI_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(2),
 });
 
 export type Env = z.infer<typeof envSchema>;

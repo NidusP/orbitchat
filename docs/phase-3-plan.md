@@ -1,8 +1,9 @@
 # Phase 3 实施计划（3A 私聊 + 3B 群聊）
 
-> **状态**：规划稿（2026-06-30）  
-> **前置**：[phase-3-kickoff.md](./phase-3-kickoff.md) 评审结论  
-> **原则**：文档 / ADR 先行；**能并行的轨道同时开工**；3A 验收通过后再开 3B。
+> **状态**：**3A 已完成**（2026-07-03）；3B 见 [phase-3-4-next-plan.md](./phase-3-4-next-plan.md)  
+> **交付回顾**：[phase-3-agent-closeout.md](./phase-3-agent-closeout.md)  
+> **前置**：[phase-3-kickoff.md](./phase-3-kickoff.md)  
+> **原则**：文档 / ADR 先行；3A 已验收；3B 启动前需 ADR 16。
 
 ---
 
@@ -50,9 +51,9 @@ flowchart TB
 
 | 轨道 | 产出 | 负责人建议 | 依赖 |
 |------|------|------------|------|
-| **W0-A** | [ADR 13](./decisions/) — WebSocket（Bun + Hono WS，单进程，无 Redis） | 后端 | 无 |
-| **W0-B** | ADR 14 — REST 写库 + WS 广播 | 后端 | 与 W0-A 可并行 |
-| **W0-C** | ADR 15 — 1:1 `conversations` / `members` / `messages` | 后端 | 与 W0-A/B 可并行 |
+| **W0-A** | [ADR 13](./decisions/13-websocket-stack.md) — WebSocket（Bun + Hono WS，单进程，无 Redis） | 后端 | 无 |
+| **W0-B** | [ADR 14](./decisions/14-message-delivery.md) — REST 写库 + WS 广播 | 后端 | 与 W0-A 可并行 |
+| **W0-C** | [ADR 15](./decisions/15-conversation-model.md) — 1:1 `conversations` / `members` / `messages` | 后端 | 与 W0-A/B 可并行 |
 | **W0-D** | `db-schema.md` Phase 3A 详表 + 索引说明 | 后端 | 对齐 ADR 15 |
 | **W0-E** | `realtime-spec.md`：连接、心跳、`message.new`/`ack` payload、错误帧 | 全栈 | 对齐 ADR 13–14 |
 | **W0-F** | `api-spec.md`：`/conversations`、`/messages`、cursor | 全栈 | 对齐 ADR 15 |
@@ -165,14 +166,32 @@ Drizzle migration ──→ message-service ──→ REST routes
 
 ---
 
+## 与 Phase 4A（AI Chat MVP）的并行关系
+
+> AI 4A 可以提前规划并与 3A 并行实现，但 **Agent 写操作 Tool** 必须等 3A 消息服务验收。
+
+| 工作 | 能否与 Phase 3A 并行 | 说明 |
+|------|----------------------|------|
+| ADR 17：AI Agent 架构、本地模型、Runtime 边界 | ✅ | 可与 ADR 13-15 同时评审 |
+| `phase-4a-plan.md`、AI API / DB 草案 | ✅ | 与 3A spec 并行，不改同一文件段落时冲突较小 |
+| `ai_*` schema、AI shared-types | ✅ | 使用独立 migration 与独立 domain 文件 |
+| AI REST + SSE、`/ai` 页面 | ✅ | 4A 不依赖 WebSocket |
+| 只读 Tool：`search_contact` | ✅ | 复用 Phase 2 用户搜索 |
+| `send_dm` Tool | ❌ | 依赖 3A `message-service` 和私聊验收 |
+| `WS /ws/v1/ai` | ❌ | 4A 不做，避免抢 3A WS 关键路径 |
+
+**汇合点**：3A 验收通过后，Phase 4B 才接入 `send_dm`、用户确认 UI 与 `ai_tool_calls` 审计。
+
+---
+
 ## 建议排期（日历级参考）
 
 | 周 | 主线 | 可并行副线 |
 |----|------|------------|
-| W1 | W0 全部 ADR + spec；Track A 开工 | P2 push/PR |
-| W2 | Track B REST + WS 骨架；Track C API client | P2.1 粉丝页（可选） |
-| W3 | B/C 联调；聊天窗 + WS | E2E 草稿 |
-| W4 | Wave 2 验收；PR 合 main | 文档 |
+| W1 | W0 全部 ADR + spec；Track A 开工 | P2 push/PR；ADR 17 + `phase-4a-plan.md` |
+| W2 | Track B REST + WS 骨架；Track C API client | AI `ai_*` schema、Ollama provider、SSE skeleton |
+| W3 | B/C 联调；聊天窗 + WS | `/ai` 页面、笑话 / 小游戏、只读 Tool |
+| W4 | Wave 2 验收；PR 合 main | AI 4A 验收；准备 4B `send_dm` 汇合 |
 
 ---
 
@@ -185,6 +204,7 @@ Drizzle migration ──→ message-service ──→ REST routes
 | [db-schema.md](./db-schema.md) | 表结构（W0-D） |
 | [sql-learning.md](./sql-learning.md) | messages 表索引与 cursor 查询 |
 | [phase-2-closeout.md](./phase-2-closeout.md) | P2 关闭与 2.1  backlog |
+| [phase-4a-plan.md](./phase-4a-plan.md) | AI 4A MVP 与 P3A 并行关系 |
 
 ---
 
@@ -193,3 +213,5 @@ Drizzle migration ──→ message-service ──→ REST routes
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.1.0 | 2026-06-30 | 初版：Wave 0–2、3A 三轨道并行、3B/3.1 |
+| 0.2.0 | 2026-07-03 | 增加与 Phase 4A AI Chat MVP 的并行关系和汇合点 |
+| 0.3.0 | 2026-07-03 | 链接 ADR 13–15 具体决策文档 |

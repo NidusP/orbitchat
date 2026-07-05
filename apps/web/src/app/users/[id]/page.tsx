@@ -18,6 +18,7 @@ import {
   isFollowingUser,
   unfollowUser,
 } from '@/lib/api/social';
+import { createConversation } from '@/lib/api/conversations';
 import { getProfile, getUser } from '@/lib/api/users';
 
 export default function UserProfilePage() {
@@ -36,6 +37,7 @@ export default function UserProfilePage() {
   const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [followPending, setFollowPending] = useState(false);
+  const [messagePending, setMessagePending] = useState(false);
   const [likePendingId, setLikePendingId] = useState<string | null>(null);
 
   const isSelf = viewer?.id === userId;
@@ -156,6 +158,24 @@ export default function UserProfilePage() {
     setPosts((current) => current.filter((post) => post.id !== postId));
   }
 
+  async function handleMessage() {
+    if (!viewer || isSelf) {
+      return;
+    }
+
+    setMessagePending(true);
+    setError(null);
+
+    try {
+      const conversation = await createConversation({ participantUserId: userId });
+      router.push(`/messages/${conversation.id}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to start conversation.');
+    } finally {
+      setMessagePending(false);
+    }
+  }
+
   async function handleToggleLike(postId: string, currentlyLiked: boolean) {
     setLikePendingId(postId);
     setPosts((current) => applyLikeOptimistic(current, postId, !currentlyLiked));
@@ -212,14 +232,24 @@ export default function UserProfilePage() {
           </p>
         </div>
         {!isSelf && followKnown && (
-          <button
-            type="button"
-            className={`btn btn-sm ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
-            disabled={followPending}
-            onClick={() => void handleToggleFollow()}
-          >
-            {isFollowing ? 'Following' : 'Follow'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={messagePending}
+              onClick={() => void handleMessage()}
+            >
+              {messagePending ? 'Opening…' : 'Message'}
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
+              disabled={followPending}
+              onClick={() => void handleToggleFollow()}
+            >
+              {isFollowing ? 'Following' : 'Follow'}
+            </button>
+          </div>
         )}
       </header>
 
