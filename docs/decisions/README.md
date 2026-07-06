@@ -66,10 +66,21 @@
 - [x] [11-feed-timeline-strategy.md](./11-feed-timeline-strategy.md) - Feed 时间线策略
 - [x] [12-phase2-client-sync.md](./12-phase2-client-sync.md) - Phase 2 客户端同步（REST + 轮询）
 
+### Phase 3（消息与实时）
+
+- [x] [13-websocket-stack.md](./13-websocket-stack.md) - WebSocket 栈与部署边界
+- [x] [14-message-delivery.md](./14-message-delivery.md) - 消息写入与投递模型
+- [x] [15-conversation-model.md](./15-conversation-model.md) - 1:1 会话与消息模型
+- [ ] 16-group-chat-model.md - 群聊模型与权限（Phase 3B 前，可选）
+
+### Phase 4A（AI Chat MVP）
+
+- [x] [17-ai-agent-architecture.md](./17-ai-agent-architecture.md) - 本地模型 Agent 架构、Runtime 边界与 Tool 权限
+
 ### 待做（后续阶段）
 
-- [ ] 13-api-versioning.md - API 版本管理
-- [ ] 14-testing-framework.md - 测试框架选择
+- [ ] api-versioning.md - API 版本管理（编号待定）
+- [ ] testing-framework.md - 测试框架选择（编号待定）
 
 ---
 
@@ -86,7 +97,12 @@
 | **社交内容存储** | Phase 2 | P0 | ✅ ADR 10 Postgres 四表 |
 | **Feed 时间线** | Phase 2 | P0 | ✅ ADR 11 读扇出 + 时间倒序 |
 | **Phase 2 客户端同步** | Phase 2 | P0 | ✅ ADR 12 REST + 轮询 |
-| 错误追踪 | Phase 2 | P1 |
-| 缓存策略 | Phase 3 | P2 |
-| 消息队列 | Phase 3 | P2 |
+| **WebSocket 栈** | Phase 3A | P0 | ✅ ADR 13 |
+| **消息投递模型** | Phase 3A | P0 | ✅ ADR 14 |
+| **1:1 会话模型** | Phase 3A | P0 | ✅ ADR 15 |
+| **群聊模型与权限** | Phase 3B | P1 | 📋 ADR 16（可选） |
+| **AI Agent 架构** | Phase 4A | P1 | ✅ ADR 17 |
+| 错误追踪 | Phase 4+ | P2 |
+| 缓存策略 | Phase 3+ | P2 |
+| 消息队列 | Phase 4B+ | P2 |
 

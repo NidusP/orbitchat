@@ -1,8 +1,8 @@
 # 实时通信规范 - Orbitchat
 
 > **文档状态**：Living Document（活文档）  
-> **当前版本**：0.1.0 骨架  
-> **详细协议**：随 Phase 3 开发同步迭代；Phase 1–2 无需实现。
+> **当前版本**：0.2.0 Phase 3A 草案
+> **详细协议**：Phase 3A 实现时同步到 `@orbitchat/shared-types`。
 
 ## 概览
 
@@ -20,28 +20,79 @@ REST API 负责历史消息拉取、会话列表；实时推送走 WebSocket。
 
 ---
 
+## 技术决策
+
+Phase 3A 依据：
+
+- [ADR 13 — WebSocket 栈与连接管理](./decisions/13-websocket-stack.md)
+- [ADR 14 — 消息写入与投递模型](./decisions/14-message-delivery.md)
+- [ADR 15 — 1:1 会话与消息模型](./decisions/15-conversation-model.md)
+
+决策摘要：
+
+- `WS /ws/v1/chat` 使用 Bun/Hono 原生 WebSocket。
+- 单实例 in-memory `ChatHub`，多实例 Redis Pub/Sub 延后。
+- 发送消息走 REST POST；WebSocket 只推实时增量。
+- Phase 3A 只实现 1:1 私聊；群聊、typing、presence 延后。
+
+---
+
 ## 连接
 
-### 端点（规划）
+### 端点
 
 ```
 WS /ws/v1/chat          # 文字聊天
 WS /ws/v1/signaling     # WebRTC 信令（Phase 4）
 ```
 
-### 握手
+Phase 3A 只实现 `/ws/v1/chat`。
+
+### 握手参数
 
 ```
-Query: ?token=<access_token>
+Query: ?token=<access_token>&deviceId=<device_id>&platform=web
 Header: X-Device-Id, X-Client-Platform
 ```
 
+- 浏览器 WebSocket 无法设置自定义 Header；Web 客户端必须通过 query 传 `deviceId` 与 `platform`。
+- 原生客户端优先使用 Header；query 作为 Web 回退。
+
 - 服务端校验 JWT + Session 未 revoke
 - 连接与用户 / Session 绑定，便于按 Session 推送 `session.revoked`
+- `X-Client-Version` 推荐携带；缺失时允许连接但记录日志
+- 鉴权失败直接拒绝 upgrade 或连接后发送 `error` 并关闭
 
 ---
 
-## 消息 Envelope（草案）
+## 连接生命周期
+
+1. 客户端登录后建立 `WS /ws/v1/chat?token=<access_token>`。
+2. 服务端校验 JWT、Session、Device ID。
+3. 服务端生成 `connectionId`，写入 `ChatHub` 内存索引。
+4. 服务端发送 `connection.ready`。
+5. 客户端通过 REST 拉取会话列表与当前会话历史。
+6. 服务端按用户已加入会话将连接加入对应 room，或在 REST 查询 / 打开会话后懒加载加入。
+7. 断线后客户端重连，并通过 REST 拉取历史补齐缺失消息。
+
+服务端不保证 WS 事件重放；DB 是事实来源。
+
+---
+
+## Heartbeat
+
+Phase 3A 使用应用层 heartbeat，便于多端统一：
+
+| type | 方向 | 说明 |
+|------|------|------|
+| `ping` | S→C | 服务端每 25-30s 发送 |
+| `pong` | C→S | 客户端收到后尽快回应 |
+
+客户端 60-90s 未收到 `ping` 或连接关闭时应重连。服务端长时间未收到 `pong` 可关闭连接。
+
+---
+
+## 消息 Envelope
 
 所有 WS 帧为 JSON 文本：
 
@@ -65,21 +116,112 @@ interface WsMessage<T = unknown> {
 
 | type | 方向 | 说明 |
 |------|------|------|
+| `connection.ready` | S→C | 连接鉴权完成 |
+| `ping` | S→C | 心跳 |
+| `pong` | C→S | 心跳响应 |
 | `message.new` | S→C | 新消息 |
-| `message.ack` | C→S | 送达确认 |
-| `message.read` | 双向 | 已读回执 |
-| `typing.started` | C→S→C | 正在输入 |
-| `presence.online` | S→C | 在线状态（可选） |
-| `session.revoked` | S→C | 会话被踢 |
-
-**Payload 结构**：Phase 3 开开发时在本文档补充完整 TypeScript 定义，并同步至 `shared-types`。
+| `message.ack` | C→S | 客户端收到消息（3A 可选） |
+| `message.read` | S→C | 会话已读时间更新 |
+| `error` | S→C | WS 错误 |
+| `typing.started` | C→S→C | Phase 3B 可选 |
+| `typing.stopped` | C→S→C | Phase 3B 可选 |
+| `presence.online` | S→C | Phase 3B+ 可选 |
+| `session.revoked` | S→C | Phase 3B+ 可选 |
 
 ---
 
-## 房间模型（占位）
+## Phase 3A Payload
 
-- **1:1 聊天**：roomId = `conversationId`
-- **群聊**：roomId = `groupId`；加入/离开通过 REST 管理成员，WS 仅推送
+### `connection.ready`
+
+```typescript
+interface ConnectionReadyPayload {
+  connectionId: string;
+  userId: string;
+  sessionId: string;
+  connectedAt: string;
+}
+```
+
+### `message.new`
+
+由服务端在 REST 写库成功后广播。
+
+```typescript
+interface MessageNewPayload {
+  conversationId: string;
+  message: {
+    id: string;
+    conversationId: string;
+    sender: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl: string | null;
+    };
+    content: string;
+    createdAt: string;
+    editedAt: string | null;
+    deletedAt: string | null;
+  };
+}
+```
+
+客户端应按 `message.id` 去重，因为发送者会同时收到 REST response 与 WS `message.new`。
+
+### `message.ack`
+
+客户端收到 `message.new` 后可回传。Phase 3A 不把 ack 作为持久化送达状态。
+
+```typescript
+interface MessageAckPayload {
+  conversationId: string;
+  messageId: string;
+  receivedAt: string;
+}
+```
+
+### `message.read`
+
+Phase 3A 使用 `last_read_at` 简化已读。客户端通过 REST `PATCH /api/v1/conversations/:id/read` 更新；服务端广播该事件给同会话成员。
+
+```typescript
+interface MessageReadPayload {
+  conversationId: string;
+  userId: string;
+  lastReadAt: string;
+}
+```
+
+### `error`
+
+```typescript
+interface WsErrorPayload {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+```
+
+常见 code：
+
+| code | 说明 |
+|------|------|
+| `UNAUTHORIZED` | Token / Session 无效 |
+| `FORBIDDEN` | 无权加入或接收某 room |
+| `INVALID_MESSAGE` | WS frame 格式无效 |
+| `RATE_LIMITED` | 发送频率过高 |
+| `INTERNAL_ERROR` | 未预期错误 |
+
+---
+
+## 房间模型
+
+- **1:1 聊天**：roomId = `conversation:{conversationId}`
+- **群聊**：roomId = `group:{groupId}`；Phase 3B
+- **通话信令**：roomId = `call:{callSessionId}`；Phase 4C
+
+加入 / 离开 room 由服务端根据 DB membership 管理，客户端不直接发送 join room 命令。广播必须通过 `roomId -> Set<connectionId>` 精准发送。
 
 ---
 
@@ -92,16 +234,56 @@ interface WsMessage<T = unknown> {
 | 实时送达 | WS |
 | 创建群 / 邀请 | REST |
 
-具体是否在 Phase 3 采用「REST 写入 + WS 广播」经典模式，实现前在此文档定稿。
+### 发送消息时序
+
+```mermaid
+sequenceDiagram
+  participant A as Client A
+  participant API as Hono REST
+  participant DB as Postgres
+  participant Hub as ChatHub
+  participant B as Client B
+
+  A->>API: POST /api/v1/conversations/:id/messages
+  API->>DB: insert message + update conversation
+  DB-->>API: message
+  API->>Hub: broadcast message.new to room
+  Hub-->>A: message.new
+  Hub-->>B: message.new
+  API-->>A: 201 SuccessResponse<Message>
+```
+
+如果 WS 事件丢失，客户端刷新或重连后通过 REST 历史补齐。
 
 ---
 
-## 技术选型（待 ADR）
+## 限流与大小
 
-Phase 3 启动前新增 ADR，候选：
+- 单条文字消息：1..2000 字符。
+- 单个 WS frame 建议不超过 16KB。
+- Phase 3A 可先做连接级基础限流；房间级限流在 3B 大群时补充。
+- 图片、文件、语音、视频不走 WS frame。
 
-- Hono 内置 WebSocket / `Bun.serve` ws
-- Redis Pub/Sub（多实例时）
+---
+
+## 多实例与扩展
+
+Phase 3A：
+
+- 单实例 in-memory Hub。
+- 目标：1:1 私聊与轻量小群前置能力。
+
+Scale 阶段：
+
+- 多个 `apps/server` 副本。
+- 每个实例只管理本机连接。
+- Redis Pub/Sub 按 `roomId` 转发跨实例事件。
+- Presence TTL、typing、大群限流另行设计。
+
+多人通话 / 直播：
+
+- WebSocket 只做信令。
+- 媒体流走 WebRTC / SFU / 直播基础设施。
 
 ---
 
@@ -118,3 +300,4 @@ Phase 3 启动前新增 ADR，候选：
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 0.1.0 | 2026-06-14 | 骨架与维护策略 |
+| 0.2.0 | 2026-07-03 | Phase 3A 连接、heartbeat、payload、REST+WS 时序 |

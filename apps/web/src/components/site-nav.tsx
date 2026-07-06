@@ -12,6 +12,8 @@ export function SiteNav() {
       {!isLoading && isAuthenticated && (
         <>
           <Link href="/feed">Feed</Link>
+          <Link href="/messages">Messages</Link>
+          <Link href="/ai">AI</Link>
           <Link href="/search">Search</Link>
           <Link href="/profile">Profile</Link>
           <Link href="/settings/sessions">Sessions</Link>

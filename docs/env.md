@@ -17,6 +17,10 @@
 | `PORT` | server | 否 | 默认 `3001` |
 | `NODE_ENV` | server | 否 | `development` / `production` |
 | `CORS_ORIGIN` | server | 否 | 默认 `http://localhost:3000` |
+| `LLM_BASE_URL` | server | Phase 4A | 本地模型 OpenAI-compatible API 基址 |
+| `LLM_MODEL` | server | Phase 4A | 默认模型名 |
+| `LLM_TIMEOUT_MS` | server | 否 | LLM 请求超时，默认 `30000` |
+| `AI_MAX_CONCURRENT_RUNS` | server | 否 | AI 并发运行数，默认 `2` |
 | `NEXT_PUBLIC_API_URL` | web | 是 | Hono API 基址 |
 | `NEXT_PUBLIC_APP_VERSION` | web | 否 | 客户端 semver，Header 用 |
 
@@ -76,6 +80,24 @@ CORS_ORIGIN=http://localhost:3000
 | `SameSite` | Lax | Lax |
 | `Path` | `/api/v1/auth` | 同上 |
 
+### AI / LLM（Phase 4A）
+
+Phase 4A 通过 OpenAI-compatible HTTP API 接入本地模型服务。推荐先使用 Ollama：
+
+```bash
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.2
+LLM_TIMEOUT_MS=30000
+AI_MAX_CONCURRENT_RUNS=2
+```
+
+说明：
+
+- `LLM_BASE_URL` 不应包含 `/chat/completions`，代码会自动拼接。
+- `LLM_MODEL` 需要与本地模型服务中已拉取的模型名一致。
+- `LLM_TIMEOUT_MS` 到期后 AI route 返回明确错误，不影响普通 REST / WebSocket。
+- `AI_MAX_CONCURRENT_RUNS` 是单进程内并发保护；多实例部署时需要额外队列或限流。
+
 ---
 
 ## apps/web
@@ -104,6 +126,10 @@ JWT_SECRET=dev-only-change-me-use-openssl-rand
 PORT=3001
 CORS_ORIGIN=http://localhost:3000
 NODE_ENV=development
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.2
+LLM_TIMEOUT_MS=30000
+AI_MAX_CONCURRENT_RUNS=2
 ```
 
 **web**（`apps/web/.env.local`）：
@@ -175,20 +201,19 @@ pnpm docker:up
 
 ### 本地开发测试账号（非生产）
 
-| 字段 | 值 |
-|------|-----|
-| Email | `test@test.com` |
-| Username | `test_popolus` |
-| Password | `Password123!` |
+| 账号 | Email | Username | Password |
+|------|-------|----------|----------|
+| 测试账号 1 | `test@test.com` | `test_popolus` | `Password123!` |
+| 测试账号 2 | `test2@test.com` | `test_popolus2` | `Password123!` |
 
-- Web **Login** 页在 `NODE_ENV=development` 时显示 **「Login as test_popolus」** 一键登录。
-- 忘记密码或 hash 损坏时重置：
+- Web **Login** 页在 `NODE_ENV=development` 时显示两个 **一键登录** 按钮，便于双浏览器私聊收发测试。
+- 忘记密码或账号不存在时初始化：
 
 ```bash
 pnpm --dir apps/server db:reset-dev-user
 ```
 
-（等价于更新 `users.password_hash` 为上述密码的 bcrypt。）
+（创建缺失账号并重置上述密码的 bcrypt hash。）
 
 ---
 
@@ -216,3 +241,4 @@ CI 中使用 Repository Secrets，命名与上表一致。测试库可用独立 
 | 0.1.1 | 2026-06-14 | 添加 docker-compose.yml 与 pnpm docker:* 脚本 |
 | 0.1.2 | 2026-06-14 | 补充端口冲突排查（5432/6379） |
 | 0.1.3 | 2026-06-20 | 补充复用现有 `im-postgres` 的本地开发路径 |
+| 0.2.0 | 2026-07-03 | 增加 Phase 4A 本地模型 AI 配置 |

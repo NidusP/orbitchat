@@ -29,10 +29,9 @@
 
 ### 项目阶段
 
-**Phase 1: User System — 完整验收已完成**（2026-06-21）
+**Phase 3A + 4A + 4B（send_dm）— 开发完成，待 PR**（2026-07-05）
 
-Phase 0 交付：Monorepo、基础框架、文档体系、ADR 01–08。  
-Phase 1 交付：Drizzle 迁移、auth/users API、Web 全链路 UI（含 `/settings/sessions`）、注册自动登录、统一校验错误信封；代码在分支 `feat/phase-1-user-system`（**10 commits，待 push / PR**）。
+Phase 0–2 已完成；当前分支 `feat/phase-3-agent` 交付 **Phase 3A 切片 + Phase 4A + Phase 4B 汇合点**（完整 Phase 3/4 仍各只做一部分）。回顾见 [phase-3-agent-closeout.md](./docs/phase-3-agent-closeout.md)；**后续并行计划**见 [phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md)。
 
 ### 项目特征
 
@@ -199,20 +198,25 @@ app.onError((err, c) => {
 
 ---
 
-## 当前阶段范围（Phase 2 已完成 → Phase 3 规划）
+## 当前阶段范围（Phase 3A + Agent）
 
-### ✅ Phase 1–2 已完成
+### ✅ Phase 1–3A 与 Agent MVP 已完成开发
 
 - Phase 1：用户系统（auth、profile、sessions、E2E）
 - Phase 2：社交（posts、feed、follow、search、评论；ADR 10–12；见 [phase-2-closeout.md](./docs/phase-2-closeout.md)）
+- Phase 3A：1:1 私聊（REST + WebSocket + Web `/messages`；ADR 13–15）
+- Phase 4A：AI Chat MVP（本地模型、REST + SSE、Web `/ai`；ADR 17）
+- Phase 4B 汇合点：`send_dm` pending tool call + 用户确认 + `ai_tool_calls` 审计
 
-### ❌ 暂不做（Phase 3+）
+### ❌ 暂不做（后续阶段）
 
-- 文字聊天 / WebSocket（见 [phase-3-kickoff.md](./docs/phase-3-kickoff.md)）
-- Redis 接入代码（Compose 已预置）
+- Phase 3B 群聊、typing、presence
+- Redis Pub/Sub 多实例广播（Compose 已预置，代码未接）
+- WebRTC 信令与音视频
+- RAG / LangGraph / 独立 Python Agent Runtime
 - 生产部署编排
 
-**下一步优先**：① P2 **push/PR 合 main**（发布线）；② [phase-3-plan.md](./docs/phase-3-plan.md) Wave 0（与 P2.1 可选并行）。
+**下一步优先**：合并 PR；然后按 [phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md) 推进 **3B 群聊（Track M）** 与 **4B Tool 扩展（Track A）**（可并行）。
 
 ---
 
@@ -239,7 +243,7 @@ app.onError((err, c) => {
 | `docs/db-schema.md` | 数据库设计 | 数据库设计时 |
 | `docs/sql-learning.md` | SQL / 索引学习与实战对照 | 写查询、Feed、调性能时 |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
-| `docs/decisions/` | 架构决策记录（ADR 01–12） |
+| `docs/decisions/` | 架构决策记录（ADR 01–17） |
 
 ---
 
@@ -387,14 +391,16 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-06-30）**：Phase 2 **Closeout B 已完成**（分支 `feat/phase-2-social`）；Phase 3 启动评审见 [phase-3-kickoff.md](./docs/phase-3-kickoff.md)（建议 3A 私聊 / 3B 群聊拆分）。
+**结论（2026-07-05）**：`feat/phase-3-agent` 已交付 3A + 4A + 4B `send_dm`；文档已同步 [product.md](./docs/product.md)、[roadmap.md](./docs/roadmap.md)、[phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md)。
 
 | 维度 | 状态 |
 |------|------|
 | Phase 0–1 | ✅ 完成 |
-| Phase 2 代码 + 验收 | ✅ 完成 |
-| Git | ⚠️ `feat/phase-2-social` 待 push / PR 合 `main` |
-| Phase 3 | 📋 评审完成；**3A 未开始** |
+| Phase 2 | ✅ 完成 |
+| Phase 3A 私聊 | ✅ 开发完成；E2E 新增中 |
+| Phase 4A AI Chat | ✅ 开发完成；本地模型手动验收待跑 |
+| Phase 4B `send_dm` | ✅ pending tool call + 确认执行已实现 |
+| Git | ⚠️ 当前改动未提交，分支 `feat/phase-3-agent` |
 
 **本地开发速查**
 
@@ -405,44 +411,50 @@ app.onError((err, c) => {
 | Web | http://localhost:3000 |
 | DB | 复用 `im-postgres` + `orbitchat` 库；`docker-compose.yml` 容器名 `im-postgres` / `im-redis` |
 | 注册密码 | 至少 8 位 + 大小写 + 数字（例 `Password123`） |
+| LLM | `LLM_BASE_URL=http://localhost:11434/v1`，`LLM_MODEL=llama3.2` |
 
 **下次 Agent 建议顺序**
 
-1. `git push -u origin feat/phase-2-social` → PR 合 `main`（若 P1 未合，可 stacked PR 或先合 P1）
-2. Phase 3A：ADR 13–15 → 定稿 `realtime-spec.md` + `db-schema` conversations/messages
-3. `shared-types` → WS 事件 + messages REST
-4. 实现 `WS /ws/v1/chat` + Web `/messages`
+1. 跑 `pnpm e2e -- apps/web/e2e/chat-agent-flow.spec.ts` 并修复等待/选择器问题。
+2. 跑全量 `pnpm type-check && pnpm lint && pnpm --filter @orbitchat/server test && pnpm --filter @orbitchat/web build`。
+3. 本地有 Ollama 时手动验收 `/ai` SSE 回复与 `send_dm` Approve。
+4. 准备 PR；不要自动 commit，除非用户明确要求。
 
 **已实现能力**
 
 | 模块 | 内容 |
 |------|------|
-| DB | P1 三表 + P2 四表（`drizzle/0001_*`） |
-| API | auth、users、**feed/posts/follow/search** |
-| Web | `/feed`、`/search`、`/users/[id]`；发帖/赞/评论/编辑删帖 |
-| 测试 | server 42 + web 7 + e2e 12 |
-| 文档 | ADR 10–12、`sql-learning.md`、`phase-2-closeout.md`、`phase-3-kickoff.md` |
+| DB | P1/P2 表 + P3 conversations/messages + AI `agents`/`ai_*`/`ai_tool_calls` |
+| API | auth、users、feed/posts/follow/search、conversations/messages、AI REST/SSE |
+| Realtime | `WS /ws/v1/chat`、ChatHub、`message.new`、`message.read` |
+| Web | `/feed`、`/search`、`/users/[id]`、`/messages`、`/ai` |
+| 测试 | server 68 pass；新增 chat/agent E2E |
+| 文档 | ADR 13–15/17 Accepted；`phase-3-agent-master-plan.md`、`phase-3-agent-closeout.md` |
 
-**剩余项（不阻塞 Phase 1 关闭）**
+**剩余项**
 
 | # | 项 | 说明 |
 |---|-----|------|
-| 1 | Git | push + PR 合 `main` |
-| 2 | Redis | Phase 3+；Compose 已预置，代码未接 |
-| 3 | 生产部署 | Compose+VPS 可行；prod compose / Caddy 草案未写 |
-| 4 | ADR 09 | Deferred |
+| 1 | E2E | 跑新增 chat/agent flow |
+| 2 | 本地模型验收 | 需要 Ollama / OpenAI-compatible local model |
+| 3 | Redis | 多实例 Pub/Sub 后续接入 |
+| 4 | 生产部署 | Compose+VPS 可行；prod compose / Caddy 草案未写 |
+| 5 | ADR 09 | Deferred |
 
 **关键文件索引**
 
 ```
 apps/server/src/lib/zod-hook.ts            # Zod → ErrorResponse
-apps/server/src/routes/v1/error-envelope.test.ts
-apps/server/src/services/auth-service.ts
-apps/server/src/routes/v1/auth.ts
-apps/web/src/app/settings/sessions/        # 会话管理页
-apps/web/src/contexts/auth-context.tsx
+apps/server/src/realtime/chat-hub.ts       # P3 ChatHub
+apps/server/src/routes/v1/conversations.ts
+apps/server/src/routes/v1/ai.ts
+apps/server/src/services/message-service.ts
+apps/server/src/services/ai/
+apps/web/src/app/messages/
+apps/web/src/app/ai/
 docker-compose.yml                         # im-postgres / im-redis
 docs/env.md
+docs/phase-3-agent-closeout.md
 ```
 
 ### 联系和反馈
@@ -467,5 +479,5 @@ docs/env.md
 ## 版本
 
 - **当前版本**：0.1.0
-- **最后更新**：2026-06-30（Phase 2 Closeout B；Phase 3 kickoff 评审）
-- **下次审查**：PR 合 `main`；Phase 3A ADR + realtime-spec
+- **最后更新**：2026-07-05（3A+4A+4B 切片交付；P3/P4 后续见 phase-3-4-next-plan.md）
+- **下次审查**：新增 E2E 通过后准备 PR

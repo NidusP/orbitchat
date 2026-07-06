@@ -33,10 +33,10 @@ export default defineConfig({
       },
     },
     {
-      command: 'pnpm --dir apps/web dev',
+      command: 'pnpm --dir apps/web build && pnpm --dir apps/web start',
       url: `${WEB_URL}/login`,
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      timeout: 180_000,
       env: {
         ...process.env,
         PORT: String(WEB_PORT),

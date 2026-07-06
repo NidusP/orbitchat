@@ -22,6 +22,27 @@
       "when": 1783000000000,
       "tag": "0002_pg_trgm_user_search",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783072132110,
+      "tag": "0003_wild_vanisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783075195801,
+      "tag": "0004_unique_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783078397504,
+      "tag": "0005_oval_madrox",
+      "breakpoints": true
     }
   ]
 }

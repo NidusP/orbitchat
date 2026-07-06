@@ -4,7 +4,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
-import { DEV_TEST_USER, isDevLoginShortcutsEnabled } from '@/lib/dev-test-user';
+import {
+  DEV_TEST_USERS,
+  type DevTestUserFixture,
+  isDevLoginShortcutsEnabled,
+} from '@/lib/dev-test-user';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -46,12 +50,12 @@ export default function LoginForm() {
     }
   }
 
-  async function handleDevTestLogin() {
-    setEmail(DEV_TEST_USER.email);
-    setPassword(DEV_TEST_USER.password);
+  async function handleDevTestLogin(fixture: DevTestUserFixture) {
+    setEmail(fixture.email);
+    setPassword(fixture.password);
     setRememberMe(true);
     setTrustDevice(true);
-    await submitLogin(DEV_TEST_USER.email, DEV_TEST_USER.password);
+    await submitLogin(fixture.email, fixture.password);
   }
 
   return (
@@ -115,17 +119,22 @@ export default function LoginForm() {
       {isDevLoginShortcutsEnabled() && (
         <div className="dev-login-shortcuts" data-testid="dev-login-shortcuts">
           <p className="text-muted" style={{ marginTop: 16, marginBottom: 8 }}>
-            Dev only — local test account
+            Dev only — one-click login for messaging tests
           </p>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            data-testid="dev-login-test-user"
-            disabled={isSubmitting}
-            onClick={() => void handleDevTestLogin()}
-          >
-            Login as {DEV_TEST_USER.username} ({DEV_TEST_USER.email})
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {DEV_TEST_USERS.map((fixture, index) => (
+              <button
+                key={fixture.email}
+                type="button"
+                className="btn btn-secondary btn-sm"
+                data-testid={`dev-login-test-user-${index + 1}`}
+                disabled={isSubmitting}
+                onClick={() => void handleDevTestLogin(fixture)}
+              >
+                Login as {fixture.username} ({fixture.email})
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </>

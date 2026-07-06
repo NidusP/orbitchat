@@ -4,7 +4,7 @@
 
 本文档定义 Orbitchat **多端共享**的 HTTP API 契约，是 `shared-types` 与实现的 Spec 来源。
 
-**当前阶段**：仅实现基础设施端点；业务端点为规划，类型尚未落地。
+**当前阶段**：Phase 2 API 已实现；Phase 3A 私聊 API 为编码前契约草案。
 
 **相关 ADR**：[02-backend-framework.md](./decisions/02-backend-framework.md)、[04-shared-packages.md](./decisions/04-shared-packages.md)、[08-auth-strategy.md](./decisions/08-auth-strategy.md)
 
@@ -242,22 +242,251 @@ GET    /api/v1/users/search              # ?q=&cursor=&limit=
 
 ### Phase 3 — 文字聊天
 
+> 设计依据：[ADR 13](./decisions/13-websocket-stack.md)、[ADR 14](./decisions/14-message-delivery.md)、[ADR 15](./decisions/15-conversation-model.md)
+
 ```
-GET    /api/v1/conversations
-POST   /api/v1/conversations
-GET    /api/v1/conversations/:id/messages
-POST   /api/v1/conversations/:id/messages
-GET    /api/v1/groups
-POST   /api/v1/groups
-WS     /ws/v1/chat                     # 实时消息
+GET    /api/v1/conversations                  # 当前用户会话列表；cursor 分页
+POST   /api/v1/conversations                  # 创建或获取 1:1 会话
+GET    /api/v1/conversations/:id              # 获取单个会话
+GET    /api/v1/conversations/:id/messages     # 历史消息；cursor 分页
+POST   /api/v1/conversations/:id/messages     # 发送消息：REST 写库 + WS 广播
+PATCH  /api/v1/conversations/:id/read         # 标记会话已读（last_read_at）
+WS     /ws/v1/chat                            # 实时消息增量
 ```
 
-### Phase 4 — 预留
+Phase 3A 只实现 1:1 私聊。群聊端点延后 Phase 3B；移动推送延后 Phase 3.1。
+
+#### 数据类型（概要）
+
+```typescript
+interface ConversationParticipant {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+interface Conversation {
+  id: string;
+  type: 'direct';
+  participants: ConversationParticipant[];
+  lastMessage: Message | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Message {
+  id: string;
+  conversationId: string;
+  sender: ConversationParticipant;
+  content: string;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+}
+```
+
+#### `GET /api/v1/conversations`
+
+返回当前用户参与的会话，按 `lastMessageAt DESC` 排序。
+
+Query：
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `cursor` | 否 | cursor 分页 |
+| `limit` | 否 | 默认 20，最大 50 |
+
+Response：
+
+```typescript
+SuccessResponse<{
+  items: Conversation[];
+  nextCursor: string | null;
+}>
+```
+
+#### `POST /api/v1/conversations`
+
+创建或获取 1:1 会话。若两名用户已有 direct conversation，返回既有会话。
+
+Request：
+
+```typescript
+interface CreateConversationRequest {
+  participantUserId: string;
+}
+```
+
+Response 201 / 200：
+
+```typescript
+SuccessResponse<Conversation>
+```
+
+错误：
+
+| code | HTTP | 场景 |
+|------|------|------|
+| `VALIDATION_ERROR` | 400 | `participantUserId` 无效或等于当前用户 |
+| `NOT_FOUND` | 404 | 目标用户不存在 |
+| `FORBIDDEN` | 403 | 后续 blocks 接入后被限制 |
+
+#### `GET /api/v1/conversations/:id`
+
+返回当前用户参与的单个会话；未加入该会话时返回 `FORBIDDEN`。
+
+Response：
+
+```typescript
+SuccessResponse<Conversation>
+```
+
+#### `GET /api/v1/conversations/:id/messages`
+
+拉取历史消息。DB 排序为倒序，客户端可按 UI 需要反转展示。
+
+Query：
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `cursor` | 否 | cursor 分页；基于 `createdAt + id` |
+| `limit` | 否 | 默认 30，最大 50 |
+
+Response：
+
+```typescript
+SuccessResponse<{
+  items: Message[];
+  nextCursor: string | null;
+}>
+```
+
+#### `POST /api/v1/conversations/:id/messages`
+
+发送纯文字消息。服务端写入 DB 成功后广播 `message.new`。
+
+Request：
+
+```typescript
+interface CreateMessageRequest {
+  content: string; // 1..2000 chars after trim
+}
+```
+
+Response 201：
+
+```typescript
+SuccessResponse<Message>
+```
+
+错误：
+
+| code | HTTP | 场景 |
+|------|------|------|
+| `VALIDATION_ERROR` | 400 | 空消息、超长、conversation id 无效 |
+| `FORBIDDEN` | 403 | 当前用户不是会话成员 |
+| `NOT_FOUND` | 404 | 会话不存在 |
+
+#### `PATCH /api/v1/conversations/:id/read`
+
+标记会话已读，更新当前用户 membership 的 `lastReadAt`。Phase 3A 不做逐条 read receipt。
+
+Request：
+
+```typescript
+interface MarkConversationReadRequest {
+  readAt?: string; // ISO 8601；默认服务端当前时间
+}
+```
+
+Response：
+
+```typescript
+SuccessResponse<{
+  conversationId: string;
+  lastReadAt: string;
+}>
+```
+
+### Phase 4A — AI Chat MVP
+
+```
+GET    /api/v1/ai/agents                    # 内置 Agent 列表
+GET    /api/v1/ai/conversations             # 当前用户 AI 会话列表；cursor 分页
+POST   /api/v1/ai/conversations             # 创建 AI 会话
+GET    /api/v1/ai/conversations/:id/messages # AI 历史消息；cursor 分页
+POST   /api/v1/ai/conversations/:id/messages # 发送用户消息；SSE 流式返回 assistant 回复
+GET    /api/v1/ai/conversations/:id/tool-calls # AI tool call 审计列表
+POST   /api/v1/ai/tool-calls/:id/approve      # 用户确认并执行 pending tool call
+POST   /api/v1/ai/tool-calls/:id/reject       # 用户拒绝 pending tool call
+```
+
+Phase 4A 不直接执行 `send_dm`；Phase 4B 通过 pending tool call + 用户确认后，复用 Phase 3A `message-service` 发私聊。
+
+#### 数据类型（概要）
+
+```typescript
+interface Agent {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  isBuiltin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AiConversation {
+  id: string;
+  userId: string;
+  agentId: string;
+  title: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AiMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  toolName: string | null;
+  createdAt: string;
+}
+```
+
+#### `POST /api/v1/ai/conversations/:id/messages`
+
+Request：
+
+```typescript
+interface CreateAiMessageRequest {
+  content: string; // 1..4000 chars after trim
+}
+```
+
+Response：`text/event-stream`
+
+```typescript
+type AiSseEvent =
+  | { type: 'message.delta'; payload: { conversationId: string; messageId: string; delta: string } }
+  | { type: 'tool.call'; payload: { conversationId: string; toolName: string; input: unknown; output: unknown } }
+  | { type: 'message.done'; payload: { conversationId: string; message: AiMessage } }
+  | { type: 'error'; payload: { code: string; message: string } };
+```
+
+客户端应以 `message.done` 作为本轮回复持久化完成信号。若本地模型服务不可用，服务端返回 `error` SSE 事件并结束流。
+
+### Phase 4B+ — 预留
 
 ```
 POST   /api/v1/calls                   # 发起通话（信令）
 WS     /ws/v1/signaling                # WebRTC 信令
-POST   /api/v1/ai/conversations        # AI Chat
 GET    /api/v1/storefront/products     # 橱窗（可能代理至 Go 服务）
 ```
 

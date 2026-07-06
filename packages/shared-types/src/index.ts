@@ -36,17 +36,36 @@ export type {
   TrustSessionResponse,
 } from './api/v1/auth';
 export type {
+  AgentListResponse,
+  ApproveAiToolCallResponse,
+  AiConversationListResponse,
+  AiMessageListResponse,
+  AiToolCallListResponse,
   CommentListResponse,
+  ConversationListResponse,
+  CreateAiConversationRequest,
+  CreateAiConversationResponse,
+  CreateAiMessageRequest,
+  CreateAiMessageResponse,
+  CreateConversationRequest,
+  CreateConversationResponse,
   CreateCommentRequest,
   CreateCommentResponse,
+  CreateMessageRequest,
+  CreateMessageResponse,
   CreatePostRequest,
   CreatePostResponse,
+  GetConversationResponse,
   FollowersListResponse,
   FollowingListResponse,
   FollowUserResponse,
   GetPostResponse,
   HomeFeedResponse,
   LikePostResponse,
+  MarkConversationReadRequest,
+  MarkConversationReadResponse,
+  MessageListResponse,
+  RejectAiToolCallResponse,
   UnlikePostResponse,
   UpdatePostRequest,
   UpdatePostResponse,
@@ -65,6 +84,36 @@ export type {
 } from './api/v1/users';
 
 export type { Comment, CommentAuthorSummary, CommentWithAuthor } from './domain/comment';
+export type {
+  Agent,
+  AiToolCall,
+  AiToolCallStatus,
+  AiConversation,
+  AiMessage,
+  AiMessageDeltaPayload,
+  AiMessageDonePayload,
+  AiMessageRole,
+  AiSseErrorPayload,
+  AiSseEvent,
+  AiSseEventType,
+  AiSsePayloadByType,
+  AiToolCallPayload,
+} from './domain/ai';
+export type {
+  ChatWsPayloadByType,
+  ChatWsType,
+  ConnectionMeta,
+  ConnectionReadyPayload,
+  Conversation,
+  ConversationParticipant,
+  ConversationType,
+  Message,
+  MessageAckPayload,
+  MessageNewPayload,
+  MessageReadPayload,
+  WsErrorPayload,
+  WsMessage,
+} from './domain/conversation';
 export type { Follow, UserSearchResult } from './domain/follow';
 export type { Post, PostAuthorSummary, PostWithAuthor } from './domain/post';
 export type { ClientPlatform } from './domain/client';

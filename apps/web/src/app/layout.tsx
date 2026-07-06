@@ -1,4 +1,5 @@
 import '@/styles/globals.css';
+import '@/styles/chat.css';
 import { AuthProvider } from '@/contexts/auth-context';
 
 export const metadata = {
