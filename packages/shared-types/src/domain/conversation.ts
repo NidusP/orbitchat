@@ -1,6 +1,8 @@
 import type { ClientPlatform } from './client';
 
-export type ConversationType = 'direct';
+export type ConversationType = 'direct' | 'group';
+
+export type GroupMemberRole = 'owner' | 'admin' | 'member';
 
 export interface ConversationParticipant {
   id: string;
@@ -19,10 +21,17 @@ export interface Message {
   deletedAt: string | null;
 }
 
+export interface GroupMember extends ConversationParticipant {
+  role: GroupMemberRole;
+  joinedAt: string;
+}
+
 export interface Conversation {
   id: string;
   type: ConversationType;
+  title: string | null;
   participants: ConversationParticipant[];
+  viewerRole: GroupMemberRole | null;
   lastMessage: Message | null;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -54,6 +63,23 @@ export interface MessageReadPayload {
   lastReadAt: string;
 }
 
+export interface TypingPayload {
+  conversationId: string;
+  userId: string;
+  displayName: string;
+}
+
+export interface MemberJoinedPayload {
+  conversationId: string;
+  member: GroupMember;
+}
+
+export interface MemberLeftPayload {
+  conversationId: string;
+  userId: string;
+  reason: 'kicked' | 'left';
+}
+
 export interface WsErrorPayload {
   code: string;
   message: string;
@@ -67,6 +93,10 @@ export type ChatWsPayloadByType = {
   'message.new': MessageNewPayload;
   'message.ack': MessageAckPayload;
   'message.read': MessageReadPayload;
+  'typing.started': TypingPayload;
+  'typing.stopped': TypingPayload;
+  'member.joined': MemberJoinedPayload;
+  'member.left': MemberLeftPayload;
   error: WsErrorPayload;
 };
 

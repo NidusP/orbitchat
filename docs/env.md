@@ -20,6 +20,7 @@
 | `LLM_BASE_URL` | server | Phase 4A | 本地模型 OpenAI-compatible API 基址 |
 | `LLM_MODEL` | server | Phase 4A | 默认模型名 |
 | `LLM_TIMEOUT_MS` | server | 否 | LLM 请求超时，默认 `30000` |
+| `LLM_E2E_MOCK` | server | 否 | Playwright E2E 专用；`true` 时用确定性 mock 替代 Ollama |
 | `AI_MAX_CONCURRENT_RUNS` | server | 否 | AI 并发运行数，默认 `2` |
 | `NEXT_PUBLIC_API_URL` | web | 是 | Hono API 基址 |
 | `NEXT_PUBLIC_APP_VERSION` | web | 否 | 客户端 semver，Header 用 |

@@ -13,12 +13,14 @@ import {
 import {
   loadParticipantsByConversation,
   loadParticipantSummaries,
+  loadViewerRole,
+  loadViewerRoles,
 } from '../lib/conversation-loaders';
 import { toConversation, toMessage } from '../lib/conversation-mappers';
 import { buildDirectKey } from '../lib/direct-key';
 import { trimToPage } from '../lib/cursor';
 import { AppError } from '../lib/errors';
-import type { CreateConversationInput } from '../schemas/conversations';
+import type { CreateDirectConversationInput, CreateGroupConversationInput } from '../schemas/conversations';
 import { findUserById } from './user-service';
 
 function conversationListBefore(cursor: ConversationListCursor | undefined) {
@@ -107,7 +109,7 @@ export async function assertConversationMember(
 
 export async function createOrGetDirectConversation(
   actorUserId: string,
-  input: CreateConversationInput
+  input: CreateDirectConversationInput
 ): Promise<{ conversation: Conversation; created: boolean }> {
   const { participantUserId } = input;
 
@@ -156,6 +158,50 @@ export async function createOrGetDirectConversation(
   return { conversation, created: true };
 }
 
+export async function createGroupConversation(
+  actorUserId: string,
+  input: CreateGroupConversationInput
+): Promise<{ conversation: Conversation; created: boolean }> {
+  const uniqueMemberIds = [...new Set(input.memberUserIds.filter((id) => id !== actorUserId))];
+
+  if (uniqueMemberIds.length === 0) {
+    throw new AppError('VALIDATION_ERROR', 'A group needs at least one other member', 400, {
+      field: 'memberUserIds',
+    });
+  }
+
+  await Promise.all(uniqueMemberIds.map((userId) => findUserById(userId)));
+
+  const created = await db.transaction(async (tx) => {
+    const [conversation] = await tx
+      .insert(conversations)
+      .values({
+        type: 'group',
+        title: input.title,
+        createdByUserId: actorUserId,
+      })
+      .returning();
+
+    if (!conversation) {
+      throw new AppError('INTERNAL_ERROR', 'Failed to create group conversation', 500);
+    }
+
+    await tx.insert(conversationMembers).values([
+      { conversationId: conversation.id, userId: actorUserId, role: 'owner' },
+      ...uniqueMemberIds.map((userId) => ({
+        conversationId: conversation.id,
+        userId,
+        role: 'member' as const,
+      })),
+    ]);
+
+    return conversation;
+  });
+
+  const conversation = await getConversationDto(created.id, actorUserId);
+  return { conversation, created: true };
+}
+
 export async function getConversationDto(
   conversationId: string,
   viewerId: string
@@ -193,7 +239,8 @@ export async function getConversationDto(
     conversation,
     participants,
     lastMessage,
-    unreadMap.get(conversationId) ?? 0
+    unreadMap.get(conversationId) ?? 0,
+    conversation.type === 'group' ? await loadViewerRole(conversationId, viewerId) : null
   );
 }
 
@@ -230,7 +277,7 @@ export async function listConversations(
   const pageRows = trimToPage(rows, limit);
   const conversationIds = pageRows.map((row) => row.conversation.id);
 
-  const [participantsMap, lastMessagesMap, unreadMap] = await Promise.all([
+  const [participantsMap, lastMessagesMap, unreadMap, viewerRolesMap] = await Promise.all([
     loadParticipantsByConversation(conversationIds),
     loadLastMessages(conversationIds),
     loadUnreadCounts(
@@ -239,6 +286,10 @@ export async function listConversations(
         conversationId: row.conversation.id,
         lastReadAt: row.membership.lastReadAt,
       }))
+    ),
+    loadViewerRoles(
+      pageRows.filter((row) => row.conversation.type === 'group').map((row) => row.conversation.id),
+      userId
     ),
   ]);
 
@@ -261,7 +312,10 @@ export async function listConversations(
       row.conversation,
       participants,
       lastMessage,
-      unreadMap.get(row.conversation.id) ?? 0
+      unreadMap.get(row.conversation.id) ?? 0,
+      row.conversation.type === 'group'
+        ? (viewerRolesMap.get(row.conversation.id) ?? null)
+        : null
     );
   });
 

@@ -1,4 +1,4 @@
-import { index, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { agents } from './agents';
 import { users } from './users';
 
@@ -13,6 +13,7 @@ export const aiConversations = pgTable(
       .notNull()
       .references(() => agents.id, { onDelete: 'restrict' }),
     title: varchar('title', { length: 200 }),
+    tictactoeData: jsonb('tictactoe_data'),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

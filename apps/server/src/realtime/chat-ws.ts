@@ -6,6 +6,7 @@ import { listConversationIdsForUser } from '../services/conversation-service';
 import { touchSession } from '../services/session-service';
 import { chatHub } from './chat-hub';
 import { authenticateChatWs } from './ws-auth';
+import { handleTypingEvent, isTypingEvent } from '../services/typing-service';
 
 function wsError(code: string, message: string) {
   return {
@@ -20,7 +21,10 @@ const connectionIdsBySocket = new WeakMap<WSContext, string>();
 export function registerChatWs(app: Hono, upgradeWebSocket: UpgradeWebSocket): void {
   app.get(
     '/ws/v1/chat',
-    upgradeWebSocket((c) => ({
+    upgradeWebSocket((c) => {
+      let activeConnectionId: string | null = null;
+
+      return {
       onOpen(_event, ws) {
         void (async () => {
           try {
@@ -28,6 +32,7 @@ export function registerChatWs(app: Hono, upgradeWebSocket: UpgradeWebSocket): v
             await touchSession(auth.sessionId);
 
             const connectionId = randomUUID();
+            activeConnectionId = connectionId;
             const conversationIds = await listConversationIdsForUser(auth.userId);
             const connectedAt = new Date().toISOString();
 
@@ -70,22 +75,57 @@ export function registerChatWs(app: Hono, upgradeWebSocket: UpgradeWebSocket): v
         })();
       },
       onMessage(event, ws) {
-        try {
-          const frame = JSON.parse(String(event.data)) as { type?: string };
-          if (frame.type === 'pong' || frame.type === 'message.ack') {
+        void (async () => {
+          const connectionId = connectionIdsBySocket.get(ws) ?? activeConnectionId;
+          if (!connectionId) {
             return;
           }
-        } catch {
-          ws.send(JSON.stringify(wsError('INVALID_MESSAGE', 'Invalid WebSocket frame')));
-        }
+
+          const registered = chatHub.getConnectionMeta(connectionId);
+          if (!registered) {
+            return;
+          }
+
+          try {
+            const frame = JSON.parse(String(event.data)) as {
+              type?: string;
+              payload?: { conversationId?: string };
+            };
+
+            if (frame.type === 'pong' || frame.type === 'message.ack') {
+              return;
+            }
+
+            const frameType = frame.type;
+            if (frameType && isTypingEvent(frameType)) {
+              const conversationId = frame.payload?.conversationId;
+              if (!conversationId) {
+                ws.send(
+                  JSON.stringify(wsError('VALIDATION_ERROR', 'conversationId is required'))
+                );
+                return;
+              }
+              await handleTypingEvent(registered.userId, conversationId, frameType);
+              return;
+            }
+          } catch (error) {
+            if (error instanceof AppError) {
+              ws.send(JSON.stringify(wsError(error.code, error.message)));
+              return;
+            }
+            ws.send(JSON.stringify(wsError('INVALID_MESSAGE', 'Invalid WebSocket frame')));
+          }
+        })();
       },
       onClose(_event, ws) {
-        const connectionId = connectionIdsBySocket.get(ws);
+        const connectionId = connectionIdsBySocket.get(ws) ?? activeConnectionId;
         if (connectionId) {
           chatHub.removeConnection(connectionId);
           connectionIdsBySocket.delete(ws);
+          activeConnectionId = null;
         }
       },
-    }))
+    };
+    })
   );
 }

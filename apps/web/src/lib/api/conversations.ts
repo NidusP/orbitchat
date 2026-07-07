@@ -1,4 +1,5 @@
 import type {
+  AddGroupMembersRequest,
   Conversation,
   ConversationListResponse,
   CreateConversationRequest,
@@ -7,9 +8,14 @@ import type {
   CreateMessageResponse,
   CursorPageParams,
   GetConversationResponse,
+  GroupMember,
+  GroupMemberListResponse,
   MarkConversationReadRequest,
   MarkConversationReadResponse,
   MessageListResponse,
+  TransferGroupOwnerRequest,
+  UpdateGroupConversationRequest,
+  UpdateGroupMemberRoleRequest,
 } from '@orbitchat/shared-types';
 import { apiRequest } from './client';
 
@@ -73,9 +79,99 @@ export async function markConversationRead(
   });
 }
 
+export async function listGroupMembers(conversationId: string): Promise<GroupMemberListResponse> {
+  return apiRequest<GroupMemberListResponse>(`/api/v1/conversations/${conversationId}/members`);
+}
+
+export async function addGroupMembers(
+  conversationId: string,
+  input: AddGroupMembersRequest
+): Promise<GroupMemberListResponse> {
+  return apiRequest<GroupMemberListResponse>(`/api/v1/conversations/${conversationId}/members`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function removeGroupMember(
+  conversationId: string,
+  userId: string
+): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/api/v1/conversations/${conversationId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function updateGroupMemberRole(
+  conversationId: string,
+  userId: string,
+  input: UpdateGroupMemberRoleRequest
+): Promise<GroupMemberListResponse> {
+  return apiRequest<GroupMemberListResponse>(
+    `/api/v1/conversations/${conversationId}/members/${userId}`,
+    {
+      method: 'PATCH',
+      body: input,
+    }
+  );
+}
+
+export async function leaveGroup(conversationId: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/api/v1/conversations/${conversationId}/leave`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function updateGroupTitle(
+  conversationId: string,
+  input: UpdateGroupConversationRequest
+): Promise<GetConversationResponse> {
+  return apiRequest<GetConversationResponse>(`/api/v1/conversations/${conversationId}`, {
+    method: 'PATCH',
+    body: input,
+  });
+}
+
+export async function transferGroupOwner(
+  conversationId: string,
+  input: TransferGroupOwnerRequest
+): Promise<GroupMemberListResponse> {
+  return apiRequest<GroupMemberListResponse>(
+    `/api/v1/conversations/${conversationId}/transfer-owner`,
+    {
+      method: 'POST',
+      body: input,
+    }
+  );
+}
+
 export function getOtherParticipant(
   conversation: Conversation,
   currentUserId: string
 ): Conversation['participants'][number] | null {
   return conversation.participants.find((participant) => participant.id !== currentUserId) ?? null;
 }
+
+export function getConversationDisplayName(
+  conversation: Conversation,
+  currentUserId: string
+): string {
+  if (conversation.type === 'group' && conversation.title) {
+    return conversation.title;
+  }
+
+  const other = getOtherParticipant(conversation, currentUserId);
+  return other?.displayName ?? 'Conversation';
+}
+
+export async function createGroupConversation(
+  input: Extract<CreateConversationRequest, { type: 'group' }>
+): Promise<CreateConversationResponse> {
+  return apiRequest<CreateConversationResponse>('/api/v1/conversations', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export type { GroupMember };

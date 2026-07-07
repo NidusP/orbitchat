@@ -33,7 +33,8 @@ Phase 3A 依据：
 - `WS /ws/v1/chat` 使用 Bun/Hono 原生 WebSocket。
 - 单实例 in-memory `ChatHub`，多实例 Redis Pub/Sub 延后。
 - 发送消息走 REST POST；WebSocket 只推实时增量。
-- Phase 3A 只实现 1:1 私聊；群聊、typing、presence 延后。
+- Phase 3A：1:1 私聊；Phase 3B：群聊；Phase 3B.1：**1:1 typing** + 群成员管理 WS 事件。
+- 群聊 typing、presence 不做。
 
 ---
 
@@ -122,9 +123,11 @@ interface WsMessage<T = unknown> {
 | `message.new` | S→C | 新消息 |
 | `message.ack` | C→S | 客户端收到消息（3A 可选） |
 | `message.read` | S→C | 会话已读时间更新 |
+| `typing.started` | C→S→C | **仅 1:1**；输入中 |
+| `typing.stopped` | C→S→C | **仅 1:1**；停止输入 |
+| `member.joined` | S→C | 群成员加入（拉人/再入群） |
+| `member.left` | S→C | 群成员离开或被踢 |
 | `error` | S→C | WS 错误 |
-| `typing.started` | C→S→C | Phase 3B 可选 |
-| `typing.stopped` | C→S→C | Phase 3B 可选 |
 | `presence.online` | S→C | Phase 3B+ 可选 |
 | `session.revoked` | S→C | Phase 3B+ 可选 |
 
@@ -193,6 +196,60 @@ interface MessageReadPayload {
 }
 ```
 
+### `typing.started` / `typing.stopped`
+
+**仅 1:1 direct 会话**。群聊发送 typing 帧时服务端返回 `error`（`VALIDATION_ERROR`）。
+
+客户端 → 服务端（发送者只需带 `conversationId`）：
+
+```typescript
+interface ClientTypingPayload {
+  conversationId: string;
+}
+```
+
+服务端 → 对方连接（排除发送者；附带发送者展示名）：
+
+```typescript
+interface TypingPayload {
+  conversationId: string;
+  userId: string;
+  displayName: string;
+}
+```
+
+建议：客户端在输入时发 `typing.started`，停止输入或超时后发 `typing.stopped`；服务端不做持久化。
+
+### `member.joined`
+
+群成员被拉入或重新入群时广播给该群 room 内所有在线成员。
+
+```typescript
+interface MemberJoinedPayload {
+  conversationId: string;
+  member: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    role: 'owner' | 'admin' | 'member';
+    joinedAt: string;
+  };
+}
+```
+
+### `member.left`
+
+成员主动退群或被踢时广播。
+
+```typescript
+interface MemberLeftPayload {
+  conversationId: string;
+  userId: string;
+  reason: 'kicked' | 'left';
+}
+```
+
 ### `error`
 
 ```typescript
@@ -217,11 +274,10 @@ interface WsErrorPayload {
 
 ## 房间模型
 
-- **1:1 聊天**：roomId = `conversation:{conversationId}`
-- **群聊**：roomId = `group:{groupId}`；Phase 3B
+- **所有会话**（1:1 与群聊）：roomId = `conversation:{conversationId}`
 - **通话信令**：roomId = `call:{callSessionId}`；Phase 4C
 
-加入 / 离开 room 由服务端根据 DB membership 管理，客户端不直接发送 join room 命令。广播必须通过 `roomId -> Set<connectionId>` 精准发送。
+加入 / 离开 room 由服务端根据 DB membership 管理，客户端不直接发送 join room 命令。广播必须通过 `roomId -> Set<connectionId>` 精准发送。Typing 广播使用 `broadcastExcept` 排除发送者本人。
 
 ---
 
@@ -301,3 +357,4 @@ Scale 阶段：
 |------|------|------|
 | 0.1.0 | 2026-06-14 | 骨架与维护策略 |
 | 0.2.0 | 2026-07-03 | Phase 3A 连接、heartbeat、payload、REST+WS 时序 |
+| 0.3.0 | 2026-07-06 | 1:1 typing、群成员 `member.joined`/`member.left`；统一 roomId |

@@ -8,7 +8,7 @@ import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
 import { ApiError } from '@/lib/api/errors';
-import { getOtherParticipant, listConversations } from '@/lib/api/conversations';
+import { getConversationDisplayName, listConversations } from '@/lib/api/conversations';
 
 function previewContent(content: string, max = 72): string {
   const trimmed = content.trim();
@@ -132,6 +132,9 @@ export default function MessagesPage() {
       <SiteNav />
       <header className="page-header section-header">
         <h1>Messages</h1>
+        <Link href="/messages/new-group" className="btn btn-primary">
+          New group
+        </Link>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -149,9 +152,14 @@ export default function MessagesPage() {
       ) : (
         <ul className="conversation-list">
           {conversations.map((conversation) => {
-            const other = user ? getOtherParticipant(conversation, user.id) : null;
-            const title = other?.displayName ?? 'Conversation';
+            const title = user
+              ? getConversationDisplayName(conversation, user.id)
+              : 'Conversation';
             const preview = conversation.lastMessage?.content ?? 'No messages yet';
+            const memberHint =
+              conversation.type === 'group'
+                ? `${conversation.participants.length} members`
+                : null;
 
             return (
               <li key={conversation.id}>
@@ -163,7 +171,9 @@ export default function MessagesPage() {
                     </span>
                   </div>
                   <div className="conversation-list-preview-row">
-                    <span className="conversation-list-preview">{previewContent(preview)}</span>
+                    <span className="conversation-list-preview">
+                      {memberHint ? `${memberHint} · ${previewContent(preview)}` : previewContent(preview)}
+                    </span>
                     {conversation.unreadCount > 0 && (
                       <span className="conversation-unread-badge">{conversation.unreadCount}</span>
                     )}

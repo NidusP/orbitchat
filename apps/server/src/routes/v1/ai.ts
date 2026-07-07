@@ -4,7 +4,9 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { env } from '../../env';
 import { AgentOrchestrator } from '../../lib/agent-runtime/orchestrator';
+import { executeAgentTool } from '../../services/ai/tool-executor';
 import { AiRunLimiter } from '../../lib/agent-runtime/limiter';
+import { E2eMockLlmProvider } from '../../lib/agent-runtime/providers/e2e-mock';
 import { OpenAiCompatibleProvider } from '../../lib/agent-runtime/providers/ollama';
 import { AppError } from '../../lib/errors';
 import { successResponse } from '../../lib/response';
@@ -31,8 +33,10 @@ import {
 
 export const aiRouter = new Hono();
 
-const provider = new OpenAiCompatibleProvider(env.LLM_BASE_URL, env.LLM_TIMEOUT_MS);
-const orchestrator = new AgentOrchestrator(provider, env.LLM_MODEL);
+const provider = env.LLM_E2E_MOCK
+  ? new E2eMockLlmProvider()
+  : new OpenAiCompatibleProvider(env.LLM_BASE_URL, env.LLM_TIMEOUT_MS);
+const orchestrator = new AgentOrchestrator(provider, env.LLM_MODEL, executeAgentTool);
 const limiter = new AiRunLimiter(env.AI_MAX_CONCURRENT_RUNS);
 
 function parseConversationId(rawId: string): string {

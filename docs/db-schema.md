@@ -175,7 +175,9 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | UUID PK | |
-| type | ENUM | Phase 3A 固定 `direct` |
+| type | ENUM | `direct` \| `group` |
+| title | VARCHAR(120) | 群名称；`direct` 为 NULL |
+| created_by_user_id | UUID FK → users | 群主；`direct` 为 NULL |
 | direct_key | VARCHAR UNIQUE | `minUserId:maxUserId`；仅 direct 会话 |
 | last_message_at | TIMESTAMPTZ | 可空；会话列表排序 |
 | created_at | TIMESTAMPTZ | |
@@ -192,14 +194,23 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | id | UUID PK | |
 | conversation_id | UUID FK → conversations | |
 | user_id | UUID FK → users | |
+| role | conversation_member_role | 可空；**仅 group** 使用：`owner` / `admin` / `member`；direct 为 NULL |
 | last_read_at | TIMESTAMPTZ | 可空；简化已读 |
 | joined_at | TIMESTAMPTZ | |
-| left_at | TIMESTAMPTZ | 可空；3A 默认不用 |
+| left_at | TIMESTAMPTZ | 可空；退群 / 踢人时写入 |
 
 **约束与索引**：
 - `UNIQUE (conversation_id, user_id)`
 - `(user_id, conversation_id)` — 查用户会话成员身份
 - `(conversation_id)` — 广播 / 权限检查时查成员
+
+**群角色（Phase 3B.1）**：
+- 建群：创建者 `owner`，初始成员 `member`
+- 每群有且仅有 1 个 `owner`；转让后原 owner 降为 `admin`
+- **owner 不可直接退群**（须先 `POST /transfer-owner`）；`member` / `admin` 可 `POST /leave`
+- 权限以 `role` 为准；`conversations.created_by_user_id` 保留审计，转让后不强制同步
+
+枚举 `conversation_member_role`：`owner` | `admin` | `member`
 
 ### messages
 
@@ -217,13 +228,18 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 - `(conversation_id, created_at DESC, id DESC)` — 历史消息 cursor 分页
 - `(sender_id, created_at DESC)` — 用户消息排查 / 未来审计
 
-### Phase 3B 延后
+### Phase 3B / 3B.1（群聊与群管理）
 
-| 表 | 用途 |
-|----|------|
-| chat_groups | 群元信息 |
-| chat_group_members | 群成员与权限 |
-| message_reads | 逐条已读回执（如需要） |
+群聊复用 `conversations.type = 'group'`，不新建 `chat_groups` 表。见 [ADR 16](./decisions/16-group-chat-model.md)、[phase-3b1-group-plan.md](./phase-3b1-group-plan.md)。
+
+| 能力 | 状态 |
+|------|------|
+| 建群 + 群消息 | Phase 3B ✅ |
+| `conversation_members.role`、拉人/踢人/退群/改名/转让 | Phase 3B.1 ✅ |
+| 1:1 typing（群聊不做） | Phase 3B.1 ✅ |
+| 邀请链接 / 解散群 | P1 延后 |
+| message_reads 逐条已读 | 延后 |
+| presence | 延后 |
 
 *WS 协议见 [realtime-spec.md](./realtime-spec.md)。*
 
@@ -255,6 +271,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | user_id | UUID FK → users | 会话拥有者 |
 | agent_id | UUID FK → agents | 选用 Agent |
 | title | VARCHAR(200) | 可空；默认可由首条消息生成 |
+| tictactoe_data | JSONB | 可空；井字棋当前盘与历史对局（`active` + `history[]`） |
 | last_message_at | TIMESTAMPTZ | 可空；列表排序 |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |

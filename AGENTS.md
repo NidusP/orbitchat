@@ -29,9 +29,9 @@
 
 ### 项目阶段
 
-**Phase 3A + 4A + 4B（send_dm）— 开发完成，待 PR**（2026-07-05）
+**Phase 3B + 4B — 已交付并合入 `master`**（2026-07-07）
 
-Phase 0–2 已完成；当前分支 `feat/phase-3-agent` 交付 **Phase 3A 切片 + Phase 4A + Phase 4B 汇合点**（完整 Phase 3/4 仍各只做一部分）。回顾见 [phase-3-agent-closeout.md](./docs/phase-3-agent-closeout.md)；**后续并行计划**见 [phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md)。
+`feat/phase-3b-4b` 已合并：群聊与群管理、私聊 typing、4B FC 写工具、`play_tictactoe` 井字棋。回顾见 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)。**下一步**：UI 改版与整体手测；或 3B.1 邀请链接 / 4B SSE 等（见 closeout「下一步」）。
 
 ### 项目特征
 
@@ -198,25 +198,23 @@ app.onError((err, c) => {
 
 ---
 
-## 当前阶段范围（Phase 3A + Agent）
+## 当前阶段范围（Phase 3B + 4B 已交付）
 
-### ✅ Phase 1–3A 与 Agent MVP 已完成开发
+### ✅ 已完成
 
-- Phase 1：用户系统（auth、profile、sessions、E2E）
-- Phase 2：社交（posts、feed、follow、search、评论；ADR 10–12；见 [phase-2-closeout.md](./docs/phase-2-closeout.md)）
-- Phase 3A：1:1 私聊（REST + WebSocket + Web `/messages`；ADR 13–15）
-- Phase 4A：AI Chat MVP（本地模型、REST + SSE、Web `/ai`；ADR 17）
-- Phase 4B 汇合点：`send_dm` pending tool call + 用户确认 + `ai_tool_calls` 审计
+- Phase 1–2、Phase 3A 1:1 私聊
+- **Phase 3B**：群聊 MVP + 群管理（角色/踢人/转让/改群名）+ **私聊 typing**
+- Phase 4A AI Chat MVP
+- **Phase 4B**：FC 写工具（`send_dm`、`create_post`、`follow`/`unfollow`）+ **`play_tictactoe`**
 
-### ❌ 暂不做（后续阶段）
+### ❌ 暂不做 / 后续
 
-- Phase 3B 群聊、typing、presence
-- Redis Pub/Sub 多实例广播（Compose 已预置，代码未接）
-- WebRTC 信令与音视频
-- RAG / LangGraph / 独立 Python Agent Runtime
+- 群邀请链接（3B.1 P1）、presence、群头像
+- Redis Pub/Sub 多实例、WebRTC（4C）、推送（3.1）
+- M1 长期记忆 / M2 RAG（见 [phase-4-agent-memory-rag-plan.md](./docs/phase-4-agent-memory-rag-plan.md)）
 - 生产部署编排
 
-**下一步优先**：合并 PR；然后按 [phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md) 推进 **3B 群聊（Track M）** 与 **4B Tool 扩展（Track A）**（可并行）。
+**下一步**：UI 改版 + 整体手测；或按 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) 选轨推进。
 
 ---
 
@@ -391,71 +389,27 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-07-05）**：`feat/phase-3-agent` 已交付 3A + 4A + 4B `send_dm`；文档已同步 [product.md](./docs/product.md)、[roadmap.md](./docs/roadmap.md)、[phase-3-4-next-plan.md](./docs/phase-3-4-next-plan.md)。
+**结论（2026-07-07）**：`feat/phase-3b-4b` 已合入 `master`。自动化：109 server tests + 28 E2E 通过。
 
 | 维度 | 状态 |
 |------|------|
-| Phase 0–1 | ✅ 完成 |
-| Phase 2 | ✅ 完成 |
-| Phase 3A 私聊 | ✅ 开发完成；E2E 新增中 |
-| Phase 4A AI Chat | ✅ 开发完成；本地模型手动验收待跑 |
-| Phase 4B `send_dm` | ✅ pending tool call + 确认执行已实现 |
-| Git | ⚠️ 当前改动未提交，分支 `feat/phase-3-agent` |
+| Phase 3B 群聊 + 群管理 + 私聊 typing | ✅ |
+| Phase 4B FC 写工具 + 井字棋 | ✅ |
+| 手测 / UI | ⏸ 用户计划 UI 改版后统一验收 |
+| Git | `master` 已含本阶段交付 |
 
 **本地开发速查**
 
 | 项 | 说明 |
 |----|------|
-| 启动 | 根目录 `pnpm dev`（并行 server `--hot` + web） |
-| API | http://localhost:3001/health |
-| Web | http://localhost:3000 |
-| DB | 复用 `im-postgres` + `orbitchat` 库；`docker-compose.yml` 容器名 `im-postgres` / `im-redis` |
-| 注册密码 | 至少 8 位 + 大小写 + 数字（例 `Password123`） |
-| LLM | `LLM_BASE_URL=http://localhost:11434/v1`，`LLM_MODEL=llama3.2` |
+| 启动 | 根目录 `pnpm dev` |
+| API / Web | http://localhost:3001/health 、http://localhost:3000 |
+| DB 迁移 | `pnpm --filter @orbitchat/server db:migrate`（含 0006–0008） |
+| E2E | `CI=true pnpm e2e`（`LLM_E2E_MOCK=true`） |
 
-**下次 Agent 建议顺序**
+**建议下一迭代**：UI 改版 + 整体手测；或见 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)（群邀请 / 4B SSE）。
 
-1. 跑 `pnpm e2e -- apps/web/e2e/chat-agent-flow.spec.ts` 并修复等待/选择器问题。
-2. 跑全量 `pnpm type-check && pnpm lint && pnpm --filter @orbitchat/server test && pnpm --filter @orbitchat/web build`。
-3. 本地有 Ollama 时手动验收 `/ai` SSE 回复与 `send_dm` Approve。
-4. 准备 PR；不要自动 commit，除非用户明确要求。
-
-**已实现能力**
-
-| 模块 | 内容 |
-|------|------|
-| DB | P1/P2 表 + P3 conversations/messages + AI `agents`/`ai_*`/`ai_tool_calls` |
-| API | auth、users、feed/posts/follow/search、conversations/messages、AI REST/SSE |
-| Realtime | `WS /ws/v1/chat`、ChatHub、`message.new`、`message.read` |
-| Web | `/feed`、`/search`、`/users/[id]`、`/messages`、`/ai` |
-| 测试 | server 68 pass；新增 chat/agent E2E |
-| 文档 | ADR 13–15/17 Accepted；`phase-3-agent-master-plan.md`、`phase-3-agent-closeout.md` |
-
-**剩余项**
-
-| # | 项 | 说明 |
-|---|-----|------|
-| 1 | E2E | 跑新增 chat/agent flow |
-| 2 | 本地模型验收 | 需要 Ollama / OpenAI-compatible local model |
-| 3 | Redis | 多实例 Pub/Sub 后续接入 |
-| 4 | 生产部署 | Compose+VPS 可行；prod compose / Caddy 草案未写 |
-| 5 | ADR 09 | Deferred |
-
-**关键文件索引**
-
-```
-apps/server/src/lib/zod-hook.ts            # Zod → ErrorResponse
-apps/server/src/realtime/chat-hub.ts       # P3 ChatHub
-apps/server/src/routes/v1/conversations.ts
-apps/server/src/routes/v1/ai.ts
-apps/server/src/services/message-service.ts
-apps/server/src/services/ai/
-apps/web/src/app/messages/
-apps/web/src/app/ai/
-docker-compose.yml                         # im-postgres / im-redis
-docs/env.md
-docs/phase-3-agent-closeout.md
-```
+**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)
 
 ### 联系和反馈
 
@@ -479,5 +433,5 @@ docs/phase-3-agent-closeout.md
 ## 版本
 
 - **当前版本**：0.1.0
-- **最后更新**：2026-07-05（3A+4A+4B 切片交付；P3/P4 后续见 phase-3-4-next-plan.md）
-- **下次审查**：新增 E2E 通过后准备 PR
+- **最后更新**：2026-07-07（3B+4B 合入 master；见 phase-3b-4b-closeout）
+- **下次审查**：UI 改版后整体手测，或启动 3B.1 邀请链接 / M1 记忆轨

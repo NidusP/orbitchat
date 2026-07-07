@@ -1,6 +1,8 @@
 import type {
   Conversation,
   ConversationParticipant,
+  GroupMember,
+  GroupMemberRole,
   Message,
 } from '@orbitchat/shared-types';
 import type { Conversation as DbConversation } from '../db/schema/conversations';
@@ -43,16 +45,34 @@ export function toConversation(
   row: DbConversation,
   participants: ConversationParticipant[],
   lastMessage: Message | null,
-  unreadCount: number
+  unreadCount: number,
+  viewerRole: GroupMemberRole | null = null
 ): Conversation {
   return {
     id: row.id,
-    type: 'direct',
+    type: row.type,
+    title: row.title,
     participants,
+    viewerRole,
     lastMessage,
     lastMessageAt: row.lastMessageAt ? toIsoString(row.lastMessageAt) : null,
     unreadCount,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
+  };
+}
+
+export function toGroupMember(row: {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: GroupMemberRole;
+  joinedAt: Date;
+}): GroupMember {
+  return {
+    ...toConversationParticipant(row),
+    role: row.role,
+    joinedAt: toIsoString(row.joinedAt),
   };
 }

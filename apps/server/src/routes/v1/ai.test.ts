@@ -18,6 +18,7 @@ import { handleError } from '../../middleware/error';
 const jwtLib = await import('../../lib/jwt');
 const sessionService = await import('../../services/session-service');
 const aiService = await import('../../services/ai/conversation-service');
+const toolCallService = await import('../../services/ai/tool-call-service');
 const { aiRouter } = await import('./ai');
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -209,5 +210,38 @@ describe('aiRouter', () => {
 
     expect(response.status).toBe(401);
     expect(body.code).toBe('UNAUTHORIZED');
+  });
+
+  test('approves a pending tool call', async () => {
+    const approveSpy = spyOn(toolCallService, 'approveAiToolCall').mockImplementation(async () => ({
+      id: '66666666-6666-4666-8666-666666666666',
+      conversationId: CONVERSATION_ID,
+      requestedByUserId: USER_ID,
+      toolName: 'create_post',
+      status: 'executed',
+      input: { content: 'Hello feed' },
+      output: { postId: '77777777-7777-4777-8777-777777777777' },
+      error: null,
+      createdAt: '2026-07-06T10:00:00.000Z',
+      updatedAt: '2026-07-06T10:01:00.000Z',
+      confirmedAt: '2026-07-06T10:00:30.000Z',
+      executedAt: '2026-07-06T10:01:00.000Z',
+    }));
+    const app = createApp();
+    const response = await app.request(
+      '/ai/tool-calls/66666666-6666-4666-8666-666666666666/approve',
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer valid-token' },
+      }
+    );
+    const body = (await response.json()) as { code: string; data: { status: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.data.status).toBe('executed');
+    expect(approveSpy).toHaveBeenCalledWith(
+      '66666666-6666-4666-8666-666666666666',
+      USER_ID
+    );
   });
 });

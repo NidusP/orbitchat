@@ -14,6 +14,10 @@ const envSchema = z.object({
   LLM_MODEL: z.string().min(1).default('llama3.2'),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   AI_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(2),
+  LLM_E2E_MOCK: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -31,9 +31,14 @@ export type {
   CreateMessageRequest,
   CreateMessageResponse,
   GetConversationResponse,
+  AddGroupMembersRequest,
+  GroupMemberListResponse,
   MarkConversationReadRequest,
   MarkConversationReadResponse,
   MessageListResponse,
+  TransferGroupOwnerRequest,
+  UpdateGroupConversationRequest,
+  UpdateGroupMemberRoleRequest,
 } from './conversations';
 export type {
   CommentListResponse,

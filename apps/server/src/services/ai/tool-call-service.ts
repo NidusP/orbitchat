@@ -13,13 +13,24 @@ import {
 } from '../../lib/cursor';
 import { AppError } from '../../lib/errors';
 import type { AiCursorQueryInput } from '../../schemas/ai';
+import { followUser, unfollowUser } from '../follow-service';
 import { createOrGetDirectConversation } from '../conversation-service';
 import { createMessage as createChatMessage } from '../message-service';
+import { createPost } from '../post-service';
 
 interface SendDmInput {
   targetUserId: string;
   targetUsername: string;
   content: string;
+}
+
+interface CreatePostInput {
+  content: string;
+}
+
+interface FollowUserInput {
+  targetUserId: string;
+  targetUsername: string;
 }
 
 function toolCallTimelineBefore(cursor: TimelineCursor | undefined) {
@@ -40,6 +51,26 @@ function isSendDmInput(input: unknown): input is SendDmInput {
     typeof input.targetUserId === 'string' &&
     typeof input.targetUsername === 'string' &&
     typeof input.content === 'string'
+  );
+}
+
+function isCreatePostInput(input: unknown): input is CreatePostInput {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'content' in input &&
+    typeof input.content === 'string'
+  );
+}
+
+function isFollowUserInput(input: unknown): input is FollowUserInput {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'targetUserId' in input &&
+    'targetUsername' in input &&
+    typeof input.targetUserId === 'string' &&
+    typeof input.targetUsername === 'string'
   );
 }
 
@@ -77,12 +108,11 @@ async function getOwnedToolCall(
   return toolCall;
 }
 
-export async function createPendingSendDmToolCall(input: {
+async function createPendingToolCall(input: {
   conversationId: string;
   userId: string;
-  targetUserId: string;
-  targetUsername: string;
-  content: string;
+  toolName: string;
+  payload: unknown;
 }): Promise<AiToolCall> {
   await assertAiConversationOwner(input.conversationId, input.userId);
 
@@ -91,12 +121,8 @@ export async function createPendingSendDmToolCall(input: {
     .values({
       conversationId: input.conversationId,
       requestedByUserId: input.userId,
-      toolName: 'send_dm',
-      input: {
-        targetUserId: input.targetUserId,
-        targetUsername: input.targetUsername,
-        content: input.content,
-      } satisfies SendDmInput,
+      toolName: input.toolName,
+      input: input.payload,
     })
     .returning();
 
@@ -105,6 +131,114 @@ export async function createPendingSendDmToolCall(input: {
   }
 
   return toAiToolCallDto(created);
+}
+
+async function markToolCallExecuted(
+  toolCallId: string,
+  output: unknown
+): Promise<AiToolCall> {
+  const [executed] = await db
+    .update(aiToolCalls)
+    .set({
+      status: 'executed',
+      output,
+      executedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(aiToolCalls.id, toolCallId))
+    .returning();
+
+  if (!executed) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to update AI tool call', 500);
+  }
+
+  return toAiToolCallDto(executed);
+}
+
+async function markToolCallFailed(toolCallId: string, message: string): Promise<AiToolCall> {
+  const [failed] = await db
+    .update(aiToolCalls)
+    .set({
+      status: 'failed',
+      error: message,
+      updatedAt: new Date(),
+    })
+    .where(eq(aiToolCalls.id, toolCallId))
+    .returning();
+
+  if (!failed) {
+    throw new AppError('INTERNAL_ERROR', 'Failed to update AI tool call failure', 500);
+  }
+
+  return toAiToolCallDto(failed);
+}
+
+export async function createPendingSendDmToolCall(input: {
+  conversationId: string;
+  userId: string;
+  targetUserId: string;
+  targetUsername: string;
+  content: string;
+}): Promise<AiToolCall> {
+  return createPendingToolCall({
+    conversationId: input.conversationId,
+    userId: input.userId,
+    toolName: 'send_dm',
+    payload: {
+      targetUserId: input.targetUserId,
+      targetUsername: input.targetUsername,
+      content: input.content,
+    } satisfies SendDmInput,
+  });
+}
+
+export async function createPendingCreatePostToolCall(input: {
+  conversationId: string;
+  userId: string;
+  content: string;
+}): Promise<AiToolCall> {
+  return createPendingToolCall({
+    conversationId: input.conversationId,
+    userId: input.userId,
+    toolName: 'create_post',
+    payload: {
+      content: input.content,
+    } satisfies CreatePostInput,
+  });
+}
+
+export async function createPendingFollowUserToolCall(input: {
+  conversationId: string;
+  userId: string;
+  targetUserId: string;
+  targetUsername: string;
+}): Promise<AiToolCall> {
+  return createPendingToolCall({
+    conversationId: input.conversationId,
+    userId: input.userId,
+    toolName: 'follow_user',
+    payload: {
+      targetUserId: input.targetUserId,
+      targetUsername: input.targetUsername,
+    } satisfies FollowUserInput,
+  });
+}
+
+export async function createPendingUnfollowUserToolCall(input: {
+  conversationId: string;
+  userId: string;
+  targetUserId: string;
+  targetUsername: string;
+}): Promise<AiToolCall> {
+  return createPendingToolCall({
+    conversationId: input.conversationId,
+    userId: input.userId,
+    toolName: 'unfollow_user',
+    payload: {
+      targetUserId: input.targetUserId,
+      targetUsername: input.targetUsername,
+    } satisfies FollowUserInput,
+  });
 }
 
 export async function listAiToolCalls(
@@ -154,13 +288,68 @@ export async function rejectAiToolCall(toolCallId: string, userId: string): Prom
   return toAiToolCallDto(updated);
 }
 
+async function executeSendDmToolCall(
+  toolCallId: string,
+  userId: string,
+  input: SendDmInput
+): Promise<AiToolCall> {
+  const direct = await createOrGetDirectConversation(userId, {
+    participantUserId: input.targetUserId,
+  });
+  const message = await createChatMessage(direct.conversation.id, userId, {
+    content: input.content,
+  });
+
+  return markToolCallExecuted(toolCallId, {
+    conversationId: direct.conversation.id,
+    messageId: message.id,
+    targetUserId: input.targetUserId,
+    targetUsername: input.targetUsername,
+  });
+}
+
+async function executeCreatePostToolCall(
+  toolCallId: string,
+  userId: string,
+  input: CreatePostInput
+): Promise<AiToolCall> {
+  const post = await createPost(userId, { content: input.content });
+  return markToolCallExecuted(toolCallId, {
+    postId: post.id,
+    content: post.content,
+  });
+}
+
+async function executeFollowUserToolCall(
+  toolCallId: string,
+  userId: string,
+  input: FollowUserInput
+): Promise<AiToolCall> {
+  const result = await followUser(userId, input.targetUserId);
+  return markToolCallExecuted(toolCallId, {
+    targetUserId: input.targetUserId,
+    targetUsername: input.targetUsername,
+    following: result.following,
+  });
+}
+
+async function executeUnfollowUserToolCall(
+  toolCallId: string,
+  userId: string,
+  input: FollowUserInput
+): Promise<AiToolCall> {
+  const result = await unfollowUser(userId, input.targetUserId);
+  return markToolCallExecuted(toolCallId, {
+    targetUserId: input.targetUserId,
+    targetUsername: input.targetUsername,
+    following: result.following,
+  });
+}
+
 export async function approveAiToolCall(toolCallId: string, userId: string): Promise<AiToolCall> {
   const toolCall = await getOwnedToolCall(toolCallId, userId);
   if (toolCall.status !== 'pending') {
     throw new AppError('VALIDATION_ERROR', 'Only pending tool calls can be approved', 400);
-  }
-  if (toolCall.toolName !== 'send_dm' || !isSendDmInput(toolCall.input)) {
-    throw new AppError('VALIDATION_ERROR', 'Unsupported AI tool call', 400);
   }
 
   const now = new Date();
@@ -179,50 +368,35 @@ export async function approveAiToolCall(toolCallId: string, userId: string): Pro
   }
 
   try {
-    const direct = await createOrGetDirectConversation(userId, {
-      participantUserId: toolCall.input.targetUserId,
-    });
-    const message = await createChatMessage(direct.conversation.id, userId, {
-      content: toolCall.input.content,
-    });
-
-    const [executed] = await db
-      .update(aiToolCalls)
-      .set({
-        status: 'executed',
-        output: {
-          conversationId: direct.conversation.id,
-          messageId: message.id,
-          targetUserId: toolCall.input.targetUserId,
-          targetUsername: toolCall.input.targetUsername,
-        },
-        executedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(aiToolCalls.id, toolCallId))
-      .returning();
-
-    if (!executed) {
-      throw new AppError('INTERNAL_ERROR', 'Failed to update AI tool call', 500);
+    switch (toolCall.toolName) {
+      case 'send_dm':
+        if (!isSendDmInput(toolCall.input)) {
+          throw new AppError('VALIDATION_ERROR', 'Invalid send_dm tool input', 400);
+        }
+        return executeSendDmToolCall(toolCallId, userId, toolCall.input);
+      case 'create_post':
+        if (!isCreatePostInput(toolCall.input)) {
+          throw new AppError('VALIDATION_ERROR', 'Invalid create_post tool input', 400);
+        }
+        return executeCreatePostToolCall(toolCallId, userId, toolCall.input);
+      case 'follow_user':
+        if (!isFollowUserInput(toolCall.input)) {
+          throw new AppError('VALIDATION_ERROR', 'Invalid follow_user tool input', 400);
+        }
+        return executeFollowUserToolCall(toolCallId, userId, toolCall.input);
+      case 'unfollow_user':
+        if (!isFollowUserInput(toolCall.input)) {
+          throw new AppError('VALIDATION_ERROR', 'Invalid unfollow_user tool input', 400);
+        }
+        return executeUnfollowUserToolCall(toolCallId, userId, toolCall.input);
+      default:
+        throw new AppError('VALIDATION_ERROR', 'Unsupported AI tool call', 400);
     }
-
-    return toAiToolCallDto(executed);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to execute AI tool call';
-    const [failed] = await db
-      .update(aiToolCalls)
-      .set({
-        status: 'failed',
-        error: message,
-        updatedAt: new Date(),
-      })
-      .where(eq(aiToolCalls.id, toolCallId))
-      .returning();
-
-    if (!failed) {
-      throw new AppError('INTERNAL_ERROR', 'Failed to update AI tool call failure', 500);
+    if (error instanceof AppError && error.statusCode < 500) {
+      throw error;
     }
-
-    return toAiToolCallDto(failed);
+    const message = error instanceof Error ? error.message : 'Failed to execute AI tool call';
+    return markToolCallFailed(toolCallId, message);
   }
 }

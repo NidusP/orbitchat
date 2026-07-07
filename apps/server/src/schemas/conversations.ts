@@ -20,9 +20,27 @@ export const messageContentSchema = z
   .min(1, 'Content is required')
   .max(2000, 'Content must be at most 2000 characters');
 
-export const createConversationSchema = z.object({
+export const createDirectConversationSchema = z.object({
   participantUserId: z.string().uuid('Invalid participant user id'),
 });
+
+export const createGroupConversationSchema = z.object({
+  type: z.literal('group'),
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(120, 'Title must be at most 120 characters'),
+  memberUserIds: z
+    .array(z.string().uuid('Invalid member user id'))
+    .min(1, 'At least one member is required')
+    .max(49, 'A group can have at most 50 members including the creator'),
+});
+
+export const createConversationSchema = z.union([
+  createDirectConversationSchema,
+  createGroupConversationSchema,
+]);
 
 export const createMessageSchema = z.object({
   content: messageContentSchema,
@@ -32,6 +50,31 @@ export const markConversationReadSchema = z.object({
   readAt: z.string().datetime({ message: 'readAt must be ISO 8601' }).optional(),
 });
 
+export const updateGroupConversationSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(120, 'Title must be at most 120 characters'),
+});
+
+export const addGroupMembersSchema = z.object({
+  userIds: z
+    .array(z.string().uuid('Invalid user id'))
+    .min(1, 'At least one user id is required')
+    .max(49, 'Cannot add more than 49 members at once'),
+});
+
+export const transferGroupOwnerSchema = z.object({
+  newOwnerUserId: z.string().uuid('Invalid user id'),
+});
+
+export const updateGroupMemberRoleSchema = z.object({
+  role: z.enum(['admin', 'member']),
+});
+
+export type CreateDirectConversationInput = z.infer<typeof createDirectConversationSchema>;
+export type CreateGroupConversationInput = z.infer<typeof createGroupConversationSchema>;
 export type CreateConversationInput = z.infer<typeof createConversationSchema>;
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
 export type MarkConversationReadInput = z.infer<typeof markConversationReadSchema>;

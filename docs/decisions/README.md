@@ -71,7 +71,7 @@
 - [x] [13-websocket-stack.md](./13-websocket-stack.md) - WebSocket 栈与部署边界
 - [x] [14-message-delivery.md](./14-message-delivery.md) - 消息写入与投递模型
 - [x] [15-conversation-model.md](./15-conversation-model.md) - 1:1 会话与消息模型
-- [ ] 16-group-chat-model.md - 群聊模型与权限（Phase 3B 前，可选）
+- [x] [16-group-chat-model.md](./16-group-chat-model.md) - 群聊模型（`conversations.type = group`）
 
 ### Phase 4A（AI Chat MVP）
 

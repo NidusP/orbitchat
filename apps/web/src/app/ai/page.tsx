@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Agent, AiConversation, AiMessage, AiSseEvent, AiToolCall } from '@orbitchat/shared-types';
 import { SiteNav } from '@/components/site-nav';
+import { parseTicTacToeToolContent, TicTacToeBoard } from '@/components/tic-tac-toe-board';
 import { useAuth } from '@/contexts/auth-context';
 import {
   createAiConversation,
@@ -71,12 +72,47 @@ function extractToolCall(output: unknown): AiToolCall | null {
 function describeToolCall(toolCall: AiToolCall): string {
   const input =
     typeof toolCall.input === 'object' && toolCall.input !== null ? toolCall.input : {};
-  const targetUsername =
-    'targetUsername' in input && typeof input.targetUsername === 'string'
-      ? input.targetUsername
-      : 'unknown';
-  const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-  return `Send DM to @${targetUsername}: ${content}`;
+
+  switch (toolCall.toolName) {
+    case 'send_dm': {
+      const targetUsername =
+        'targetUsername' in input && typeof input.targetUsername === 'string'
+          ? input.targetUsername
+          : 'unknown';
+      const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
+      return `Send DM to @${targetUsername}: ${content}`;
+    }
+    case 'create_post': {
+      const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
+      return `Create post: ${content}`;
+    }
+    case 'follow_user':
+    case 'unfollow_user': {
+      const targetUsername =
+        'targetUsername' in input && typeof input.targetUsername === 'string'
+          ? input.targetUsername
+          : 'unknown';
+      const action = toolCall.toolName === 'follow_user' ? 'Follow' : 'Unfollow';
+      return `${action} @${targetUsername}`;
+    }
+    default:
+      return `${toolCall.toolName} (${toolCall.status})`;
+  }
+}
+
+function executedToolMessage(toolCall: AiToolCall): string {
+  switch (toolCall.toolName) {
+    case 'send_dm':
+      return 'Direct message sent successfully.';
+    case 'create_post':
+      return 'Post published successfully.';
+    case 'follow_user':
+      return 'Followed user successfully.';
+    case 'unfollow_user':
+      return 'Unfollowed user successfully.';
+    default:
+      return `${toolCall.toolName} executed successfully.`;
+  }
 }
 
 export default function AiPage() {
@@ -287,7 +323,7 @@ export default function AiPage() {
               conversationId: updated.conversationId,
               role: 'tool',
               toolName: updated.toolName,
-              content: 'send_dm executed successfully.',
+              content: executedToolMessage(updated),
             }),
           ])
         );
@@ -449,15 +485,19 @@ export default function AiPage() {
             )}
             {messages.length === 0 ? (
               <div className="chat-empty">
-                <p className="text-muted">Ask for a joke, a tic-tac-toe move, or try:</p>
+                <p className="text-muted">Ask for a joke, play tic-tac-toe, or try:</p>
                 <p>
-                  <code>search_contact: luna</code>
+                  <code>我们来下井字棋</code> or <code>[e2e:tictactoe]</code>
                 </p>
               </div>
             ) : (
               messages.map((message) => {
                 const isMine = message.role === 'user';
                 const isTool = message.role === 'tool';
+                const ticTacToe =
+                  isTool && message.toolName === 'play_tictactoe'
+                    ? parseTicTacToeToolContent(message.content)
+                    : null;
                 return (
                   <div
                     key={message.id}
@@ -474,9 +514,17 @@ export default function AiPage() {
                             : 'chat-bubble-theirs'
                       }`}
                     >
-                      <p className="chat-bubble-content">
-                        {isTool ? `Tool ${message.toolName ?? ''}\n${message.content}` : message.content}
-                      </p>
+                      {ticTacToe ? (
+                        <div className="tic-tac-toe-tool">
+                          <p className="chat-bubble-content">Tic-tac-toe board</p>
+                          <TicTacToeBoard board={ticTacToe.board} />
+                          <pre className="tic-tac-toe-visual">{ticTacToe.boardVisual}</pre>
+                        </div>
+                      ) : (
+                        <p className="chat-bubble-content">
+                          {isTool ? `Tool ${message.toolName ?? ''}\n${message.content}` : message.content}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );

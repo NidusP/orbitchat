@@ -30,6 +30,7 @@ export default defineConfig({
         ...process.env,
         PORT: String(API_PORT),
         CORS_ORIGIN: WEB_URL,
+        LLM_E2E_MOCK: 'true',
       },
     },
     {
