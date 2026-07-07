@@ -1,7 +1,10 @@
 import type {
   ConnectionMeta,
+  MemberJoinedPayload,
+  MemberLeftPayload,
   MessageNewPayload,
   MessageReadPayload,
+  TypingPayload,
   WsMessage,
 } from '@orbitchat/shared-types';
 import type { WSContext } from 'hono/ws';
@@ -104,11 +107,29 @@ class ChatHub {
     }
   }
 
+  broadcastExcept(roomId: string, message: WsMessage, excludeUserId: string): void {
+    const connectionIds = this.connectionsByRoomId.get(roomId);
+    if (!connectionIds) {
+      return;
+    }
+
+    for (const connectionId of connectionIds) {
+      const registered = this.connectionsById.get(connectionId);
+      if (registered && registered.meta.userId !== excludeUserId) {
+        sendJson(registered.socket, message);
+      }
+    }
+  }
+
   sendToConnection(connectionId: string, message: WsMessage): void {
     const registered = this.connectionsById.get(connectionId);
     if (registered) {
       sendJson(registered.socket, message);
     }
+  }
+
+  getConnectionMeta(connectionId: string): ConnectionMeta | null {
+    return this.connectionsById.get(connectionId)?.meta ?? null;
   }
 
   closeSession(sessionId: string, message: WsMessage): void {
@@ -145,6 +166,39 @@ export function broadcastMessageNew(payload: MessageNewPayload): void {
 export function broadcastMessageRead(payload: MessageReadPayload): void {
   const message: WsMessage<'message.read'> = {
     type: 'message.read',
+    payload,
+    timestamp: new Date().toISOString(),
+  };
+
+  chatHub.broadcast(conversationRoomId(payload.conversationId), message);
+}
+
+export function broadcastTyping(
+  type: 'typing.started' | 'typing.stopped',
+  payload: TypingPayload
+): void {
+  const message: WsMessage<'typing.started' | 'typing.stopped'> = {
+    type,
+    payload,
+    timestamp: new Date().toISOString(),
+  };
+
+  chatHub.broadcastExcept(conversationRoomId(payload.conversationId), message, payload.userId);
+}
+
+export function broadcastMemberJoined(payload: MemberJoinedPayload): void {
+  const message: WsMessage<'member.joined'> = {
+    type: 'member.joined',
+    payload,
+    timestamp: new Date().toISOString(),
+  };
+
+  chatHub.broadcast(conversationRoomId(payload.conversationId), message);
+}
+
+export function broadcastMemberLeft(payload: MemberLeftPayload): void {
+  const message: WsMessage<'member.left'> = {
+    type: 'member.left',
     payload,
     timestamp: new Date().toISOString(),
   };

@@ -242,19 +242,26 @@ GET    /api/v1/users/search              # ?q=&cursor=&limit=
 
 ### Phase 3 — 文字聊天
 
-> 设计依据：[ADR 13](./decisions/13-websocket-stack.md)、[ADR 14](./decisions/14-message-delivery.md)、[ADR 15](./decisions/15-conversation-model.md)
+> 设计依据：[ADR 13](./decisions/13-websocket-stack.md)、[ADR 14](./decisions/14-message-delivery.md)、[ADR 15](./decisions/15-conversation-model.md)、[ADR 16](./decisions/16-group-chat-model.md)
 
 ```
-GET    /api/v1/conversations                  # 当前用户会话列表；cursor 分页
-POST   /api/v1/conversations                  # 创建或获取 1:1 会话
-GET    /api/v1/conversations/:id              # 获取单个会话
-GET    /api/v1/conversations/:id/messages     # 历史消息；cursor 分页
-POST   /api/v1/conversations/:id/messages     # 发送消息：REST 写库 + WS 广播
-PATCH  /api/v1/conversations/:id/read         # 标记会话已读（last_read_at）
-WS     /ws/v1/chat                            # 实时消息增量
+GET    /api/v1/conversations                        # 当前用户会话列表；cursor 分页
+POST   /api/v1/conversations                        # 创建 1:1 或群聊
+GET    /api/v1/conversations/:id                    # 获取单个会话
+PATCH  /api/v1/conversations/:id                    # 修改群名（仅 group；owner/admin）
+GET    /api/v1/conversations/:id/messages             # 历史消息；cursor 分页
+POST   /api/v1/conversations/:id/messages           # 发送消息：REST 写库 + WS 广播
+PATCH  /api/v1/conversations/:id/read                 # 标记会话已读（last_read_at）
+GET    /api/v1/conversations/:id/members            # 群成员列表（仅 group）
+POST   /api/v1/conversations/:id/members            # 拉人入群（owner/admin）
+PATCH  /api/v1/conversations/:id/members/:userId    # 改成员角色 admin/member（owner）
+DELETE /api/v1/conversations/:id/members/:userId    # 踢人（owner/admin）
+POST   /api/v1/conversations/:id/leave              # 退群（非 owner）
+POST   /api/v1/conversations/:id/transfer-owner     # 转让群主（owner）
+WS     /ws/v1/chat                                  # 实时消息、typing（仅 1:1）、成员变更
 ```
 
-Phase 3A 只实现 1:1 私聊。群聊端点延后 Phase 3B；移动推送延后 Phase 3.1。
+Phase 3A：1:1 私聊。Phase 3B：群聊创建与基础消息。Phase 3B.1：群管理（角色、拉人/踢人/退群/改名/转让）+ **1:1 typing**（群聊不做 typing）。移动推送延后 Phase 3.1。
 
 #### 数据类型（概要）
 
@@ -266,10 +273,19 @@ interface ConversationParticipant {
   avatarUrl: string | null;
 }
 
+type GroupMemberRole = 'owner' | 'admin' | 'member';
+
+interface GroupMember extends ConversationParticipant {
+  role: GroupMemberRole;
+  joinedAt: string;
+}
+
 interface Conversation {
   id: string;
-  type: 'direct';
+  type: 'direct' | 'group';
+  title: string | null;
   participants: ConversationParticipant[];
+  viewerRole: GroupMemberRole | null; // group 时当前用户角色；direct 为 null
   lastMessage: Message | null;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -310,13 +326,27 @@ SuccessResponse<{
 
 #### `POST /api/v1/conversations`
 
-创建或获取 1:1 会话。若两名用户已有 direct conversation，返回既有会话。
+创建或获取会话。
+
+**1:1 私聊**（兼容 Phase 3A）：若两名用户已有 direct conversation，返回既有会话。
 
 Request：
 
 ```typescript
-interface CreateConversationRequest {
+interface CreateDirectConversationRequest {
   participantUserId: string;
+}
+```
+
+**群聊**（Phase 3B）：创建新群；创建者自动加入成员列表。
+
+Request：
+
+```typescript
+interface CreateGroupConversationRequest {
+  type: 'group';
+  title: string; // 1..120 chars
+  memberUserIds: string[]; // 至少 1 名其他成员（不含创建者），最多 49
 }
 ```
 
@@ -326,11 +356,13 @@ Response 201 / 200：
 SuccessResponse<Conversation>
 ```
 
+`Conversation` 在群聊时 `type: 'group'`，`title` 为群名称；私聊时 `title` 为 `null`。
+
 错误：
 
 | code | HTTP | 场景 |
 |------|------|------|
-| `VALIDATION_ERROR` | 400 | `participantUserId` 无效或等于当前用户 |
+| `VALIDATION_ERROR` | 400 | 参数无效；1:1 时 `participantUserId` 等于当前用户；群聊无其他成员 |
 | `NOT_FOUND` | 404 | 目标用户不存在 |
 | `FORBIDDEN` | 403 | 后续 blocks 接入后被限制 |
 
@@ -411,6 +443,155 @@ SuccessResponse<{
 }>
 ```
 
+#### `PATCH /api/v1/conversations/:id`
+
+修改群名称。仅 `type=group`；需要 **owner** 或 **admin**。
+
+Request：
+
+```typescript
+interface UpdateGroupConversationRequest {
+  title: string; // 1..120 chars after trim
+}
+```
+
+Response：
+
+```typescript
+SuccessResponse<Conversation>
+```
+
+错误：
+
+| code | HTTP | 场景 |
+|------|------|------|
+| `VALIDATION_ERROR` | 400 | 空标题、非群会话 |
+| `FORBIDDEN` | 403 | 非成员或权限不足 |
+| `NOT_FOUND` | 404 | 群不存在 |
+
+#### `GET /api/v1/conversations/:id/members`
+
+返回群成员列表（含 `role`、`joinedAt`）。仅 `type=group`；任意活跃成员可读。
+
+Response：
+
+```typescript
+SuccessResponse<GroupMember[]>
+```
+
+#### `POST /api/v1/conversations/:id/members`
+
+拉人入群。需要 **owner** 或 **admin**。
+
+Request：
+
+```typescript
+interface AddGroupMembersRequest {
+  userIds: string[]; // 至少 1 个 UUID；去重；不含操作者本人
+}
+```
+
+Response：
+
+```typescript
+SuccessResponse<GroupMember[]>
+```
+
+行为：目标用户须存在；已在群内则跳过；曾离开的成员复用 membership 行并清空 `left_at`。成功后 WS 广播 `member.joined`（见 [realtime-spec](./realtime-spec.md)）。
+
+错误：
+
+| code | HTTP | 场景 |
+|------|------|------|
+| `VALIDATION_ERROR` | 400 | `userIds` 为空 |
+| `FORBIDDEN` | 403 | 非 owner/admin |
+| `NOT_FOUND` | 404 | 群不存在或用户不存在 |
+
+#### `DELETE /api/v1/conversations/:id/members/:userId`
+
+踢出成员。需要 **owner** 或 **admin**；**admin 不能踢 owner 或其他 admin**；不能踢自己（应使用 `leave`）。
+
+Response：
+
+```typescript
+SuccessResponse<{ ok: true }>
+```
+
+成功后 WS 广播 `member.left`（`reason: 'kicked'`）。
+
+#### `PATCH /api/v1/conversations/:id/members/:userId`
+
+修改成员角色。仅 **owner** 可操作；不能把 owner 直接改为 admin/member（须先 `transfer-owner`）。
+
+Request：
+
+```typescript
+interface UpdateGroupMemberRoleRequest {
+  role: 'admin' | 'member';
+}
+```
+
+Response：
+
+```typescript
+SuccessResponse<GroupMember[]>
+```
+
+#### `POST /api/v1/conversations/:id/leave`
+
+当前用户退群。**owner** 须先转让群主，否则 `VALIDATION_ERROR`。
+
+Response：
+
+```typescript
+SuccessResponse<{ ok: true }>
+```
+
+成功后 WS 广播 `member.left`（`reason: 'left'`）。
+
+#### `POST /api/v1/conversations/:id/transfer-owner`
+
+转让群主。仅当前 **owner** 可操作；不能转让给自己。
+
+Request：
+
+```typescript
+interface TransferGroupOwnerRequest {
+  newOwnerUserId: string;
+}
+```
+
+Response：
+
+```typescript
+SuccessResponse<GroupMember[]>
+```
+
+行为：原 owner → `admin`，新 owner → `owner`。
+
+#### WebSocket — 1:1 Typing
+
+Typing **不走 REST**，仅通过 `WS /ws/v1/chat`。**仅 direct 会话**；群聊发送 typing 帧返回 `VALIDATION_ERROR`。
+
+客户端发送（payload 只需 `conversationId`）：
+
+```typescript
+// C → S
+{ type: 'typing.started' | 'typing.stopped', payload: { conversationId: string }, timestamp: string }
+```
+
+服务端向**对方**广播（排除发送者）：
+
+```typescript
+interface TypingPayload {
+  conversationId: string;
+  userId: string;
+  displayName: string;
+}
+```
+
+详见 [realtime-spec.md](./realtime-spec.md)。
+
 ### Phase 4A — AI Chat MVP
 
 ```
@@ -424,7 +605,9 @@ POST   /api/v1/ai/tool-calls/:id/approve      # 用户确认并执行 pending to
 POST   /api/v1/ai/tool-calls/:id/reject       # 用户拒绝 pending tool call
 ```
 
-Phase 4A 不直接执行 `send_dm`；Phase 4B 通过 pending tool call + 用户确认后，复用 Phase 3A `message-service` 发私聊。
+Phase 4B 通过 LLM Function Calling 选择工具；写操作（`send_dm`、`create_post`、`follow_user`、`unfollow_user`）创建 pending tool call，用户 Approve 后复用对应 service 执行。只读/娱乐工具 `search_contact`、`play_tictactoe` 立即执行。
+
+`play_tictactoe` 参数：`action` = `start` | `status` | `move`；`move` 时需 `position`（1–9）。用户执 X，Agent 执 O；工具返回 `game.board`、`game.boardVisual`、`game.legalMoves` 等状态，Agent 须依据工具结果落子，不可臆造棋盘。对局结束后用户可说「再来一局」，Agent 调用 `start` 开局；`start` 在存在历史时返回 `matchHistory`（胜负统计与最近若干局），Agent 须据此自由发挥点评，不使用固定话术。对局状态持久化在 `ai_conversations.tictactoe_data`（当前盘 + 历史），同一会话内跨重启保留。
 
 #### 数据类型（概要）
 

@@ -10,7 +10,7 @@ import { useChatWs } from '@/contexts/chat-ws-context';
 import { ApiError } from '@/lib/api/errors';
 import {
   getConversation,
-  getOtherParticipant,
+  getConversationDisplayName,
   listMessages,
   markConversationRead,
   sendMessage,
@@ -35,12 +35,13 @@ export default function ConversationPage() {
   const conversationId = params.id;
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { subscribe } = useChatWs();
+  const { subscribe, sendTyping, isConnected } = useChatWs();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [typingLabel, setTypingLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -48,13 +49,18 @@ export default function ConversationPage() {
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const isTypingRef = useRef(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const otherParticipant = useMemo(() => {
+  const headerTitle = useMemo(() => {
     if (!conversation || !user) {
-      return null;
+      return 'Chat';
     }
-    return getOtherParticipant(conversation, user.id);
+    return getConversationDisplayName(conversation, user.id);
   }, [conversation, user]);
+
+  const memberCount =
+    conversation?.type === 'group' ? conversation.participants.length : null;
 
   const loadInitial = useCallback(async () => {
     setError(null);
@@ -90,15 +96,88 @@ export default function ConversationPage() {
 
   useEffect(() => {
     return subscribe((event) => {
-      if (event.type !== 'message.new' || event.payload.conversationId !== conversationId) {
+      if (event.payload.conversationId !== conversationId) {
         return;
       }
-      setMessages((current) => mergeMessages(current, [event.payload.message]));
-      if (event.payload.message.sender.id !== user?.id) {
-        void markConversationRead(conversationId);
+
+      if (event.type === 'message.new') {
+        setMessages((current) => mergeMessages(current, [event.payload.message]));
+        if (event.payload.message.sender.id !== user?.id) {
+          void markConversationRead(conversationId);
+        }
+        return;
+      }
+
+      if (event.type === 'typing.started') {
+        if (event.payload.userId !== user?.id) {
+          setTypingLabel(event.payload.displayName);
+        }
+        return;
+      }
+
+      if (event.type === 'typing.stopped') {
+        if (event.payload.userId !== user?.id) {
+          setTypingLabel(null);
+        }
+        return;
+      }
+
+      if (event.type === 'member.joined' && conversation?.type === 'group') {
+        setConversation((current) => {
+          if (!current) {
+            return current;
+          }
+          const exists = current.participants.some(
+            (participant) => participant.id === event.payload.member.id
+          );
+          if (exists) {
+            return current;
+          }
+          return {
+            ...current,
+            participants: [...current.participants, event.payload.member],
+          };
+        });
       }
     });
   }, [conversationId, subscribe, user?.id]);
+
+  const notifyTyping = useCallback(() => {
+    if (conversation && conversation.type !== 'direct') {
+      return;
+    }
+
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      sendTyping(conversationId, 'started');
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      sendTyping(conversationId, 'stopped');
+    }, 3000);
+  }, [conversation, conversationId, sendTyping]);
+
+  const stopTyping = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      sendTyping(conversationId, 'stopped');
+    }
+  }, [conversationId, sendTyping]);
+
+  useEffect(() => {
+    return () => {
+      stopTyping();
+    };
+  }, [stopTyping]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -138,6 +217,7 @@ export default function ConversationPage() {
 
     setIsSending(true);
     setError(null);
+    stopTyping();
     try {
       const message = await sendMessage(conversationId, { content });
       setMessages((current) => mergeMessages(current, [message]));
@@ -172,18 +252,35 @@ export default function ConversationPage() {
 
   return (
     <main className="main-wide chat-page">
+      <span hidden data-testid="chat-ws-connected">
+        {isConnected ? 'yes' : 'no'}
+      </span>
       <SiteNav />
       <header className="page-header section-header">
         <div>
-          <h1>{otherParticipant?.displayName ?? 'Chat'}</h1>
-          {otherParticipant && (
-            <p className="text-muted">@{otherParticipant.username}</p>
+          <h1>{headerTitle}</h1>
+          {conversation.type === 'group' ? (
+            <p className="text-muted">{memberCount} members</p>
+          ) : (
+            (() => {
+              const other = conversation.participants.find((p) => p.id !== user?.id);
+              return other ? <p className="text-muted">@{other.username}</p> : null;
+            })()
           )}
         </div>
-        {otherParticipant && (
-          <Link href={`/users/${otherParticipant.id}`} className="btn btn-secondary btn-sm">
-            Profile
+        {conversation.type === 'group' ? (
+          <Link href={`/messages/${conversationId}/settings`} className="btn btn-secondary btn-sm">
+            Settings
           </Link>
+        ) : (
+          (() => {
+            const other = conversation.participants.find((p) => p.id !== user?.id);
+            return other ? (
+              <Link href={`/users/${other.id}`} className="btn btn-secondary btn-sm">
+                Profile
+              </Link>
+            ) : null;
+          })()
         )}
       </header>
 
@@ -231,13 +328,23 @@ export default function ConversationPage() {
           <div ref={bottomRef} />
         </div>
 
+        {typingLabel && (
+          <p className="chat-typing-indicator" data-testid="chat-typing-indicator" aria-live="polite">
+            {typingLabel} is typing…
+          </p>
+        )}
+
         <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
           <textarea
             className="chat-input"
             rows={2}
             value={draft}
             placeholder="Write a message…"
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              notifyTyping();
+            }}
+            onBlur={() => stopTyping()}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();

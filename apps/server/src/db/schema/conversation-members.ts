@@ -1,4 +1,5 @@
 import { index, pgTable, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { conversationMemberRoleEnum } from './enums';
 import { conversations } from './conversations';
 import { users } from './users';
 
@@ -12,6 +13,7 @@ export const conversationMembers = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    role: conversationMemberRoleEnum('role'),
     lastReadAt: timestamp('last_read_at', { withTimezone: true }),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
     leftAt: timestamp('left_at', { withTimezone: true }),

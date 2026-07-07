@@ -24,20 +24,19 @@ import {
 } from '../../lib/cursor';
 import { AppError } from '../../lib/errors';
 import type { AgentOrchestrator } from '../../lib/agent-runtime/orchestrator';
-import type { LlmMessage } from '../../lib/agent-runtime/types';
+import type { AgentToolCallResult, LlmMessage } from '../../lib/agent-runtime/types';
 import type {
   AiCursorQueryInput,
   CreateAiConversationInput,
   CreateAiMessageInput,
 } from '../../schemas/ai';
-import { runReadonlyTools } from './tool-executor';
 
 const DEFAULT_AGENT = {
   slug: 'orbit-guide',
   name: '小轨',
-  description: 'Orbitchat 内置助手，支持闲聊、笑话、小游戏和只读联系人搜索。',
+  description: 'Orbitchat 内置助手，支持闲聊、笑话、井字棋、联系人搜索与写操作确认。',
   systemPrompt:
-    '你是 Orbitchat 的内置 AI 助手小轨。你可以闲聊、讲简短笑话、玩文字版井字棋，并在工具结果提供时帮用户理解联系人搜索结果。',
+    '你是 Orbitchat 的内置 AI 助手小轨。你可以闲聊、讲简短笑话、与用户下井字棋（你执 O，用户执 X），并在工具结果提供时帮用户理解联系人搜索结果或待确认操作。',
 };
 
 function conversationListBefore(cursor: ConversationListCursor | undefined) {
@@ -60,7 +59,14 @@ export async function ensureBuiltinAgents(): Promise<void> {
   await db
     .insert(agents)
     .values(DEFAULT_AGENT)
-    .onConflictDoNothing({ target: agents.slug });
+    .onConflictDoUpdate({
+      target: agents.slug,
+      set: {
+        name: DEFAULT_AGENT.name,
+        description: DEFAULT_AGENT.description,
+        systemPrompt: DEFAULT_AGENT.systemPrompt,
+      },
+    });
 }
 
 export async function listAgents(): Promise<Agent[]> {
@@ -204,7 +210,7 @@ export async function createAiMessageAndRun(input: {
 }): Promise<{
   userMessage: AiMessage;
   assistantMessage: AiMessage;
-  toolCalls: Awaited<ReturnType<typeof runReadonlyTools>>['toolCalls'];
+  toolCalls: AgentToolCallResult[];
 }> {
   const conversation = await assertAiConversationOwner(input.conversationId, input.userId);
   const agent = await getAgentById(conversation.agentId);
@@ -232,18 +238,17 @@ export async function createAiMessageAndRun(input: {
     })
     .where(eq(aiConversations.id, input.conversationId));
 
-  const [history, toolResult] = await Promise.all([
-    loadRuntimeHistory(input.conversationId),
-    runReadonlyTools(input.body.content, {
-      conversationId: input.conversationId,
-      userId: input.userId,
-    }),
-  ]);
+  const history = await loadRuntimeHistory(input.conversationId);
 
   const result = await input.orchestrator.run({
     systemPrompt: agent.systemPrompt,
-    history: [...history, ...toolResult.toolMessages],
+    history,
     userMessage: input.body.content,
+    tools: true,
+    toolContext: {
+      conversationId: input.conversationId,
+      userId: input.userId,
+    },
   });
 
   const assistantContent = result.content.trim();
@@ -271,6 +276,6 @@ export async function createAiMessageAndRun(input: {
   return {
     userMessage: toAiMessageDto(userMessage),
     assistantMessage: toAiMessageDto(assistantMessage),
-    toolCalls: [...toolResult.toolCalls, ...result.toolCalls],
+    toolCalls: result.toolCalls,
   };
 }

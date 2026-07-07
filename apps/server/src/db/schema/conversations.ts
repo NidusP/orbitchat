@@ -1,4 +1,5 @@
 import { index, pgTable, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { users } from './users';
 import { conversationTypeEnum } from './enums';
 
 export const conversations = pgTable(
@@ -6,6 +7,10 @@ export const conversations = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     type: conversationTypeEnum('type').notNull().default('direct'),
+    title: varchar('title', { length: 120 }),
+    createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     directKey: varchar('direct_key', { length: 80 }),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

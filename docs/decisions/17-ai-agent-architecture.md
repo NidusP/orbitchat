@@ -99,6 +99,7 @@ AI_MAX_CONCURRENT_RUNS=2
 ## 相关文档
 
 - [phase-4a-plan.md](../phase-4a-plan.md)
+- [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md) — Memory / RAG / Fine-tuning 规划（M1+）
 - [phase-3-plan.md](../phase-3-plan.md)
 - [api-spec.md](../api-spec.md)
 - [db-schema.md](../db-schema.md)

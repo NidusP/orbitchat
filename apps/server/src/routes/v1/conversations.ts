@@ -5,17 +5,31 @@ import { parseUuidParam } from '../../lib/validation';
 import { zodValidationHook } from '../../lib/zod-hook';
 import { authMiddleware } from '../../middleware/auth';
 import {
+  addGroupMembersSchema,
   createConversationSchema,
   createMessageSchema,
   cursorQuerySchema,
   markConversationReadSchema,
   messageCursorQuerySchema,
+  transferGroupOwnerSchema,
+  updateGroupConversationSchema,
+  updateGroupMemberRoleSchema,
 } from '../../schemas/conversations';
 import {
+  createGroupConversation,
   createOrGetDirectConversation,
   getConversationDto,
   listConversations,
 } from '../../services/conversation-service';
+import {
+  addGroupMembers,
+  leaveGroup,
+  listGroupMembers,
+  removeGroupMember,
+  transferGroupOwner,
+  updateGroupMemberRole,
+  updateGroupTitle,
+} from '../../services/group-member-service';
 import {
   createMessage,
   listMessages,
@@ -26,6 +40,10 @@ export const conversationsRouter = new Hono();
 
 function parseConversationId(rawId: string): string {
   return parseUuidParam(rawId, 'id', 'Invalid conversation id');
+}
+
+function parseUserId(rawId: string): string {
+  return parseUuidParam(rawId, 'userId', 'Invalid user id');
 }
 
 conversationsRouter.get(
@@ -47,7 +65,14 @@ conversationsRouter.post(
   async (c) => {
     const auth = c.get('auth');
     const input = c.req.valid('json');
-    const result = await createOrGetDirectConversation(auth.userId, input);
+
+    if ('type' in input && input.type === 'group') {
+      const result = await createGroupConversation(auth.userId, input);
+      return c.json(successResponse(result.conversation), 201);
+    }
+
+    const directInput = input as { participantUserId: string };
+    const result = await createOrGetDirectConversation(auth.userId, directInput);
     return c.json(successResponse(result.conversation), result.created ? 201 : 200);
   }
 );
@@ -95,5 +120,85 @@ conversationsRouter.patch(
     const input = c.req.valid('json');
     const result = await markConversationRead(conversationId, auth.userId, input);
     return c.json(successResponse(result), 200);
+  }
+);
+
+conversationsRouter.patch(
+  '/:id',
+  authMiddleware,
+  zValidator('json', updateGroupConversationSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const input = c.req.valid('json');
+    const conversation = await updateGroupTitle(conversationId, auth.userId, input.title);
+    return c.json(successResponse(conversation), 200);
+  }
+);
+
+conversationsRouter.get('/:id/members', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  const members = await listGroupMembers(conversationId, auth.userId);
+  return c.json(successResponse(members), 200);
+});
+
+conversationsRouter.post(
+  '/:id/members',
+  authMiddleware,
+  zValidator('json', addGroupMembersSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const input = c.req.valid('json');
+    const members = await addGroupMembers(conversationId, auth.userId, input.userIds);
+    return c.json(successResponse(members), 200);
+  }
+);
+
+conversationsRouter.delete('/:id/members/:userId', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  const targetUserId = parseUserId(c.req.param('userId'));
+  await removeGroupMember(conversationId, auth.userId, targetUserId);
+  return c.json(successResponse({ ok: true }), 200);
+});
+
+conversationsRouter.patch(
+  '/:id/members/:userId',
+  authMiddleware,
+  zValidator('json', updateGroupMemberRoleSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const targetUserId = parseUserId(c.req.param('userId'));
+    const input = c.req.valid('json');
+    const members = await updateGroupMemberRole(
+      conversationId,
+      auth.userId,
+      targetUserId,
+      input.role
+    );
+    return c.json(successResponse(members), 200);
+  }
+);
+
+conversationsRouter.post('/:id/leave', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  await leaveGroup(conversationId, auth.userId);
+  return c.json(successResponse({ ok: true }), 200);
+});
+
+conversationsRouter.post(
+  '/:id/transfer-owner',
+  authMiddleware,
+  zValidator('json', transferGroupOwnerSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const input = c.req.valid('json');
+    const members = await transferGroupOwner(conversationId, auth.userId, input.newOwnerUserId);
+    return c.json(successResponse(members), 200);
   }
 );
