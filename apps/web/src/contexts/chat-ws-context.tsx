@@ -5,6 +5,7 @@ import type {
   MemberLeftPayload,
   MessageNewPayload,
   MessageReadPayload,
+  MessageRecalledPayload,
   TypingPayload,
   WsMessage,
 } from '@orbitchat/shared-types';
@@ -25,6 +26,7 @@ import { useAuth } from './auth-context';
 export type ChatRealtimeEvent =
   | WsMessage<'message.new'>
   | WsMessage<'message.read'>
+  | WsMessage<'message.recalled'>
   | WsMessage<'typing.started'>
   | WsMessage<'typing.stopped'>
   | WsMessage<'member.joined'>
@@ -103,6 +105,15 @@ export function ChatWsProvider({ children }: { children: ReactNode }) {
           listener({
             type,
             payload: payload as MessageReadPayload,
+            timestamp: new Date().toISOString(),
+          });
+        });
+      }
+      if (type === 'message.recalled') {
+        listenersRef.current.forEach((listener) => {
+          listener({
+            type,
+            payload: payload as MessageRecalledPayload,
             timestamp: new Date().toISOString(),
           });
         });

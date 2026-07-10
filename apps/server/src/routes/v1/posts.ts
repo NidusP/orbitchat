@@ -115,9 +115,9 @@ postsRouter.post(
 );
 
 postsRouter.delete('/:id/comments/:commentId', authMiddleware, async (c) => {
-  parsePostId(c.req.param('id'));
+  const postId = parsePostId(c.req.param('id'));
   const commentId = parseCommentId(c.req.param('commentId'));
   const auth = c.get('auth');
-  await deleteComment(commentId, auth.userId);
+  await deleteComment(postId, commentId, auth.userId);
   return c.json(successResponse({ deleted: true }), 200);
 });

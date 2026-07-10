@@ -46,17 +46,36 @@ export const createMessageSchema = z.object({
   content: messageContentSchema,
 });
 
+export const updateMessageSchema = z.object({
+  content: messageContentSchema,
+});
+
 export const markConversationReadSchema = z.object({
   readAt: z.string().datetime({ message: 'readAt must be ISO 8601' }).optional(),
 });
 
-export const updateGroupConversationSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(1, 'Title is required')
-    .max(120, 'Title must be at most 120 characters'),
-});
+export const updateGroupConversationSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, 'Title is required')
+      .max(120, 'Title must be at most 120 characters')
+      .optional(),
+    announcement: z
+      .string()
+      .trim()
+      .max(1000, 'Announcement must be at most 1000 characters')
+      .nullable()
+      .optional(),
+    expectedVersion: z
+      .number()
+      .int('expectedVersion must be an integer')
+      .positive('expectedVersion must be a positive integer'),
+  })
+  .refine((data) => data.title !== undefined || data.announcement !== undefined, {
+    message: 'At least one of title or announcement is required',
+  });
 
 export const addGroupMembersSchema = z.object({
   userIds: z
@@ -73,10 +92,16 @@ export const updateGroupMemberRoleSchema = z.object({
   role: z.enum(['admin', 'member']),
 });
 
+export const createGroupInviteSchema = z.object({
+  expiresInHours: z.coerce.number().int().min(1).max(24 * 30).optional(),
+  maxUses: z.coerce.number().int().min(1).max(1000).optional(),
+});
+
 export type CreateDirectConversationInput = z.infer<typeof createDirectConversationSchema>;
 export type CreateGroupConversationInput = z.infer<typeof createGroupConversationSchema>;
 export type CreateConversationInput = z.infer<typeof createConversationSchema>;
 export type CreateMessageInput = z.infer<typeof createMessageSchema>;
+export type UpdateMessageInput = z.infer<typeof updateMessageSchema>;
 export type MarkConversationReadInput = z.infer<typeof markConversationReadSchema>;
 export type CursorQueryInput = z.infer<typeof cursorQuerySchema>;
 export type MessageCursorQueryInput = z.infer<typeof messageCursorQuerySchema>;

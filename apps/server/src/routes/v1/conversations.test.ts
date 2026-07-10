@@ -7,7 +7,7 @@ process.env.NODE_ENV = 'test';
 process.env.CORS_ORIGIN = 'http://localhost:3000';
 
 import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
-import type { Conversation, GroupMember, Message } from '@orbitchat/shared-types';
+import type { Conversation, GroupInvite, GroupInvitePreview, GroupMember, Message } from '@orbitchat/shared-types';
 import { Hono } from 'hono';
 import { handleError } from '../../middleware/error';
 
@@ -16,6 +16,7 @@ const sessionService = await import('../../services/session-service');
 const conversationService = await import('../../services/conversation-service');
 const messageService = await import('../../services/message-service');
 const groupMemberService = await import('../../services/group-member-service');
+const groupInviteService = await import('../../services/group-invite-service');
 const { conversationsRouter } = await import('./conversations');
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +28,7 @@ const sampleConversation: Conversation = {
   id: CONVERSATION_ID,
   type: 'direct',
   title: null,
+  announcement: null,
   participants: [
     {
       id: USER_ID,
@@ -45,6 +47,7 @@ const sampleConversation: Conversation = {
   lastMessage: null,
   lastMessageAt: null,
   unreadCount: 0,
+  version: 1,
   createdAt: '2026-07-03T10:00:00.000Z',
   updatedAt: '2026-07-03T10:00:00.000Z',
 };
@@ -88,6 +91,30 @@ const sampleGroupConversation: Conversation = {
   type: 'group',
   title: 'Weekend crew',
   viewerRole: 'owner',
+};
+
+const sampleInvite: GroupInvite = {
+  id: '66666666-6666-4666-8666-666666666666',
+  conversationId: CONVERSATION_ID,
+  code: 'abc123',
+  createdByUserId: USER_ID,
+  expiresAt: '2026-07-10T10:00:00.000Z',
+  maxUses: null,
+  useCount: 0,
+  revokedAt: null,
+  createdAt: '2026-07-07T10:00:00.000Z',
+  updatedAt: '2026-07-07T10:00:00.000Z',
+};
+
+const sampleInvitePreview: GroupInvitePreview = {
+  code: 'abc123',
+  conversationId: CONVERSATION_ID,
+  groupTitle: 'Weekend crew',
+  memberCount: 2,
+  isActive: true,
+  expiresAt: '2026-07-10T10:00:00.000Z',
+  maxUses: null,
+  useCount: 0,
 };
 
 function createApp(): Hono {
@@ -136,9 +163,13 @@ describe('conversationsRouter', () => {
     spyOn(conversationService, 'getConversationDto').mockImplementation(async () => sampleConversation);
     spyOn(messageService, 'listMessages').mockImplementation(async () => ({
       items: [sampleMessage],
+      recalls: [],
       nextCursor: null,
     }));
     spyOn(messageService, 'createMessage').mockImplementation(async () => sampleMessage);
+    spyOn(messageService, 'updateMessage').mockImplementation(async () => sampleMessage);
+    spyOn(messageService, 'deleteMessage').mockImplementation(async () => ({ ok: true }));
+    spyOn(messageService, 'listMessageEdits').mockImplementation(async () => []);
     spyOn(messageService, 'markConversationRead').mockImplementation(async () => ({
       conversationId: CONVERSATION_ID,
       lastReadAt: '2026-07-03T10:02:00.000Z',
@@ -147,9 +178,17 @@ describe('conversationsRouter', () => {
     spyOn(groupMemberService, 'addGroupMembers').mockImplementation(async () => sampleGroupMembers);
     spyOn(groupMemberService, 'removeGroupMember').mockImplementation(async () => {});
     spyOn(groupMemberService, 'leaveGroup').mockImplementation(async () => {});
-    spyOn(groupMemberService, 'updateGroupTitle').mockImplementation(async () => sampleGroupConversation);
+    spyOn(groupMemberService, 'updateGroupMetadata').mockImplementation(async () => sampleGroupConversation);
     spyOn(groupMemberService, 'transferGroupOwner').mockImplementation(async () => sampleGroupMembers);
     spyOn(groupMemberService, 'updateGroupMemberRole').mockImplementation(async () => sampleGroupMembers);
+    spyOn(groupInviteService, 'createGroupInvite').mockImplementation(async () => sampleInvite);
+    spyOn(groupInviteService, 'listGroupInvites').mockImplementation(async () => [sampleInvite]);
+    spyOn(groupInviteService, 'revokeGroupInvite').mockImplementation(async () => ({
+      ...sampleInvite,
+      revokedAt: '2026-07-07T10:10:00.000Z',
+    }));
+    spyOn(groupInviteService, 'getInvitePreview').mockImplementation(async () => sampleInvitePreview);
+    spyOn(groupInviteService, 'acceptGroupInvite').mockImplementation(async () => ({ ok: true }));
   });
 
   test('lists conversations for the current user', async () => {
@@ -266,6 +305,50 @@ describe('conversationsRouter', () => {
     expect(createSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID, { content: 'Hello Luna' });
   });
 
+  test('updates a message', async () => {
+    const updateSpy = spyOn(messageService, 'updateMessage');
+    const app = createApp();
+    const response = await app.request(`/conversations/${CONVERSATION_ID}/messages/${MESSAGE_ID}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: 'Hello again' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(updateSpy).toHaveBeenCalledWith(CONVERSATION_ID, MESSAGE_ID, USER_ID, {
+      content: 'Hello again',
+    });
+  });
+
+  test('deletes a message', async () => {
+    const deleteSpy = spyOn(messageService, 'deleteMessage');
+    const app = createApp();
+    const response = await app.request(`/conversations/${CONVERSATION_ID}/messages/${MESSAGE_ID}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(deleteSpy).toHaveBeenCalledWith(CONVERSATION_ID, MESSAGE_ID, USER_ID);
+  });
+
+  test('lists message edit history', async () => {
+    const editsSpy = spyOn(messageService, 'listMessageEdits');
+    const app = createApp();
+    const response = await app.request(
+      `/conversations/${CONVERSATION_ID}/messages/${MESSAGE_ID}/edits`,
+      {
+        headers: { Authorization: 'Bearer valid-token' },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(editsSpy).toHaveBeenCalledWith(CONVERSATION_ID, MESSAGE_ID, USER_ID);
+  });
+
   test('marks a conversation as read', async () => {
     const readSpy = spyOn(messageService, 'markConversationRead');
     const app = createApp();
@@ -375,7 +458,7 @@ describe('conversationsRouter', () => {
   });
 
   test('updates group title', async () => {
-    const updateSpy = spyOn(groupMemberService, 'updateGroupTitle');
+    const updateSpy = spyOn(groupMemberService, 'updateGroupMetadata');
     const app = createApp();
     const response = await app.request(`/conversations/${CONVERSATION_ID}`, {
       method: 'PATCH',
@@ -383,13 +466,17 @@ describe('conversationsRouter', () => {
         Authorization: 'Bearer valid-token',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ title: 'Renamed crew' }),
+      body: JSON.stringify({ title: 'Renamed crew', expectedVersion: 1 }),
     });
     const body = (await response.json()) as { code: string; data: Conversation };
 
     expect(response.status).toBe(200);
     expect(body.data.title).toBe('Weekend crew');
-    expect(updateSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID, 'Renamed crew');
+    expect(updateSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID, {
+      title: 'Renamed crew',
+      announcement: undefined,
+      expectedVersion: 1,
+    });
   });
 
   test('leaves a group', async () => {
@@ -447,6 +534,88 @@ describe('conversationsRouter', () => {
     expect(response.status).toBe(200);
     expect(body.data).toHaveLength(2);
     expect(roleSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID, OTHER_USER_ID, 'admin');
+  });
+
+  test('creates an invite link', async () => {
+    const createInviteSpy = spyOn(groupInviteService, 'createGroupInvite');
+    const app = createApp();
+    const response = await app.request(`/conversations/${CONVERSATION_ID}/invites`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(201);
+    expect(createInviteSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID, {});
+  });
+
+  test('lists invite links', async () => {
+    const listInviteSpy = spyOn(groupInviteService, 'listGroupInvites');
+    const app = createApp();
+    const response = await app.request(`/conversations/${CONVERSATION_ID}/invites`, {
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(listInviteSpy).toHaveBeenCalledWith(CONVERSATION_ID, USER_ID);
+  });
+
+  test('gets invite preview', async () => {
+    const previewSpy = spyOn(groupInviteService, 'getInvitePreview');
+    const app = createApp();
+    const response = await app.request('/conversations/invites/abc123', {
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(previewSpy).toHaveBeenCalledWith('abc123', USER_ID);
+  });
+
+  test('accepts invite', async () => {
+    const acceptSpy = spyOn(groupInviteService, 'acceptGroupInvite');
+    const app = createApp();
+    const response = await app.request('/conversations/invites/abc123/accept', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(200);
+    expect(acceptSpy).toHaveBeenCalledWith('abc123', USER_ID);
+  });
+
+  test('revokes invite link', async () => {
+    const revokeSpy = spyOn(groupInviteService, 'revokeGroupInvite');
+    const app = createApp();
+    const response = await app.request('/conversations/invites/abc123', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(revokeSpy).toHaveBeenCalledWith('abc123', USER_ID);
+  });
+
+  test('rejects empty message content on update', async () => {
+    const app = createApp();
+    const response = await app.request(`/conversations/${CONVERSATION_ID}/messages/${MESSAGE_ID}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: '' }),
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('VALIDATION_ERROR');
   });
 
   test('rejects empty group title update', async () => {

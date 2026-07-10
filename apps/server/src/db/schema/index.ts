@@ -19,6 +19,11 @@ export {
   type NewConversationMember,
 } from './conversation-members';
 export {
+  groupInvites,
+  type GroupInvite,
+  type NewGroupInvite,
+} from './group-invites';
+export {
   conversations,
   type Conversation,
   type NewConversation,
@@ -26,6 +31,8 @@ export {
 export { follows, type Follow, type NewFollow } from './follows';
 export { likes, type Like, type NewLike } from './likes';
 export { messages, type Message, type NewMessage } from './messages';
+export { messageEdits, type MessageEdit, type NewMessageEdit } from './message-edits';
+export { messageRecalls, type MessageRecall, type NewMessageRecall } from './message-recalls';
 export { posts, type NewPost, type Post } from './posts';
 export { profiles, type NewProfile, type Profile } from './profiles';
 export { userSessions, type NewUserSession, type UserSession } from './user-sessions';

@@ -4,6 +4,7 @@ import type {
   MemberLeftPayload,
   MessageNewPayload,
   MessageReadPayload,
+  MessageRecalledPayload,
   TypingPayload,
   WsMessage,
 } from '@orbitchat/shared-types';
@@ -166,6 +167,16 @@ export function broadcastMessageNew(payload: MessageNewPayload): void {
 export function broadcastMessageRead(payload: MessageReadPayload): void {
   const message: WsMessage<'message.read'> = {
     type: 'message.read',
+    payload,
+    timestamp: new Date().toISOString(),
+  };
+
+  chatHub.broadcast(conversationRoomId(payload.conversationId), message);
+}
+
+export function broadcastMessageRecalled(payload: MessageRecalledPayload): void {
+  const message: WsMessage<'message.recalled'> = {
+    type: 'message.recalled',
     payload,
     timestamp: new Date().toISOString(),
   };

@@ -18,6 +18,7 @@ import {
   removeGroupMember,
   transferGroupOwner,
   updateGroupMemberRole,
+  updateGroupMetadata,
 } from './group-member-service';
 
 const GROUP_ID = '33333333-3333-4333-8333-333333333333';
@@ -53,8 +54,11 @@ describe('group-member-service', () => {
           id: GROUP_ID,
           type: 'group',
           title: 'Weekend crew',
+          announcement: null,
           createdByUserId: OWNER_ID,
           directKey: null,
+          lastMessageAt: null,
+          metadataVersion: 2,
           createdAt: new Date('2026-07-03T10:00:00.000Z'),
           updatedAt: new Date('2026-07-03T10:00:00.000Z'),
         }) as never
@@ -76,7 +80,7 @@ describe('group-member-service', () => {
     );
 
     spyOn(conversationLoaders, 'loadGroupMembers').mockImplementation(async () => []);
-    spyOn(userService, 'findUserById').mockImplementation(
+    spyOn(userService, 'getUserById').mockImplementation(
       async (userId) =>
         ({
           id: userId,
@@ -98,7 +102,9 @@ describe('group-member-service', () => {
       () =>
         ({
           set: () => ({
-            where: () => Promise.resolve(),
+            where: () => ({
+              returning: () => Promise.resolve([]),
+            }),
           }),
         }) as never
     );
@@ -180,6 +186,71 @@ describe('group-member-service', () => {
       expect.objectContaining({
         code: 'FORBIDDEN',
         statusCode: 403,
+      })
+    );
+  });
+
+  test('updateGroupMetadata rejects unchanged fields', async () => {
+    await expect(
+      updateGroupMetadata(GROUP_ID, OWNER_ID, { title: 'Weekend crew', expectedVersion: 2 })
+    ).rejects.toEqual(
+      expect.objectContaining({
+        code: 'VALIDATION_ERROR',
+        statusCode: 400,
+      })
+    );
+  });
+
+  test('updateGroupMetadata updates announcement alongside title version', async () => {
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: () =>
+                Promise.resolve([
+                  {
+                    id: GROUP_ID,
+                    type: 'group',
+                    title: 'Weekend crew',
+                    announcement: 'Hike this Saturday',
+                    metadataVersion: 3,
+                  },
+                ]),
+            }),
+          }),
+        }) as never
+    );
+    const getDtoSpy = spyOn(conversationService, 'getConversationDto').mockImplementation(
+      async () => ({}) as never
+    );
+
+    await updateGroupMetadata(GROUP_ID, OWNER_ID, {
+      announcement: 'Hike this Saturday',
+      expectedVersion: 2,
+    });
+
+    expect(getDtoSpy).toHaveBeenCalledWith(GROUP_ID, OWNER_ID);
+  });
+
+  test('updateGroupMetadata rejects stale expectedVersion', async () => {
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: () => Promise.resolve([]),
+            }),
+          }),
+        }) as never
+    );
+
+    await expect(
+      updateGroupMetadata(GROUP_ID, OWNER_ID, { title: 'New title', expectedVersion: 1 })
+    ).rejects.toEqual(
+      expect.objectContaining({
+        code: 'CONFLICT',
+        statusCode: 409,
       })
     );
   });

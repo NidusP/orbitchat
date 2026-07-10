@@ -76,6 +76,13 @@
 ### Phase 4A（AI Chat MVP）
 
 - [x] [17-ai-agent-architecture.md](./17-ai-agent-architecture.md) - 本地模型 Agent 架构、Runtime 边界与 Tool 权限
+- [x] [18-api-robustness.md](./18-api-robustness.md) - API 接口健壮性原则与验收清单
+- [x] [19-concurrency-optimistic-pessimistic.md](./19-concurrency-optimistic-pessimistic.md) - 协作编辑乐观锁 vs 库存悲观锁
+- [x] [20-ai-sse-streaming.md](./20-ai-sse-streaming.md) - AI SSE 流式优化（连接反馈、真 token 流、Tool 进度）
+- [x] [21-agent-memory-model.md](./21-agent-memory-model.md) - Agent 长期记忆 M1（`user_agent_memories`、显式写入）
+- [x] [22-agent-rag-boundaries.md](./22-agent-rag-boundaries.md) - Agent RAG 边界 M2（`knowledge_chunks`、pgvector）
+
+**原则总览**（非 ADR，与多条 ADR 交叉引用）：[architecture-principles.md](../architecture-principles.md)
 
 ### 待做（后续阶段）
 

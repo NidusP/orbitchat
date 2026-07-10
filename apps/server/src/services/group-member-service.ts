@@ -1,11 +1,11 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { GroupMember, GroupMemberRole } from '@orbitchat/shared-types';
 import { db } from '../db';
 import { conversationMembers } from '../db/schema/conversation-members';
 import { conversations } from '../db/schema/conversations';
 import { AppError } from '../lib/errors';
 import { loadGroupMembers } from '../lib/conversation-loaders';
-import { findUserById } from './user-service';
+import { getUserById } from './user-service';
 import {
   assertConversationMember,
   getConversationDto,
@@ -66,7 +66,7 @@ export async function addGroupMembers(
     });
   }
 
-  await Promise.all(uniqueIds.map((userId) => findUserById(userId)));
+  await Promise.all(uniqueIds.map((userId) => getUserById(userId)));
 
   const now = new Date();
   for (const userId of uniqueIds) {
@@ -151,20 +151,59 @@ export async function leaveGroup(conversationId: string, userId: string): Promis
   broadcastMemberLeft({ conversationId, userId, reason: 'left' });
 }
 
-export async function updateGroupTitle(
+export async function updateGroupMetadata(
   conversationId: string,
   actorUserId: string,
-  title: string
+  input: { title?: string; announcement?: string | null; expectedVersion: number }
 ): Promise<Awaited<ReturnType<typeof getConversationDto>>> {
-  await getActiveGroupConversation(conversationId);
+  const conversation = await getActiveGroupConversation(conversationId);
   const actor = await getActiveMembership(conversationId, actorUserId);
   assertCanManageGroup(actor.role!);
 
+  const nextTitle = input.title !== undefined ? input.title : conversation.title;
+  const nextAnnouncement =
+    input.announcement !== undefined ? input.announcement : conversation.announcement;
+
+  const titleUnchanged = input.title === undefined || input.title === conversation.title;
+  const announcementUnchanged =
+    input.announcement === undefined || input.announcement === conversation.announcement;
+  if (titleUnchanged && announcementUnchanged) {
+    throw new AppError('VALIDATION_ERROR', 'Group settings are unchanged', 400);
+  }
+
   const now = new Date();
-  await db
+  const [updated] = await db
     .update(conversations)
-    .set({ title, updatedAt: now })
-    .where(eq(conversations.id, conversationId));
+    .set({
+      title: nextTitle,
+      announcement: nextAnnouncement,
+      metadataVersion: sql`${conversations.metadataVersion} + 1`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.metadataVersion, input.expectedVersion)
+      )
+    )
+    .returning();
+
+  if (!updated) {
+    const current = await db.query.conversations.findFirst({
+      where: eq(conversations.id, conversationId),
+    });
+
+    if (!current) {
+      throw new AppError('NOT_FOUND', 'Group conversation not found', 404);
+    }
+
+    throw new AppError('CONFLICT', 'Group settings were updated by someone else', 409, {
+      field: 'expectedVersion',
+      currentVersion: current.metadataVersion,
+      currentTitle: current.title,
+      currentAnnouncement: current.announcement,
+    });
+  }
 
   return getConversationDto(conversationId, actorUserId);
 }

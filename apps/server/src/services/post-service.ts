@@ -7,6 +7,7 @@ import { AppError } from '../lib/errors';
 import { loadAuthorSummaries, loadLikedPostIds } from '../lib/social-loaders';
 import { toPostWithAuthor } from '../lib/social-mappers';
 import type { CreatePostInput, UpdatePostInput } from '../schemas/posts';
+import { indexPostChunk, removePostChunk } from './ai/rag-service';
 
 async function getActivePost(postId: string) {
   const post = await db.query.posts.findFirst({
@@ -46,6 +47,8 @@ export async function createPost(authorId: string, input: CreatePostInput): Prom
     throw new AppError('INTERNAL_ERROR', 'Failed to create post', 500);
   }
 
+  void indexPostChunk(created.id, authorId, created.content).catch(console.error);
+
   return toPostDto(created, authorId);
 }
 
@@ -65,6 +68,10 @@ export async function updatePost(
     throw new AppError('FORBIDDEN', 'You can only edit your own posts', 403);
   }
 
+  if (post.content === input.content) {
+    throw new AppError('VALIDATION_ERROR', 'Post content is unchanged', 400, { field: 'content' });
+  }
+
   const [updated] = await db
     .update(posts)
     .set({
@@ -78,11 +85,22 @@ export async function updatePost(
     throw new AppError('INTERNAL_ERROR', 'Failed to update post', 500);
   }
 
+  void indexPostChunk(updated.id, actorId, updated.content).catch(console.error);
+
   return toPostDto(updated, actorId);
 }
 
 export async function deletePost(postId: string, actorId: string): Promise<void> {
-  const post = await getActivePost(postId);
+  const post = await db.query.posts.findFirst({
+    where: eq(posts.id, postId),
+  });
+
+  if (!post) {
+    throw new AppError('NOT_FOUND', 'Post not found', 404);
+  }
+  if (post.deletedAt) {
+    throw new AppError('VALIDATION_ERROR', 'Post has already been deleted', 400);
+  }
 
   if (post.authorId !== actorId) {
     throw new AppError('FORBIDDEN', 'You can only delete your own posts', 403);
@@ -95,6 +113,8 @@ export async function deletePost(postId: string, actorId: string): Promise<void>
       updatedAt: new Date(),
     })
     .where(eq(posts.id, postId));
+
+  void removePostChunk(postId).catch(console.error);
 }
 
 export async function likePost(postId: string, userId: string): Promise<{ liked: boolean; likeCount: number }> {
@@ -108,15 +128,27 @@ export async function likePost(postId: string, userId: string): Promise<{ liked:
     return { liked: true, likeCount: post.likeCount };
   }
 
-  await db.transaction(async (tx) => {
-    await tx.insert(likes).values({ userId, postId });
+  const result = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(likes)
+      .values({ userId, postId })
+      .onConflictDoNothing()
+      .returning();
+
+    if (inserted.length === 0) {
+      const current = await tx.query.posts.findFirst({ where: eq(posts.id, postId) });
+      return { liked: true, likeCount: current?.likeCount ?? post.likeCount };
+    }
+
     await tx
       .update(posts)
       .set({ likeCount: post.likeCount + 1 })
       .where(eq(posts.id, postId));
+
+    return { liked: true, likeCount: post.likeCount + 1 };
   });
 
-  return { liked: true, likeCount: post.likeCount + 1 };
+  return result;
 }
 
 export async function unlikePost(postId: string, userId: string): Promise<{ liked: boolean; likeCount: number }> {

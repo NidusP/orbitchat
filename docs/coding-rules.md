@@ -306,6 +306,21 @@ try {
 
 ---
 
+## API 健壮性
+
+业务 REST（`/api/v1/*`）须遵循 [ADR 18](./decisions/18-api-robustness.md)。系统级原则见 [architecture-principles.md](./architecture-principles.md)。
+
+- **Service 层是权威**：UI 校验不能替代；重复操作、非法状态须返回明确 `400/403/404`
+- **无意义写操作拒绝**：如编辑内容未变、已撤回再撤回
+- **并发**：条件 `UPDATE`（`WHERE status = 'pending'`、`deleted_at IS NULL`）、`ON CONFLICT DO NOTHING`
+- **路径与资源一致**：URL 中的 ID 须与实体归属匹配
+
+全量 endpoint 审计表：[api-robustness-audit.md](./api-robustness-audit.md)
+
+新写 endpoint 合并前对照 ADR 18 清单；测试要求见 [testing.md](./testing.md)。
+
+---
+
 ## 注释和文档
 
 ### 1. JSDoc 注释

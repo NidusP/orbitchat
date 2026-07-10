@@ -26,17 +26,24 @@ export async function findProfileByUserId(userId: string) {
   });
 }
 
-export async function getUserById(userId: string) {
+export async function assertPublicUser(userId: string) {
   const user = await findUserById(userId);
 
-  if (!user) {
+  if (!user || !user.isActive) {
     throw new AppError('NOT_FOUND', 'User not found', 404);
   }
 
+  return user;
+}
+
+export async function getUserById(userId: string) {
+  const user = await assertPublicUser(userId);
   return toUserDto(user);
 }
 
 export async function getProfileByUserId(userId: string) {
+  await assertPublicUser(userId);
+
   const profile = await findProfileByUserId(userId);
 
   if (!profile) {
@@ -47,6 +54,15 @@ export async function getProfileByUserId(userId: string) {
 }
 
 export async function updateUser(userId: string, input: UpdateUserInput) {
+  const current = await assertPublicUser(userId);
+
+  const usernameUnchanged =
+    input.username === undefined || input.username === current.username;
+  const emailUnchanged = input.email === undefined || input.email === current.email;
+  if (usernameUnchanged && emailUnchanged) {
+    throw new AppError('VALIDATION_ERROR', 'No changes provided', 400);
+  }
+
   if (input.email) {
     const emailConflict = await db.query.users.findFirst({
       where: eq(users.email, input.email),
@@ -87,6 +103,22 @@ export async function updateUser(userId: string, input: UpdateUserInput) {
 }
 
 export async function updateProfile(userId: string, input: UpdateProfileInput) {
+  await assertPublicUser(userId);
+
+  const current = await findProfileByUserId(userId);
+  if (!current) {
+    throw new AppError('NOT_FOUND', 'Profile not found', 404);
+  }
+
+  const displayNameUnchanged =
+    input.displayName === undefined || input.displayName === current.displayName;
+  const bioUnchanged = input.bio === undefined || input.bio === current.bio;
+  const avatarUrlUnchanged =
+    input.avatarUrl === undefined || input.avatarUrl === current.avatarUrl;
+  if (displayNameUnchanged && bioUnchanged && avatarUrlUnchanged) {
+    throw new AppError('VALIDATION_ERROR', 'No changes provided', 400);
+  }
+
   const [updated] = await db
     .update(profiles)
     .set({

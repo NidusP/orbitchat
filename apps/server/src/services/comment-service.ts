@@ -23,18 +23,6 @@ function timelineBefore(cursor: TimelineCursor | undefined) {
   return sql`(${comments.createdAt}, ${comments.id}) < (${cursor.createdAt}::timestamptz, ${cursor.id}::uuid)`;
 }
 
-async function getActiveComment(commentId: string) {
-  const comment = await db.query.comments.findFirst({
-    where: and(eq(comments.id, commentId), isNull(comments.deletedAt)),
-  });
-
-  if (!comment) {
-    throw new AppError('NOT_FOUND', 'Comment not found', 404);
-  }
-
-  return comment;
-}
-
 async function assertActivePost(postId: string): Promise<typeof posts.$inferSelect> {
   const post = await db.query.posts.findFirst({
     where: and(eq(posts.id, postId), isNull(posts.deletedAt)),
@@ -121,8 +109,24 @@ export async function createComment(
   return toCommentWithAuthor(created, author);
 }
 
-export async function deleteComment(commentId: string, actorId: string): Promise<void> {
-  const comment = await getActiveComment(commentId);
+export async function deleteComment(
+  postId: string,
+  commentId: string,
+  actorId: string
+): Promise<void> {
+  const comment = await db.query.comments.findFirst({
+    where: eq(comments.id, commentId),
+  });
+
+  if (!comment) {
+    throw new AppError('NOT_FOUND', 'Comment not found', 404);
+  }
+  if (comment.deletedAt) {
+    throw new AppError('VALIDATION_ERROR', 'Comment has already been deleted', 400);
+  }
+  if (comment.postId !== postId) {
+    throw new AppError('NOT_FOUND', 'Comment not found', 404);
+  }
   const post = await db.query.posts.findFirst({
     where: eq(posts.id, comment.postId),
   });

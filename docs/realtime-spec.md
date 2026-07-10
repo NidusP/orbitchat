@@ -123,6 +123,7 @@ interface WsMessage<T = unknown> {
 | `message.new` | S→C | 新消息 |
 | `message.ack` | C→S | 客户端收到消息（3A 可选） |
 | `message.read` | S→C | 会话已读时间更新 |
+| `message.recalled` | S→C | 消息撤回（系统提示，非普通消息） |
 | `typing.started` | C→S→C | **仅 1:1**；输入中 |
 | `typing.stopped` | C→S→C | **仅 1:1**；停止输入 |
 | `member.joined` | S→C | 群成员加入（拉人/再入群） |
@@ -193,6 +194,26 @@ interface MessageReadPayload {
   conversationId: string;
   userId: string;
   lastReadAt: string;
+}
+```
+
+### `message.recalled`
+
+消息撤回时广播。payload 携带 `MessageRecall` 系统事件（**不写入 `messages` 表**），客户端应在原消息位置展示「XX 撤回了一条消息」，并移除原消息气泡。离线用户拉历史时通过 `GET .../messages` 响应中的 `recalls` 数组还原时间轴。
+
+```typescript
+interface MessageRecall {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  recalledBy: ConversationParticipant;
+  messageCreatedAt: string; // 时间轴定位（原消息发送时间）
+  recalledAt: string;
+}
+
+interface MessageRecalledPayload {
+  conversationId: string;
+  recall: MessageRecall;
 }
 ```
 
