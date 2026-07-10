@@ -362,6 +362,55 @@ test('user can open AI chat and create a conversation without running a model', 
   await expect(page.getByPlaceholder('Ask 小轨 something…')).toBeVisible();
 });
 
+test('user can join a group via invite link', async ({ browser }) => {
+  const identityA = createUniqueIdentity('invite_a');
+  const identityB = createUniqueIdentity('invite_b');
+  const identityC = createUniqueIdentity('invite_c');
+  const groupTitle = `E2E Invite Group ${Date.now()}`;
+
+  const contextA = await browser.newContext();
+  const contextB = await browser.newContext();
+  const contextC = await browser.newContext();
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+  const pageC = await contextC.newPage();
+
+  try {
+    await registerAndLandOnProfile(pageA, identityA);
+    await registerAndLandOnProfile(pageB, identityB);
+    await registerAndLandOnProfile(pageC, identityC);
+
+    await createGroupChat(pageA, identityB, groupTitle);
+
+    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await expect(pageA.getByRole('heading', { name: 'Group settings' })).toBeVisible();
+    await pageA.getByRole('button', { name: 'Generate invite link' }).click();
+
+    const inviteRow = pageA.locator('.conversation-list-item').filter({ hasText: '/invites/' });
+    await expect(inviteRow).toBeVisible({ timeout: 15_000 });
+    const inviteUrl = await inviteRow.locator('.conversation-list-title').textContent();
+    expect(inviteUrl).toBeTruthy();
+
+    const invitePath = new URL(inviteUrl!.trim()).pathname;
+    await pageC.goto(invitePath);
+    await expect(pageC.getByRole('heading', { name: 'Group invite' })).toBeVisible();
+    await expect(pageC.getByText(groupTitle)).toBeVisible({ timeout: 15_000 });
+    await pageC.getByRole('button', { name: 'Join group' }).click();
+
+    await expect(pageC).toHaveURL(/\/messages\/[0-9a-f-]+$/, { timeout: 15_000 });
+    await expect(pageC.getByRole('heading', { name: groupTitle })).toBeVisible();
+
+    await pageA.getByRole('link', { name: 'Back to chat' }).click();
+    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await expect(pageA.getByText(`Members (3)`)).toBeVisible({ timeout: 15_000 });
+    await expect(pageA.getByText(identityC.displayName)).toBeVisible();
+  } finally {
+    await contextA.close();
+    await contextB.close();
+    await contextC.close();
+  }
+});
+
 test('two users can create a group chat and exchange messages', async ({ browser }) => {
   const identityA = createUniqueIdentity('group_a');
   const identityB = createUniqueIdentity('group_b');
@@ -449,3 +498,148 @@ async function getUserIdFromProfile(page: Page, username: string): Promise<strin
   }
   return href.replace('/users/', '');
 }
+
+async function openNewAiChat(page: Page): Promise<void> {
+  await page.goto('/ai');
+  await page.getByRole('button', { name: 'New chat' }).click();
+  await expect(page.getByPlaceholder('Ask 小轨 something…')).toBeVisible({ timeout: 15_000 });
+}
+
+test('user can approve remember_fact and see memory on memories page', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_memory');
+  const memoryContent = `Call me Orbit ${Date.now()}`;
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  const composer = page.getByPlaceholder('Ask 小轨 something…');
+  await composer.fill(`[e2e:remember_fact] nickname:${memoryContent}`);
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  const pendingCard = page.locator('.ai-tool-call-card').filter({
+    hasText: `Remember nickname: ${memoryContent}`,
+  });
+  await expect(pendingCard).toBeVisible({ timeout: 15_000 });
+  await expect(pendingCard.getByText('确认后小轨会在之后的对话中记住这条信息')).toBeVisible();
+  await pendingCard.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByText('Memory saved successfully.')).toBeVisible({ timeout: 15_000 });
+
+  await page.goto('/ai/memories');
+  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+  await expect(page.getByText(memoryContent)).toBeVisible({ timeout: 15_000 });
+});
+
+test('user can add and delete a memory on memories page', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_memory_crud');
+  const memoryContent = `Prefer short replies ${Date.now()}`;
+
+  await registerAndLandOnProfile(page, identity);
+  await page.goto('/ai/memories');
+  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+
+  await page.getByPlaceholder('e.g. Prefer short replies, or call me Orbit').fill(memoryContent);
+  await page.getByRole('button', { name: 'Add memory' }).click();
+  await expect(page.getByText(memoryContent)).toBeVisible({ timeout: 15_000 });
+
+  const memoryItem = page.locator('.conversation-list-item').filter({ hasText: memoryContent });
+  await memoryItem.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByText(memoryContent)).not.toBeVisible({ timeout: 15_000 });
+});
+
+test('user can list recent posts via agent tool prefix', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_my_posts');
+  const postContent = `E2E recent post ${Date.now()}`;
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  await page
+    .getByPlaceholder('Ask 小轨 something…')
+    .fill(`[e2e:create_post] ${postContent}`);
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  const createCard = page.locator('.ai-tool-call-card').filter({
+    hasText: `Create post: ${postContent}`,
+  });
+  await expect(createCard).toBeVisible({ timeout: 15_000 });
+  await createCard.getByRole('button', { name: 'Approve' }).click();
+  await expect(page.getByText('Post published successfully.')).toBeVisible({ timeout: 15_000 });
+
+  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:my_posts]');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.locator('.chat-bubble-tool').filter({ hasText: /最近帖子/ })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test('user can run semantic post search tool via agent prefix', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_search_posts');
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:search_posts] travel');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.locator('.chat-bubble-tool').filter({ hasText: /搜索你的帖子/ })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test('user can run help docs search tool via agent prefix', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_search_help');
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:search_help] api');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.locator('.chat-bubble-tool').filter({ hasText: /搜索帮助文档/ })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test('user can load profile via agent tool prefix', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_my_profile');
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:my_profile]');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(
+    page.locator('.chat-bubble-tool').filter({ hasText: identity.username })
+  ).toBeVisible({ timeout: 15_000 });
+});
+
+test('user can reject remember_fact pending tool call', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_memory_reject');
+  const memoryContent = `Do not save ${Date.now()}`;
+
+  await registerAndLandOnProfile(page, identity);
+  await openNewAiChat(page);
+
+  await page
+    .getByPlaceholder('Ask 小轨 something…')
+    .fill(`[e2e:remember_fact] nickname:${memoryContent}`);
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  const pendingCard = page.locator('.ai-tool-call-card').filter({
+    hasText: `Remember nickname: ${memoryContent}`,
+  });
+  await expect(pendingCard).toBeVisible({ timeout: 15_000 });
+  await pendingCard.getByRole('button', { name: 'Reject' }).click();
+  await expect(pendingCard).not.toBeVisible({ timeout: 15_000 });
+
+  await page.goto('/ai/memories');
+  await expect(page.getByText(memoryContent)).not.toBeVisible();
+});
+
+test('AI chat page links to memories management', async ({ page }) => {
+  const identity = createUniqueIdentity('agent_memories_link');
+
+  await registerAndLandOnProfile(page, identity);
+  await page.goto('/ai');
+  await page.getByRole('link', { name: '记忆管理' }).click();
+  await expect(page).toHaveURL('/ai/memories');
+  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+});
