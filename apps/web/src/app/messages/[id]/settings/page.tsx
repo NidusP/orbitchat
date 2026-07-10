@@ -3,19 +3,22 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import type { GroupMember, GroupMemberRole, UserSearchResult } from '@orbitchat/shared-types';
+import type { GroupInvite, GroupMember, GroupMemberRole, UserSearchResult } from '@orbitchat/shared-types';
 import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 import {
   addGroupMembers,
+  createGroupInvite,
+  listGroupInvites,
   getConversation,
   leaveGroup,
   listGroupMembers,
   removeGroupMember,
   transferGroupOwner,
   updateGroupMemberRole,
-  updateGroupTitle,
+  updateGroupMetadata,
+  revokeGroupInvite,
 } from '@/lib/api/conversations';
 import { searchUsers } from '@/lib/api/social';
 
@@ -40,6 +43,8 @@ export default function GroupSettingsPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [title, setTitle] = useState('');
+  const [announcement, setAnnouncement] = useState('');
+  const [metadataVersion, setMetadataVersion] = useState(1);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [viewerRole, setViewerRole] = useState<GroupMemberRole | null>(null);
   const [query, setQuery] = useState('');
@@ -48,24 +53,31 @@ export default function GroupSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [invites, setInvites] = useState<GroupInvite[]>([]);
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const [conversation, memberList] = await Promise.all([
+      const [conversation, memberList, inviteList] = await Promise.all([
         getConversation(conversationId),
         listGroupMembers(conversationId),
+        listGroupInvites(conversationId).catch(() => []),
       ]);
       if (conversation.type !== 'group') {
         router.replace(`/messages/${conversationId}`);
         return;
       }
       setTitle(conversation.title ?? '');
+      setAnnouncement(conversation.announcement ?? '');
+      setMetadataVersion(conversation.version);
       setViewerRole(conversation.viewerRole);
       setMembers(memberList);
+      setInvites(inviteList);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load group settings.');
     } finally {
@@ -95,12 +107,53 @@ export default function GroupSettingsPage() {
     setIsSavingTitle(true);
     setError(null);
     try {
-      const updated = await updateGroupTitle(conversationId, { title: title.trim() });
-      setTitle(updated.title ?? '');
+      const updated = await updateGroupMetadata(conversationId, {
+        title: title.trim(),
+        expectedVersion: metadataVersion,
+      });
+      applyMetadata(updated);
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'CONFLICT') {
+        setError('Group name was updated by another admin. Reloading latest settings…');
+        await load();
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'Failed to update group name.');
     } finally {
       setIsSavingTitle(false);
+    }
+  }
+
+  function applyMetadata(updated: { title: string | null; announcement: string | null; version: number }): void {
+    setTitle(updated.title ?? '');
+    setAnnouncement(updated.announcement ?? '');
+    setMetadataVersion(updated.version);
+  }
+
+  async function handleSaveAnnouncement(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!canManageGroup(viewerRole)) {
+      return;
+    }
+
+    const trimmed = announcement.trim();
+    setIsSavingAnnouncement(true);
+    setError(null);
+    try {
+      const updated = await updateGroupMetadata(conversationId, {
+        announcement: trimmed.length > 0 ? trimmed : null,
+        expectedVersion: metadataVersion,
+      });
+      applyMetadata(updated);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'CONFLICT') {
+        setError('Group announcement was updated by another admin. Reloading latest settings…');
+        await load();
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : 'Failed to update announcement.');
+    } finally {
+      setIsSavingAnnouncement(false);
     }
   }
 
@@ -184,6 +237,29 @@ export default function GroupSettingsPage() {
     }
   }
 
+  async function handleCreateInvite(): Promise<void> {
+    setIsCreatingInvite(true);
+    setError(null);
+    try {
+      const invite = await createGroupInvite(conversationId);
+      setInvites((current) => [invite, ...current.filter((item) => item.id !== invite.id)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to create invite link.');
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  }
+
+  async function handleRevokeInvite(code: string): Promise<void> {
+    setError(null);
+    try {
+      const invite = await revokeGroupInvite(code);
+      setInvites((current) => current.map((item) => (item.id === invite.id ? invite : item)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to revoke invite link.');
+    }
+  }
+
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
@@ -226,6 +302,30 @@ export default function GroupSettingsPage() {
           </form>
         ) : (
           <p>{title}</p>
+        )}
+      </section>
+
+      <section className="card form-stack" style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Announcement</h2>
+        {canManage ? (
+          <form onSubmit={(event) => void handleSaveAnnouncement(event)}>
+            <label className="form-field">
+              <textarea
+                value={announcement}
+                onChange={(event) => setAnnouncement(event.target.value)}
+                maxLength={1000}
+                rows={4}
+                placeholder="Share an announcement with the group"
+              />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={isSavingAnnouncement}>
+              {isSavingAnnouncement ? 'Saving…' : 'Save announcement'}
+            </button>
+          </form>
+        ) : announcement ? (
+          <p style={{ whiteSpace: 'pre-wrap' }}>{announcement}</p>
+        ) : (
+          <p className="text-muted">No announcement yet.</p>
         )}
       </section>
 
@@ -293,6 +393,58 @@ export default function GroupSettingsPage() {
           })}
         </ul>
       </section>
+
+      {canManage && (
+        <section className="card form-stack" style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Invite links</h2>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={isCreatingInvite}
+            onClick={() => void handleCreateInvite()}
+          >
+            {isCreatingInvite ? 'Generating…' : 'Generate invite link'}
+          </button>
+          {invites.length > 0 && (
+            <ul className="conversation-list">
+              {invites.map((invite) => {
+                const origin = typeof window === 'undefined' ? '' : window.location.origin;
+                const inviteUrl = `${origin}/invites/${invite.code}`;
+                const isRevoked = invite.revokedAt !== null;
+                return (
+                  <li key={invite.id} className="conversation-list-item">
+                    <div className="conversation-list-main">
+                      <span className="conversation-list-title">{inviteUrl}</span>
+                      <span className="text-muted">
+                        Uses: {invite.useCount}
+                        {invite.maxUses ? `/${invite.maxUses}` : ''} {isRevoked ? '• revoked' : ''}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => void navigator.clipboard.writeText(inviteUrl)}
+                      >
+                        Copy
+                      </button>
+                      {!isRevoked && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => void handleRevokeInvite(invite.code)}
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       {canManage && (
         <section className="card form-stack" style={{ marginBottom: 16 }}>

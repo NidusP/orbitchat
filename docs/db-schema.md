@@ -177,9 +177,11 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | id | UUID PK | |
 | type | ENUM | `direct` \| `group` |
 | title | VARCHAR(120) | 群名称；`direct` 为 NULL |
+| announcement | TEXT | 群公告（≤1000 字）；`direct` 为 NULL；与 title 共享 `metadata_version` |
 | created_by_user_id | UUID FK → users | 群主；`direct` 为 NULL |
 | direct_key | VARCHAR UNIQUE | `minUserId:maxUserId`；仅 direct 会话 |
 | last_message_at | TIMESTAMPTZ | 可空；会话列表排序 |
+| metadata_version | INTEGER NOT NULL DEFAULT 1 | 协作元数据乐观锁（群名等）；**不**随发消息递增 |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
@@ -221,12 +223,39 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | sender_id | UUID FK → users | |
 | content | TEXT NOT NULL | Phase 3A 纯文字；API 最长 2000 字符 |
 | created_at | TIMESTAMPTZ | |
-| edited_at | TIMESTAMPTZ | 可空；3A 不开放编辑 |
-| deleted_at | TIMESTAMPTZ | 可空；3A 不开放删除 |
+| edited_at | TIMESTAMPTZ | 可空；消息编辑时间 |
+| deleted_at | TIMESTAMPTZ | 可空；消息软删除时间 |
 
 **约束与索引**：
 - `(conversation_id, created_at DESC, id DESC)` — 历史消息 cursor 分页
 - `(sender_id, created_at DESC)` — 用户消息排查 / 未来审计
+
+**编辑 / 撤回（IM 策略）**：
+- 编辑：15 分钟内；每次编辑前将旧内容写入 `message_edits`；**不** WS 广播
+- 撤回：3 分钟内；软删除 + 写入 `message_recalls`；WS `message.recalled`；不计入未读/lastMessage 预览
+
+### message_edits
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| message_id | UUID FK → messages | |
+| editor_user_id | UUID FK → users | |
+| previous_content | TEXT NOT NULL | 编辑前的内容 |
+| edited_at | TIMESTAMPTZ | |
+
+### message_recalls
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → conversations | |
+| message_id | UUID FK → messages | 被撤回的原消息；**UNIQUE**（每条消息至多一条 recall） |
+| recalled_by_user_id | UUID FK → users | |
+| message_created_at | TIMESTAMPTZ | 原消息时间（时间轴定位） |
+| recalled_at | TIMESTAMPTZ | |
+
+**说明**：`message_recalls` 是系统事件，不是聊天消息；会话列表预览与未读数均忽略撤回提示。
 
 ### Phase 3B / 3B.1（群聊与群管理）
 
@@ -237,11 +266,30 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | 建群 + 群消息 | Phase 3B ✅ |
 | `conversation_members.role`、拉人/踢人/退群/改名/转让 | Phase 3B.1 ✅ |
 | 1:1 typing（群聊不做） | Phase 3B.1 ✅ |
-| 邀请链接 / 解散群 | P1 延后 |
+| 邀请链接 | ✅ `group_invites`（本阶段） |
+| 解散群 | P1 延后 |
 | message_reads 逐条已读 | 延后 |
 | presence | 延后 |
 
 *WS 协议见 [realtime-spec.md](./realtime-spec.md)。*
+
+### group_invites（3B.1 P1）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → conversations | 仅 group 会话 |
+| code | VARCHAR(32) UNIQUE | 邀请短码 |
+| created_by_user_id | UUID FK → users | 创建人 |
+| expires_at | TIMESTAMPTZ | 可空；过期时间 |
+| max_uses | INT | 可空；最大使用次数 |
+| use_count | INT | 已使用次数 |
+| revoked_at | TIMESTAMPTZ | 可空；撤销时间 |
+| created_at / updated_at | TIMESTAMPTZ | |
+
+**索引**：
+- `code UNIQUE`
+- `(conversation_id)`
 
 ---
 
@@ -314,11 +362,70 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 - `(conversation_id, created_at)` — 会话内审计列表
 - `(requested_by_user_id, status)` — 用户待确认操作
 
+### user_agent_memories
+
+跨 AI 会话的用户级长期记忆（Orbit Guide M1）。详见 [ADR 21](./decisions/21-agent-memory-model.md)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| user_id | UUID FK → users | 记忆所属用户 |
+| agent_id | UUID FK → agents, nullable | 空 = 对该用户所有 Agent 可见 |
+| kind | user_agent_memory_kind | `preference` / `fact` / `nickname` |
+| content | TEXT | 简短事实正文 |
+| source | user_agent_memory_source | `user_explicit` / `tool` / `admin` |
+| conversation_id | UUID FK → ai_conversations, nullable | 来源会话，便于审计 |
+| created_at / updated_at | TIMESTAMPTZ | |
+| deleted_at | TIMESTAMPTZ, nullable | 软删 |
+
+**索引**：
+- `(user_id, deleted_at)` — 按用户拉取有效记忆
+
+**原则**：M1 仅显式写入（API 或经用户确认的 Tool）；禁止静默从每轮对话自动抽取。
+
+### ai_conversation_summaries
+
+长对话压缩摘要（Orbit Guide M3 / Wave 4）。每会话一行，原地更新。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| conversation_id | UUID FK → ai_conversations UNIQUE | 每会话至多一条摘要 |
+| summary | TEXT | LLM 生成的早期对话摘要 |
+| up_to_message_id | UUID FK → ai_messages | 摘要覆盖到的最后一条 user/assistant 消息 |
+| created_at / updated_at | TIMESTAMPTZ | |
+
+**触发**：user+assistant 消息数 > 30 时，将除最近 20 条外的早期消息压缩为摘要；增量更新时仅摘要 `up_to_message_id` 之后的新早期消息。
+
+### knowledge_chunks
+
+站内 RAG 向量索引（Orbit Guide M2 / Wave 3）。详见 [ADR 22](./decisions/22-agent-rag-boundaries.md)。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| source_type | knowledge_chunk_source_type | `post` / `doc` |
+| source_id | VARCHAR(128) | 来源 ID（如 `post` UUID 或 doc 路径 slug） |
+| owner_user_id | UUID FK → users, nullable | `post` 为发帖用户；`doc` 为 `NULL`（公开） |
+| text | TEXT | 切块正文 |
+| embedding | vector(768) | pgvector 嵌入 |
+| created_at / updated_at | TIMESTAMPTZ | |
+
+**索引**：
+
+- `UNIQUE (source_type, source_id)` — upsert 幂等
+- `(owner_user_id)` — 按用户过滤本人帖子
+- HNSW `(embedding vector_cosine_ops)` — 余弦相似度 ANN
+
+**原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。
+
 ## Phase 4B+：橱窗 / 音视频（概要）
 
 | 表 / 服务 | 用途 | 状态 |
 |-----------|------|------|
-| ai_tool_calls | Agent 写操作审计 | 📋 Phase 4B |
+| ai_tool_calls | Agent 写操作审计 | ✅ Phase 4B |
+| user_agent_memories | 跨会话 Agent 用户记忆 | ✅ Orbit Guide M1 |
+| knowledge_chunks | RAG 向量索引（帖子 + 帮助文档） | 📋 Orbit Guide M2 Wave 3 |
 | call_sessions | 通话记录 | 📋 Phase 4 |
 | storefront.* | 商品、订单 | 📋 可能独立 DB（Go 服务） |
 
@@ -362,3 +469,5 @@ Phase 3+ : User ── Message, ChatGroup, ...
 | 0.2.0 | 2026-06-23 | Phase 2 详表（posts/comments/likes/follows）；ADR 10–12 |
 | 0.2.1 | 2026-06-30 | 链至 [sql-learning.md](./sql-learning.md) |
 | 0.3.0 | 2026-07-03 | Phase 3A 详表（conversations/conversation_members/messages）；ADR 13–15 |
+| 0.4.0 | 2026-07-09 | `user_agent_memories`（Orbit Guide M1）；ADR 21 |
+| 0.5.0 | 2026-07-09 | `knowledge_chunks` + pgvector（Orbit Guide M2）；ADR 22 |

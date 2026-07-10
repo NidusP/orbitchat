@@ -12,6 +12,7 @@ import {
 } from '../lib/cursor';
 import { loadAuthorSummaries, loadLikedPostIds } from '../lib/social-loaders';
 import { toPostWithAuthor } from '../lib/social-mappers';
+import { assertPublicUser } from './user-service';
 
 function timelineBefore(cursor: TimelineCursor | undefined) {
   if (!cursor) {
@@ -80,6 +81,8 @@ export async function getUserPosts(
   viewerId: string | null,
   params: { cursor?: string; limit?: number }
 ): Promise<CursorPage<PostWithAuthor>> {
+  await assertPublicUser(targetUserId);
+
   const limit = clampCursorLimit(params.limit);
   const cursor = params.cursor ? decodeTimelineCursor(params.cursor) : undefined;
 

@@ -1,6 +1,8 @@
 import type {
   AddGroupMembersRequest,
   Conversation,
+  CreateGroupInviteRequest,
+  CreateGroupInviteResponse,
   ConversationListResponse,
   CreateConversationRequest,
   CreateConversationResponse,
@@ -9,11 +11,16 @@ import type {
   CursorPageParams,
   GetConversationResponse,
   GroupMember,
+  GroupInviteListResponse,
+  GroupInvitePreviewResponse,
   GroupMemberListResponse,
   MarkConversationReadRequest,
   MarkConversationReadResponse,
+  MessageEditListResponse,
   MessageListResponse,
   TransferGroupOwnerRequest,
+  UpdateMessageRequest,
+  UpdateMessageResponse,
   UpdateGroupConversationRequest,
   UpdateGroupMemberRoleRequest,
 } from '@orbitchat/shared-types';
@@ -66,6 +73,38 @@ export async function sendMessage(
   return apiRequest<CreateMessageResponse>(`/api/v1/conversations/${conversationId}/messages`, {
     method: 'POST',
     body: input,
+  });
+}
+
+export async function updateMessage(
+  conversationId: string,
+  messageId: string,
+  input: UpdateMessageRequest
+): Promise<UpdateMessageResponse> {
+  return apiRequest<UpdateMessageResponse>(
+    `/api/v1/conversations/${conversationId}/messages/${messageId}`,
+    {
+      method: 'PATCH',
+      body: input,
+    }
+  );
+}
+
+export async function listMessageEdits(
+  conversationId: string,
+  messageId: string
+): Promise<MessageEditListResponse> {
+  return apiRequest<MessageEditListResponse>(
+    `/api/v1/conversations/${conversationId}/messages/${messageId}/edits`
+  );
+}
+
+export async function deleteMessage(
+  conversationId: string,
+  messageId: string
+): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/api/v1/conversations/${conversationId}/messages/${messageId}`, {
+    method: 'DELETE',
   });
 }
 
@@ -123,7 +162,7 @@ export async function leaveGroup(conversationId: string): Promise<{ ok: true }> 
   });
 }
 
-export async function updateGroupTitle(
+export async function updateGroupMetadata(
   conversationId: string,
   input: UpdateGroupConversationRequest
 ): Promise<GetConversationResponse> {
@@ -144,6 +183,37 @@ export async function transferGroupOwner(
       body: input,
     }
   );
+}
+
+export async function createGroupInvite(
+  conversationId: string,
+  input: CreateGroupInviteRequest = {}
+): Promise<CreateGroupInviteResponse> {
+  return apiRequest<CreateGroupInviteResponse>(`/api/v1/conversations/${conversationId}/invites`, {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function listGroupInvites(conversationId: string): Promise<GroupInviteListResponse> {
+  return apiRequest<GroupInviteListResponse>(`/api/v1/conversations/${conversationId}/invites`);
+}
+
+export async function revokeGroupInvite(code: string): Promise<CreateGroupInviteResponse> {
+  return apiRequest<CreateGroupInviteResponse>(`/api/v1/conversations/invites/${code}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getGroupInvitePreview(code: string): Promise<GroupInvitePreviewResponse> {
+  return apiRequest<GroupInvitePreviewResponse>(`/api/v1/conversations/invites/${code}`);
+}
+
+export async function acceptGroupInvite(code: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/api/v1/conversations/invites/${code}/accept`, {
+    method: 'POST',
+    body: {},
+  });
 }
 
 export function getOtherParticipant(

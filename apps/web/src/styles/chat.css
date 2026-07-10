@@ -111,6 +111,20 @@
   justify-content: flex-start;
 }
 
+.chat-bubble-stack {
+  display: flex;
+  flex-direction: column;
+  max-width: min(80%, 520px);
+}
+
+.chat-bubble-row-mine .chat-bubble-stack {
+  align-items: flex-end;
+}
+
+.chat-bubble-row-theirs .chat-bubble-stack {
+  align-items: flex-start;
+}
+
 .chat-bubble {
   max-width: min(80%, 520px);
   padding: 10px 12px;
@@ -144,10 +158,78 @@
 }
 
 .chat-bubble-time {
-  display: block;
-  margin-top: 4px;
+  display: inline;
   font-size: 0.7rem;
   opacity: 0.75;
+}
+
+.chat-bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chat-edited-label {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.7rem;
+  color: inherit;
+  opacity: 0.85;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.chat-message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-system-notice {
+  margin: 8px 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.chat-history-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 40;
+}
+
+.chat-history-panel {
+  width: min(100%, 420px);
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.chat-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.chat-history-item p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .chat-composer {
@@ -263,6 +345,32 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.ai-tool-call-helper {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.ai-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: min(100%, 42rem);
+}
+
+.ai-citation {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
 }
 
 .tic-tac-toe-tool {

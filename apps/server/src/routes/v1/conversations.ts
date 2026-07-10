@@ -6,12 +6,14 @@ import { zodValidationHook } from '../../lib/zod-hook';
 import { authMiddleware } from '../../middleware/auth';
 import {
   addGroupMembersSchema,
+  createGroupInviteSchema,
   createConversationSchema,
   createMessageSchema,
   cursorQuerySchema,
   markConversationReadSchema,
   messageCursorQuerySchema,
   transferGroupOwnerSchema,
+  updateMessageSchema,
   updateGroupConversationSchema,
   updateGroupMemberRoleSchema,
 } from '../../schemas/conversations';
@@ -28,12 +30,22 @@ import {
   removeGroupMember,
   transferGroupOwner,
   updateGroupMemberRole,
-  updateGroupTitle,
+  updateGroupMetadata,
 } from '../../services/group-member-service';
 import {
+  acceptGroupInvite,
+  createGroupInvite,
+  getInvitePreview,
+  listGroupInvites,
+  revokeGroupInvite,
+} from '../../services/group-invite-service';
+import {
   createMessage,
+  deleteMessage,
+  listMessageEdits,
   listMessages,
   markConversationRead,
+  updateMessage,
 } from '../../services/message-service';
 
 export const conversationsRouter = new Hono();
@@ -44,6 +56,10 @@ function parseConversationId(rawId: string): string {
 
 function parseUserId(rawId: string): string {
   return parseUuidParam(rawId, 'userId', 'Invalid user id');
+}
+
+function parseMessageId(rawId: string): string {
+  return parseUuidParam(rawId, 'messageId', 'Invalid message id');
 }
 
 conversationsRouter.get(
@@ -76,6 +92,36 @@ conversationsRouter.post(
     return c.json(successResponse(result.conversation), result.created ? 201 : 200);
   }
 );
+
+conversationsRouter.get('/:id/messages/:messageId/edits', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  const messageId = parseMessageId(c.req.param('messageId'));
+  const edits = await listMessageEdits(conversationId, messageId, auth.userId);
+  return c.json(successResponse(edits), 200);
+});
+
+conversationsRouter.patch(
+  '/:id/messages/:messageId',
+  authMiddleware,
+  zValidator('json', updateMessageSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const messageId = parseMessageId(c.req.param('messageId'));
+    const input = c.req.valid('json');
+    const message = await updateMessage(conversationId, messageId, auth.userId, input);
+    return c.json(successResponse(message), 200);
+  }
+);
+
+conversationsRouter.delete('/:id/messages/:messageId', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  const messageId = parseMessageId(c.req.param('messageId'));
+  const result = await deleteMessage(conversationId, messageId, auth.userId);
+  return c.json(successResponse(result), 200);
+});
 
 conversationsRouter.get('/:id', authMiddleware, async (c) => {
   const auth = c.get('auth');
@@ -110,6 +156,44 @@ conversationsRouter.post(
   }
 );
 
+conversationsRouter.post(
+  '/:id/invites',
+  authMiddleware,
+  zValidator('json', createGroupInviteSchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const conversationId = parseConversationId(c.req.param('id'));
+    const input = c.req.valid('json');
+    const invite = await createGroupInvite(conversationId, auth.userId, input);
+    return c.json(successResponse(invite), 201);
+  }
+);
+
+conversationsRouter.get('/:id/invites', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const conversationId = parseConversationId(c.req.param('id'));
+  const invites = await listGroupInvites(conversationId, auth.userId);
+  return c.json(successResponse(invites), 200);
+});
+
+conversationsRouter.delete('/invites/:code', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const invite = await revokeGroupInvite(c.req.param('code'), auth.userId);
+  return c.json(successResponse(invite), 200);
+});
+
+conversationsRouter.get('/invites/:code', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const preview = await getInvitePreview(c.req.param('code'), auth.userId);
+  return c.json(successResponse(preview), 200);
+});
+
+conversationsRouter.post('/invites/:code/accept', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const result = await acceptGroupInvite(c.req.param('code'), auth.userId);
+  return c.json(successResponse(result), 200);
+});
+
 conversationsRouter.patch(
   '/:id/read',
   authMiddleware,
@@ -131,7 +215,11 @@ conversationsRouter.patch(
     const auth = c.get('auth');
     const conversationId = parseConversationId(c.req.param('id'));
     const input = c.req.valid('json');
-    const conversation = await updateGroupTitle(conversationId, auth.userId, input.title);
+    const conversation = await updateGroupMetadata(conversationId, auth.userId, {
+      title: input.title,
+      announcement: input.announcement,
+      expectedVersion: input.expectedVersion,
+    });
     return c.json(successResponse(conversation), 200);
   }
 );

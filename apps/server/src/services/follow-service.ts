@@ -7,7 +7,7 @@ import { profiles } from '../db/schema/profiles';
 import { users } from '../db/schema/users';
 import { AppError } from '../lib/errors';
 import { decodeTimelineCursor, encodeTimelineCursor, trimToPage } from '../lib/cursor';
-import { findUserById } from './user-service';
+import { assertPublicUser } from './user-service';
 
 function decodeSearchCursor(raw: string): { score: number; username: string; id: string } {
   try {
@@ -74,10 +74,7 @@ function toUserSearchResult(row: {
 }
 
 async function getUserOrThrow(userId: string): Promise<void> {
-  const user = await findUserById(userId);
-  if (!user) {
-    throw new AppError('NOT_FOUND', 'User not found', 404);
-  }
+  await assertPublicUser(userId);
 }
 
 export async function followUser(followerId: string, followeeId: string): Promise<{ following: boolean }> {

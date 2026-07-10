@@ -15,6 +15,7 @@ export {
 } from './session-service';
 export {
   assertActiveUser,
+  assertPublicUser,
   findProfileByUserId,
   findUserByEmail,
   findUserById,

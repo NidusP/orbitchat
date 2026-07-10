@@ -3,18 +3,28 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Conversation, Message } from '@orbitchat/shared-types';
+import type { Message, MessageEditRecord, MessageRecall } from '@orbitchat/shared-types';
 import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
 import { ApiError } from '@/lib/api/errors';
 import {
+  deleteMessage,
   getConversation,
   getConversationDisplayName,
+  listMessageEdits,
   listMessages,
   markConversationRead,
   sendMessage,
+  updateMessage,
 } from '@/lib/api/conversations';
+
+const MESSAGE_RECALL_WINDOW_MS = 3 * 60 * 1000;
+const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+type TimelineItem =
+  | { kind: 'message'; message: Message }
+  | { kind: 'recall'; recall: MessageRecall };
 
 function formatMessageTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -30,6 +40,40 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
   );
 }
 
+function mergeRecalls(current: MessageRecall[], incoming: MessageRecall[]): MessageRecall[] {
+  const map = new Map(current.map((recall) => [recall.id, recall]));
+  for (const recall of incoming) {
+    map.set(recall.id, recall);
+  }
+  return [...map.values()].sort(
+    (left, right) =>
+      left.messageCreatedAt.localeCompare(right.messageCreatedAt) || left.id.localeCompare(right.id)
+  );
+}
+
+function buildTimeline(messages: Message[], recalls: MessageRecall[]): TimelineItem[] {
+  const items: TimelineItem[] = [
+    ...messages.map((message) => ({ kind: 'message' as const, message })),
+    ...recalls.map((recall) => ({ kind: 'recall' as const, recall })),
+  ];
+
+  return items.sort((left, right) => {
+    const leftAt = left.kind === 'message' ? left.message.createdAt : left.recall.messageCreatedAt;
+    const leftId = left.kind === 'message' ? left.message.id : left.recall.id;
+    const rightAt = right.kind === 'message' ? right.message.createdAt : right.recall.messageCreatedAt;
+    const rightId = right.kind === 'message' ? right.message.id : right.recall.id;
+    return leftAt.localeCompare(rightAt) || leftId.localeCompare(rightId);
+  });
+}
+
+function canRecallMessage(message: Message, nowMs: number): boolean {
+  return nowMs - new Date(message.createdAt).getTime() <= MESSAGE_RECALL_WINDOW_MS;
+}
+
+function canEditMessage(message: Message, nowMs: number): boolean {
+  return nowMs - new Date(message.createdAt).getTime() <= MESSAGE_EDIT_WINDOW_MS;
+}
+
 export default function ConversationPage() {
   const params = useParams<{ id: string }>();
   const conversationId = params.id;
@@ -37,8 +81,11 @@ export default function ConversationPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { subscribe, sendTyping, isConnected } = useChatWs();
 
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [conversation, setConversation] = useState<Awaited<ReturnType<typeof getConversation>> | null>(
+    null
+  );
   const [messages, setMessages] = useState<Message[]>([]);
+  const [recalls, setRecalls] = useState<MessageRecall[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [typingLabel, setTypingLabel] = useState<string | null>(null);
@@ -46,6 +93,13 @@ export default function ConversationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [historyMessageId, setHistoryMessageId] = useState<string | null>(null);
+  const [editHistory, setEditHistory] = useState<MessageEditRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [actionMessageId, setActionMessageId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +116,8 @@ export default function ConversationPage() {
   const memberCount =
     conversation?.type === 'group' ? conversation.participants.length : null;
 
+  const timeline = useMemo(() => buildTimeline(messages, recalls), [messages, recalls]);
+
   const loadInitial = useCallback(async () => {
     setError(null);
     setIsLoading(true);
@@ -72,6 +128,7 @@ export default function ConversationPage() {
       ]);
       setConversation(conversationRecord);
       setMessages(mergeMessages([], messagePage.items));
+      setRecalls(mergeRecalls([], messagePage.recalls));
       setNextCursor(messagePage.nextCursor);
       await markConversationRead(conversationId);
     } catch (err) {
@@ -95,6 +152,11 @@ export default function ConversationPage() {
   }, [isAuthenticated, loadInitial]);
 
   useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     return subscribe((event) => {
       if (event.payload.conversationId !== conversationId) {
         return;
@@ -105,6 +167,12 @@ export default function ConversationPage() {
         if (event.payload.message.sender.id !== user?.id) {
           void markConversationRead(conversationId);
         }
+        return;
+      }
+
+      if (event.type === 'message.recalled') {
+        setMessages((current) => current.filter((item) => item.id !== event.payload.recall.messageId));
+        setRecalls((current) => mergeRecalls(current, [event.payload.recall]));
         return;
       }
 
@@ -140,7 +208,7 @@ export default function ConversationPage() {
         });
       }
     });
-  }, [conversationId, subscribe, user?.id]);
+  }, [conversation?.type, conversationId, subscribe, user?.id]);
 
   const notifyTyping = useCallback(() => {
     if (conversation && conversation.type !== 'direct') {
@@ -181,7 +249,7 @@ export default function ConversationPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [timeline.length]);
 
   async function handleLoadMore() {
     if (!nextCursor) {
@@ -195,6 +263,7 @@ export default function ConversationPage() {
     try {
       const page = await listMessages(conversationId, { cursor: nextCursor, limit: 50 });
       setMessages((current) => mergeMessages(page.items, current));
+      setRecalls((current) => mergeRecalls(current, page.recalls));
       setNextCursor(page.nextCursor);
       requestAnimationFrame(() => {
         if (list) {
@@ -226,6 +295,65 @@ export default function ConversationPage() {
       setError(err instanceof ApiError ? err.message : 'Failed to send message.');
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function handleRecall(messageId: string): Promise<void> {
+    if (!messages.some((item) => item.id === messageId)) {
+      return;
+    }
+
+    if (!window.confirm('Withdraw this message?')) {
+      return;
+    }
+
+    setActionMessageId(messageId);
+    setError(null);
+    try {
+      await deleteMessage(conversationId, messageId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to recall message.');
+    } finally {
+      setActionMessageId(null);
+    }
+  }
+
+  async function handleSaveEdit(messageId: string, originalContent: string): Promise<void> {
+    const content = editDraft.trim();
+    if (!content) {
+      return;
+    }
+    if (content === originalContent) {
+      setError('Message content is unchanged.');
+      return;
+    }
+
+    setActionMessageId(messageId);
+    setError(null);
+    try {
+      const updated = await updateMessage(conversationId, messageId, { content });
+      setMessages((current) => mergeMessages(current, [updated]));
+      setEditingMessageId(null);
+      setEditDraft('');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to edit message.');
+    } finally {
+      setActionMessageId(null);
+    }
+  }
+
+  async function handleShowEditHistory(messageId: string): Promise<void> {
+    setHistoryMessageId(messageId);
+    setIsLoadingHistory(true);
+    setError(null);
+    try {
+      const history = await listMessageEdits(conversationId, messageId);
+      setEditHistory(history);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to load edit history.');
+      setHistoryMessageId(null);
+    } finally {
+      setIsLoadingHistory(false);
     }
   }
 
@@ -305,21 +433,108 @@ export default function ConversationPage() {
         )}
 
         <div className="chat-messages" ref={listRef}>
-          {messages.length === 0 ? (
+          {timeline.length === 0 ? (
             <p className="text-muted chat-empty">Say hello to start the conversation.</p>
           ) : (
-            messages.map((message) => {
+            timeline.map((item) => {
+              if (item.kind === 'recall') {
+                return (
+                  <p key={`recall-${item.recall.id}`} className="chat-system-notice">
+                    {item.recall.recalledBy.displayName} withdrew a message
+                  </p>
+                );
+              }
+
+              const message = item.message;
               const isMine = message.sender.id === user?.id;
+              const isEditing = editingMessageId === message.id;
+              const showRecall = isMine && canRecallMessage(message, nowMs);
+              const showEdit = isMine && canEditMessage(message, nowMs);
+              const editUnchanged = editDraft.trim() === message.content;
+
               return (
                 <div
                   key={message.id}
                   className={`chat-bubble-row ${isMine ? 'chat-bubble-row-mine' : 'chat-bubble-row-theirs'}`}
                 >
                   <div className={`chat-bubble ${isMine ? 'chat-bubble-mine' : 'chat-bubble-theirs'}`}>
-                    <p className="chat-bubble-content">{message.content}</p>
-                    <time className="chat-bubble-time" dateTime={message.createdAt}>
-                      {formatMessageTime(message.createdAt)}
-                    </time>
+                    {isEditing ? (
+                      <div className="chat-edit-form">
+                        <textarea
+                          className="chat-input"
+                          rows={2}
+                          value={editDraft}
+                          onChange={(event) => setEditDraft(event.target.value)}
+                        />
+                        <div className="chat-message-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={
+                              actionMessageId === message.id || !editDraft.trim() || editUnchanged
+                            }
+                            onClick={() => void handleSaveEdit(message.id, message.content)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              setEditingMessageId(null);
+                              setEditDraft('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="chat-bubble-content">{message.content}</p>
+                        <div className="chat-bubble-meta">
+                          <time className="chat-bubble-time" dateTime={message.createdAt}>
+                            {formatMessageTime(message.createdAt)}
+                          </time>
+                          {message.editedAt && (
+                            <button
+                              type="button"
+                              className="chat-edited-label"
+                              onClick={() => void handleShowEditHistory(message.id)}
+                            >
+                              Edited
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {isMine && !isEditing && (showEdit || showRecall) && (
+                      <div className="chat-message-actions">
+                        {showEdit && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={actionMessageId === message.id}
+                            onClick={() => {
+                              setEditingMessageId(message.id);
+                              setEditDraft(message.content);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {showRecall && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={actionMessageId === message.id}
+                            onClick={() => void handleRecall(message.id)}
+                          >
+                            Recall
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -357,6 +572,40 @@ export default function ConversationPage() {
           </button>
         </form>
       </div>
+
+      {historyMessageId && (
+        <div className="chat-history-overlay" role="dialog" aria-modal="true">
+          <div className="card chat-history-panel">
+            <header className="section-header">
+              <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Edit history</h2>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setHistoryMessageId(null);
+                  setEditHistory([]);
+                }}
+              >
+                Close
+              </button>
+            </header>
+            {isLoadingHistory ? (
+              <p className="text-muted">Loading…</p>
+            ) : editHistory.length === 0 ? (
+              <p className="text-muted">No edit history.</p>
+            ) : (
+              <ul className="chat-history-list">
+                {editHistory.map((entry) => (
+                  <li key={entry.id} className="chat-history-item">
+                    <time className="text-muted">{formatMessageTime(entry.editedAt)}</time>
+                    <p>{entry.previousContent}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       <p className="text-muted" style={{ marginTop: 16 }}>
         <Link href="/messages">Back to messages</Link>

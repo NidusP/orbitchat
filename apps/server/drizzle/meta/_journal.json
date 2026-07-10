@@ -38,6 +38,20 @@
       "breakpoints": true
     },
     {
+      "idx": 5,
+      "version": "7",
+      "when": 1783078397504,
+      "tag": "0005_oval_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783161600000,
+      "tag": "0006_group_chat",
+      "breakpoints": true
+    },
+    {
       "idx": 7,
       "version": "7",
       "when": 1783165200000,
@@ -49,6 +63,41 @@
       "version": "7",
       "when": 1783250000000,
       "tag": "0008_ai_tictactoe_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783469000000,
+      "tag": "0009_group_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783475000000,
+      "tag": "0010_message_edits_recalls",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1783480000000,
+      "tag": "0011_message_recalls_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783485000000,
+      "tag": "0012_conversations_metadata_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783490000000,
+      "tag": "0013_conversations_announcement",
       "breakpoints": true
     }
   ]

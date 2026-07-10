@@ -52,11 +52,13 @@ export function toConversation(
     id: row.id,
     type: row.type,
     title: row.title,
+    announcement: row.announcement,
     participants,
     viewerRole,
     lastMessage,
     lastMessageAt: row.lastMessageAt ? toIsoString(row.lastMessageAt) : null,
     unreadCount,
+    version: row.metadataVersion,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
   };

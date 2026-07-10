@@ -1,5 +1,8 @@
 # 架构设计 - Orbitchat
 
+> **设计原则**（单向依赖、边界、失败隔离等）见 [architecture-principles.md](./architecture-principles.md)。  
+> 本文侧重 **结构图与目录**；原则侧重 **为什么这样切、新功能怎么自检**。
+
 ## 整体架构概览
 
 ```

@@ -21,20 +21,69 @@ export interface Message {
   deletedAt: string | null;
 }
 
+/** One revision snapshot before an edit (not a chat message row). */
+export interface MessageEditRecord {
+  id: string;
+  messageId: string;
+  editor: ConversationParticipant;
+  previousContent: string;
+  editedAt: string;
+}
+
+/**
+ * Recall (withdraw) system event — shown on the timeline but NOT stored in `messages`.
+ * Does not affect unread counts or conversation last-message preview.
+ */
+export interface MessageRecall {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  recalledBy: ConversationParticipant;
+  messageCreatedAt: string;
+  recalledAt: string;
+}
+
 export interface GroupMember extends ConversationParticipant {
   role: GroupMemberRole;
   joinedAt: string;
+}
+
+export interface GroupInvite {
+  id: string;
+  conversationId: string;
+  code: string;
+  createdByUserId: string;
+  expiresAt: string | null;
+  maxUses: number | null;
+  useCount: number;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GroupInvitePreview {
+  code: string;
+  conversationId: string;
+  groupTitle: string;
+  memberCount: number;
+  isActive: boolean;
+  expiresAt: string | null;
+  maxUses: number | null;
+  useCount: number;
 }
 
 export interface Conversation {
   id: string;
   type: ConversationType;
   title: string | null;
+  announcement: string | null;
   participants: ConversationParticipant[];
   viewerRole: GroupMemberRole | null;
   lastMessage: Message | null;
   lastMessageAt: string | null;
   unreadCount: number;
+  /** Optimistic lock for collaborative metadata edits (e.g. group title). */
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +110,11 @@ export interface MessageReadPayload {
   conversationId: string;
   userId: string;
   lastReadAt: string;
+}
+
+export interface MessageRecalledPayload {
+  conversationId: string;
+  recall: MessageRecall;
 }
 
 export interface TypingPayload {
@@ -93,6 +147,7 @@ export type ChatWsPayloadByType = {
   'message.new': MessageNewPayload;
   'message.ack': MessageAckPayload;
   'message.read': MessageReadPayload;
+  'message.recalled': MessageRecalledPayload;
   'typing.started': TypingPayload;
   'typing.stopped': TypingPayload;
   'member.joined': MemberJoinedPayload;

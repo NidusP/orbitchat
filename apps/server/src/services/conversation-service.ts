@@ -20,8 +20,9 @@ import { toConversation, toMessage } from '../lib/conversation-mappers';
 import { buildDirectKey } from '../lib/direct-key';
 import { trimToPage } from '../lib/cursor';
 import { AppError } from '../lib/errors';
+import { isUniqueViolation } from '../lib/postgres-errors';
 import type { CreateDirectConversationInput, CreateGroupConversationInput } from '../schemas/conversations';
-import { findUserById } from './user-service';
+import { getUserById } from './user-service';
 
 function conversationListBefore(cursor: ConversationListCursor | undefined) {
   if (!cursor) {
@@ -119,7 +120,7 @@ export async function createOrGetDirectConversation(
     });
   }
 
-  await findUserById(participantUserId);
+  await getUserById(participantUserId);
 
   const directKey = buildDirectKey(actorUserId, participantUserId);
 
@@ -133,26 +134,39 @@ export async function createOrGetDirectConversation(
     return { conversation, created: false };
   }
 
-  const created = await db.transaction(async (tx) => {
-    const [conversation] = await tx
-      .insert(conversations)
-      .values({
-        type: 'direct',
-        directKey,
-      })
-      .returning();
+  let created;
+  try {
+    created = await db.transaction(async (tx) => {
+      const [conversation] = await tx
+        .insert(conversations)
+        .values({
+          type: 'direct',
+          directKey,
+        })
+        .returning();
 
-    if (!conversation) {
-      throw new AppError('INTERNAL_ERROR', 'Failed to create conversation', 500);
+      if (!conversation) {
+        throw new AppError('INTERNAL_ERROR', 'Failed to create conversation', 500);
+      }
+
+      await tx.insert(conversationMembers).values([
+        { conversationId: conversation.id, userId: actorUserId },
+        { conversationId: conversation.id, userId: participantUserId },
+      ]);
+
+      return conversation;
+    });
+  } catch (error) {
+    const raced = await db.query.conversations.findFirst({
+      where: eq(conversations.directKey, directKey),
+    });
+    if (raced && isUniqueViolation(error)) {
+      await assertConversationMember(raced.id, actorUserId);
+      const conversation = await getConversationDto(raced.id, actorUserId);
+      return { conversation, created: false };
     }
-
-    await tx.insert(conversationMembers).values([
-      { conversationId: conversation.id, userId: actorUserId },
-      { conversationId: conversation.id, userId: participantUserId },
-    ]);
-
-    return conversation;
-  });
+    throw error;
+  }
 
   const conversation = await getConversationDto(created.id, actorUserId);
   return { conversation, created: true };
@@ -170,7 +184,7 @@ export async function createGroupConversation(
     });
   }
 
-  await Promise.all(uniqueMemberIds.map((userId) => findUserById(userId)));
+  await Promise.all(uniqueMemberIds.map((userId) => getUserById(userId)));
 
   const created = await db.transaction(async (tx) => {
     const [conversation] = await tx
