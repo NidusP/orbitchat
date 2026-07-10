@@ -36,6 +36,7 @@ E2E **不替代**单测：异常路径优先写在 server 单测，E2E 只保留
 - [ ] Happy path 有测试（单测或 E2E 至少一处）？
 - [ ] 401 / 403 / 404 / 400 中**适用**的至少测一种？
 - [ ] 输入校验（空、过长、非法 UUID）测了？
+- [ ] **写操作**：状态非法、内容未变、重复操作是否拒绝？（见 [ADR 18](./decisions/18-api-robustness.md)）
 - [ ] 错误响应是标准 `ErrorResponse` 信封（见 `error-envelope.test.ts`）？
 - [ ] 改 API 后 `shared-types` 与 `api-spec.md` 已同步？
 
@@ -49,7 +50,11 @@ pnpm e2e               # Playwright（需 Postgres + migrate；勿与 pnpm dev 3
 pnpm type-check && pnpm lint
 ```
 
-**E2E 环境**：Docker `im-postgres` 运行 → `pnpm --dir apps/server db:migrate` → `pnpm e2e`（Playwright 自起 3100/3101）。
+**E2E 环境**：Docker `im-postgres` 运行 → Playwright 启动前自动 `db:migrate`（见 `playwright.config.ts`）→ `pnpm e2e`（自起 3100/3101，`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`）。
+
+**Agent E2E 场景**（`chat-agent-flow.spec.ts`）：`remember_fact` Approve/Reject + 记忆页、`/ai/memories` CRUD、`[e2e:my_posts]`、`[e2e:my_profile]`、`[e2e:search_posts]`、`[e2e:search_help]`、记忆管理入口链接。
+
+**Agent 单测**（Wave 1–5）：`conversation-service.test.ts`（userContext / memories / summary 注入）、`tool-executor.test.ts`、`tool-call-service.test.ts`（`remember_fact` approve）、`memory-service` / `summary-service` / `rag-service`、`e2e-mock.test.ts`（含 `[e2e:my_profile]`）、`prompt-modules.test.ts`、`orchestrator.test.ts`；Web 侧 `ai-agent-ui.test.ts`（引用 chips、错误文案、工具气泡摘要）。
 
 ---
 

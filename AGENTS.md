@@ -14,10 +14,11 @@
 1. **本文件（AGENTS.md）** ← 你在这里
 2. `docs/product.md` - 理解产品目标
 3. `docs/architecture.md` - 理解系统设计
-4. `docs/coding-rules.md` - 理解编码规范
-5. `docs/env.md` - 环境变量（开发前）
-6. `CONTRIBUTING.md` - 贡献与 PR 流程
-7. 开始开发
+4. `docs/architecture-principles.md` - 理解架构原则（依赖、边界、一致性）
+5. `docs/coding-rules.md` - 理解编码规范
+6. `docs/env.md` - 环境变量（开发前）
+7. `CONTRIBUTING.md` - 贡献与 PR 流程
+8. 开始开发
 
 ---
 
@@ -29,9 +30,11 @@
 
 ### 项目阶段
 
-**Phase 3B + 4B — 已交付并合入 `master`**（2026-07-07）
+**Phase 4 Orbit Guide（Wave 0–5 代码完成，待交付）**（2026-07-10）
 
-`feat/phase-3b-4b` 已合并：群聊与群管理、私聊 typing、4B FC 写工具、`play_tictactoe` 井字棋。回顾见 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)。**下一步**：UI 改版与整体手测；或 3B.1 邀请链接 / 4B SSE 等（见 closeout「下一步」）。
+分支 `feat/api-robustness-concurrency`：API 健壮性 + 群管理扩展 + 小轨 Wave 1–5（平台感知 / M1 记忆 / M2 RAG / M3 摘要 / UX）。**本地未 commit**，自动化：**217 server tests + 37 E2E** 通过。
+
+**下一步（Wave 0）**：拆 PR → push → 合 `master`；可选 UI 改版后手测。
 
 ### 项目特征
 
@@ -228,8 +231,11 @@ app.onError((err, c) => {
 |-----|------|--------|
 | `docs/product.md` | 产品定义、目标、功能规划 | 第一步 |
 | `docs/architecture.md` | 系统架构、目录结构、设计原因 | 第二步 |
+| `docs/architecture-principles.md` | 架构原则（依赖、边界、失败隔离等） | 设计/评审时 |
 | `docs/coding-rules.md` | 编码规范、命名约定、最佳实践 | 开发前 |
 | `docs/api-spec.md` | API 规范、数据契约、端点定义 | API 开发时 |
+| `docs/decisions/18-api-robustness.md` | API 健壮性原则与验收 | 写/改写 API 时 |
+| `docs/api-robustness-audit.md` | 全量 endpoint 健壮性审计表 | API 审查时 |
 | `docs/multi-client.md` | 多端 Token 存储、API Client、Session | 客户端开发时 |
 | `docs/env.md` | 环境变量 | 本地启动 / 部署前 |
 | `CONTRIBUTING.md` | 贡献流程与 PR 规范 | 提交代码前 |
@@ -241,7 +247,9 @@ app.onError((err, c) => {
 | `docs/db-schema.md` | 数据库设计 | 数据库设计时 |
 | `docs/sql-learning.md` | SQL / 索引学习与实战对照 | 写查询、Feed、调性能时 |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
-| `docs/decisions/` | 架构决策记录（ADR 01–17） |
+| `docs/orbit-guide-agent-implementation.md` | **小轨 Agent 实现学习指南**（架构、链路、Tool、Wave 1–5） |
+| `docs/phase-4-orbit-guide-plan.md` | 小轨能力演进路线图与验收 |
+| `docs/decisions/` | 架构决策记录（ADR 01–22） |
 
 ---
 
@@ -389,14 +397,16 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-07-07）**：`feat/phase-3b-4b` 已合入 `master`。自动化：109 server tests + 28 E2E 通过。
+**结论（2026-07-10）**：`feat/api-robustness-concurrency` 本地完成 Wave 0–5 + 测试补齐；**未 push/合 main**。
 
 | 维度 | 状态 |
 |------|------|
-| Phase 3B 群聊 + 群管理 + 私聊 typing | ✅ |
-| Phase 4B FC 写工具 + 井字棋 | ✅ |
-| 手测 / UI | ⏸ 用户计划 UI 改版后统一验收 |
-| Git | `master` 已含本阶段交付 |
+| API 健壮性 + 群公告/邀请/消息策略（0009–0013） | ✅ 代码 |
+| 小轨 Wave 1–5（Tool / 记忆 / RAG / 摘要 / UX） | ✅ 代码 |
+| 单测 + E2E | ✅ 217 + 37 |
+| 迁移 journal + pgvector 容错 | ✅ |
+| Git 交付（commit / PR / merge） | ⏸ 待做 |
+| 手测 / UI 改版 | ⏸ 用户计划 |
 
 **本地开发速查**
 
@@ -404,12 +414,13 @@ app.onError((err, c) => {
 |----|------|
 | 启动 | 根目录 `pnpm dev` |
 | API / Web | http://localhost:3001/health 、http://localhost:3000 |
-| DB 迁移 | `pnpm --filter @orbitchat/server db:migrate`（含 0006–0008） |
-| E2E | `CI=true pnpm e2e`（`LLM_E2E_MOCK=true`） |
+| DB 迁移 | `pnpm --filter @orbitchat/server db:migrate`（**0009–0016**） |
+| E2E | `CI=true pnpm e2e`（`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`） |
+| RAG 全量重建 | `cd apps/server && bun scripts/reindex-rag.ts`（需 `RAG_ENABLED=true` + pgvector） |
 
-**建议下一迭代**：UI 改版 + 整体手测；或见 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)（群邀请 / 4B SSE）。
+**建议下一迭代**：见 [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md) § Wave 0；学习指南 [orbit-guide-agent-implementation.md](./docs/orbit-guide-agent-implementation.md)。
 
-**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)
+**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) · [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md)
 
 ### 联系和反馈
 

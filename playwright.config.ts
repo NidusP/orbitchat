@@ -22,7 +22,8 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'pnpm --dir apps/server start',
+      command:
+        'bash -c "pnpm --filter @orbitchat/server db:migrate && exec pnpm --dir apps/server start"',
       url: `${API_URL}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
@@ -31,6 +32,7 @@ export default defineConfig({
         PORT: String(API_PORT),
         CORS_ORIGIN: WEB_URL,
         LLM_E2E_MOCK: 'true',
+        RAG_ENABLED: 'false',
       },
     },
     {
