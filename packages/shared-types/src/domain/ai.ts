@@ -1,5 +1,7 @@
 export type AiMessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export type AiToolCallStatus = 'pending' | 'approved' | 'rejected' | 'executed' | 'failed';
+export type UserAgentMemoryKind = 'preference' | 'fact' | 'nickname';
+export type UserAgentMemorySource = 'user_explicit' | 'tool' | 'admin';
 
 export interface Agent {
   id: string;
@@ -46,7 +48,36 @@ export interface AiToolCall {
   executedAt: string | null;
 }
 
-export type AiSseEventType = 'message.delta' | 'message.done' | 'tool.call' | 'error';
+export interface UserAgentMemory {
+  id: string;
+  userId: string;
+  agentId: string | null;
+  kind: UserAgentMemoryKind;
+  content: string;
+  source: UserAgentMemorySource;
+  conversationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export type AiSseEventType =
+  | 'run.started'
+  | 'tool.started'
+  | 'message.delta'
+  | 'message.done'
+  | 'tool.call'
+  | 'error';
+
+export interface AiRunStartedPayload {
+  conversationId: string;
+}
+
+export interface AiToolStartedPayload {
+  conversationId: string;
+  toolName: string;
+  input: unknown;
+}
 
 export interface AiMessageDeltaPayload {
   conversationId: string;
@@ -69,9 +100,12 @@ export interface AiToolCallPayload {
 export interface AiSseErrorPayload {
   code: string;
   message: string;
+  details?: unknown;
 }
 
 export type AiSsePayloadByType = {
+  'run.started': AiRunStartedPayload;
+  'tool.started': AiToolStartedPayload;
   'message.delta': AiMessageDeltaPayload;
   'message.done': AiMessageDonePayload;
   'tool.call': AiToolCallPayload;

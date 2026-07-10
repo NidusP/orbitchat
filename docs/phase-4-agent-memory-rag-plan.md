@@ -1,8 +1,9 @@
 # Agent 记忆、RAG 与 Fine-tuning 决策与实施计划
 
-> **状态**：规划中，未开始开发  
+> **状态**：M1 已交付（2026-07-09）；**M2 进行中**（Wave 3）  
+> **小轨实施路线（Wave 0–5）**：[phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md)  
 > **前置**：Phase 4A AI Chat、4B Tool、`play_tictactoe` 对局持久化（`ai_conversations.tictactoe_data`）  
-> **关联 ADR**：[17-ai-agent-architecture.md](./decisions/17-ai-agent-architecture.md)  
+> **关联 ADR**：[17-ai-agent-architecture.md](./decisions/17-ai-agent-architecture.md)、[22-agent-rag-boundaries.md](./decisions/22-agent-rag-boundaries.md)（M2）  
 > **命名说明**：roadmap 中 **Phase 4C = WebRTC / 多媒体**；本文 **M1/M2/M3** 指 Agent 智能扩展轨，可与 4B 扩展并行，不占用 4C 编号。
 
 本文档供**以后实现**时查阅：在 Orbitchat 现有 Agent 架构上，何时用 **会话上下文 / 长期记忆 / RAG / fine-tuning**，以及推荐落地顺序与最小表结构草案。
@@ -88,7 +89,7 @@ Fine-tuning 在企业里多用于：**格式稳定、领域术语、降本用小
 
 | # | 任务 | 产出 |
 |---|------|------|
-| 1 | ADR 18（Agent 记忆模型） | `docs/decisions/18-agent-memory-model.md` |
+| 1 | ADR 21（Agent 记忆模型） | `docs/decisions/21-agent-memory-model.md` |
 | 2 | `db-schema` + migration | `user_agent_memories` 表 |
 | 3 | `shared-types` + `api-spec` | `GET/POST/DELETE /api/v1/ai/memories` |
 | 4 | `memory-service` | 写入、列表、按 `userId` 检索 |
@@ -108,13 +109,13 @@ Fine-tuning 在企业里多用于：**格式稳定、领域术语、降本用小
 
 ---
 
-### M2 — RAG（站内内容）
+### M2 — RAG（站内内容）🚧 进行中
 
 **目标**：Agent 能基于**用户有权访问的内容**回答（自己的帖子、公开 Feed 片段、静态帮助文档）。
 
 | # | 任务 | 产出 |
 |---|------|------|
-| 1 | ADR 19（RAG 边界与权限） | 哪些 collection、embedding 模型、隔离规则 |
+| 1 | ADR 22（RAG 边界与权限） | 哪些 collection、embedding 模型、隔离规则 — 见 [22-agent-rag-boundaries.md](./decisions/22-agent-rag-boundaries.md) |
 | 2 | 基础设施 | Postgres `pgvector` 或 Redis + 向量库；`embedding` 服务 env |
 | 3 | 索引管道 | 帖子创建/更新时异步 embedding；或定时 job |
 | 4 | `rag-service` | `search_knowledge(query, userId)` → chunks |

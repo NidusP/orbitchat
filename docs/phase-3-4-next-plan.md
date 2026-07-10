@@ -29,7 +29,7 @@
 | 1 | Tool schema 设计 | `api-spec` + `shared-types` |
 | 2 | `create_post` Tool | pending → Approve → 写入 Feed |
 | 3 | `follow` / `unfollow` Tool | pending → Approve → Phase 2 follow |
-| 4 | （可选）SSE 真流式 | provider `stream: true` |
+| 4 | （可选）SSE 流式优化 | [ADR 20](./decisions/20-ai-sse-streaming.md)：Phase A 连接反馈 + 错误统一 → Phase B 真 token 流 → Phase C `tool.started` |
 | 5 | （可选）`LLM_API_KEY` | `env` + 云 API 文档 |
 
 **验收**：`/ai` 触发写 Tool → 确认卡片 → Feed / 关注列表可见。

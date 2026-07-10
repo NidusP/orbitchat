@@ -10,7 +10,8 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector extension required for Wave 3 RAG (knowledge_chunks.embedding)
+    image: pgvector/pgvector:pg16
     container_name: im-postgres
     restart: unless-stopped
     ports:

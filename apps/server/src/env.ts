@@ -11,12 +11,19 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   LLM_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
+  LLM_API_KEY: z.string().min(1).optional(),
   LLM_MODEL: z.string().min(1).default('llama3.2'),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   AI_MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(2),
   LLM_E2E_MOCK: z
     .enum(['true', 'false'])
     .default('false')
+    .transform((value) => value === 'true'),
+  EMBEDDING_MODEL: z.string().min(1).default('nomic-embed-text'),
+  EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(768),
+  RAG_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
     .transform((value) => value === 'true'),
 });
 

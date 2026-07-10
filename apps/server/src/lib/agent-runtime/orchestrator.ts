@@ -1,6 +1,7 @@
 import { AppError } from '../errors';
-import { TICTACTOE_AGENT_INSTRUCTIONS } from './tic-tac-toe';
+import { composeToolHint } from './prompt-modules';
 import type {
+  AgentRunCallbacks,
   AgentRuntimeInput,
   AgentRuntimeResult,
   AgentToolExecutor,
@@ -10,17 +11,26 @@ import type {
 
 const MAX_TOOL_ROUNDS = 5;
 
-function buildMessages(input: AgentRuntimeInput): LlmMessage[] {
-  const toolHint = input.tools
-    ? `You have tools:
-- search_contact: find users (read-only, runs immediately)
-- play_tictactoe: tic-tac-toe; user is X, you are O; call start/status/move (see game rules below)
-- send_dm: send a direct message (requires user approval)
-- create_post: publish a feed post (requires user approval)
-- follow_user / unfollow_user: change follow state (requires user approval)
-Use tools when the user asks to find someone, play tic-tac-toe, send a message, post, or follow/unfollow. For write tools, extract target username and content from the user message.
+function buildUserContextBlock(userContext: NonNullable<AgentRuntimeInput['userContext']>): string {
+  return `## Current session user
+- username: @${userContext.username}
+- display name: ${userContext.displayName}`;
+}
 
-${TICTACTOE_AGENT_INSTRUCTIONS}`
+function buildMemoryBlock(memories: NonNullable<AgentRuntimeInput['memories']>): string {
+  const lines = memories.map((memory) => `- [${memory.kind}] ${memory.content}`);
+  return `## 关于该用户的已知事实（用户可删除）
+${lines.join('\n')}`;
+}
+
+function buildMessages(input: AgentRuntimeInput): LlmMessage[] {
+  const toolHint = input.tools ? composeToolHint() : '';
+
+  const userContextBlock = input.userContext ? buildUserContextBlock(input.userContext) : '';
+  const memoryBlock =
+    input.memories && input.memories.length > 0 ? buildMemoryBlock(input.memories) : '';
+  const summaryBlock = input.conversationSummary
+    ? `## Earlier in this conversation (summary)\n${input.conversationSummary}`
     : '';
 
   return [
@@ -29,8 +39,18 @@ ${TICTACTOE_AGENT_INSTRUCTIONS}`
       content: `${input.systemPrompt}
 
 You are running inside Orbitchat. Keep responses concise and friendly.
-${toolHint}`.trim(),
+${toolHint}
+${userContextBlock}
+${memoryBlock}`.trim(),
     },
+    ...(summaryBlock
+      ? [
+          {
+            role: 'system' as const,
+            content: summaryBlock,
+          },
+        ]
+      : []),
     ...input.history,
     {
       role: 'user',
@@ -51,6 +71,29 @@ function parseToolArguments(raw: string): Record<string, unknown> {
   }
 }
 
+async function invokeProvider(
+  provider: LlmProvider,
+  input: {
+    model: string;
+    messages: LlmMessage[];
+    tools: boolean;
+  },
+  callbacks?: AgentRunCallbacks
+) {
+  return provider.chatStream(
+    {
+      model: input.model,
+      messages: input.messages,
+      tools: input.tools,
+    },
+    {
+      onDelta: (text) => {
+        void callbacks?.onDelta?.(text);
+      },
+    }
+  );
+}
+
 export class AgentOrchestrator {
   constructor(
     private readonly provider: LlmProvider,
@@ -58,17 +101,24 @@ export class AgentOrchestrator {
     private readonly toolExecutor?: AgentToolExecutor
   ) {}
 
-  async run(input: AgentRuntimeInput): Promise<AgentRuntimeResult> {
+  async run(
+    input: AgentRuntimeInput,
+    callbacks?: AgentRunCallbacks
+  ): Promise<AgentRuntimeResult> {
     const useTools = Boolean(input.tools && input.toolContext && this.toolExecutor);
     const messages = buildMessages(input);
     const toolCalls: AgentRuntimeResult['toolCalls'] = [];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      const completion = await this.provider.chat({
-        model: this.model,
-        messages,
-        tools: useTools,
-      });
+      const completion = await invokeProvider(
+        this.provider,
+        {
+          model: this.model,
+          messages,
+          tools: useTools,
+        },
+        callbacks
+      );
 
       if (!useTools || completion.toolCalls.length === 0) {
         const content = completion.content?.trim();
@@ -86,12 +136,10 @@ export class AgentOrchestrator {
 
       for (const call of completion.toolCalls) {
         const args = parseToolArguments(call.arguments);
-        const execution = await this.toolExecutor!(
-          call.name,
-          args,
-          input.toolContext!
-        );
+        await callbacks?.onToolStarted?.(call.name, args);
+        const execution = await this.toolExecutor!(call.name, args, input.toolContext!);
         toolCalls.push(execution.toolCall);
+        await callbacks?.onToolCall?.(execution.toolCall);
         messages.push({
           ...execution.toolMessage,
           toolCallId: call.id,
@@ -99,11 +147,15 @@ export class AgentOrchestrator {
       }
     }
 
-    const fallback = await this.provider.chat({
-      model: this.model,
-      messages,
-      tools: false,
-    });
+    const fallback = await invokeProvider(
+      this.provider,
+      {
+        model: this.model,
+        messages,
+        tools: false,
+      },
+      callbacks
+    );
     const content = fallback.content?.trim();
     if (!content) {
       throw new AppError('LLM_EMPTY_RESPONSE', 'Local model returned an empty response', 502);

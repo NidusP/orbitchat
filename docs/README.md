@@ -22,7 +22,11 @@
    - 目录结构说明
    - 分层设计原理
 
-4. **[coding-rules.md](./coding-rules.md)** - 编码规范
+4. **[architecture-principles.md](./architecture-principles.md)** - 架构设计原则
+   - 单向依赖、边界、单写路径、失败隔离等
+   - 与 ADR / API 健壮性的分工
+
+5. **[coding-rules.md](./coding-rules.md)** - 编码规范
    - TypeScript 规范
    - 命名约定
    - 代码审查清单
@@ -36,6 +40,7 @@
 | [../AGENTS.md](../AGENTS.md) | AI Agent 工作指南 | 第一步 |
 | [product.md](./product.md) | 产品定义和目标 | 理解项目时 |
 | [architecture.md](./architecture.md) | 系统设计和架构 | 开发前 |
+| [architecture-principles.md](./architecture-principles.md) | 架构原则（依赖、边界、一致性等） | 设计新模块时 |
 | [coding-rules.md](./coding-rules.md) | 编码规范和最佳实践 | 编写代码时 |
 | [api-spec.md](./api-spec.md) | API 规范和数据契约 | 实现 API 时 |
 | [multi-client.md](./multi-client.md) | 多端 Token、API Client、设备 Session | Web/RN 开发时 |
@@ -48,6 +53,8 @@
 | [phase-3-kickoff.md](./phase-3-kickoff.md) | Phase 3 启动评审（3A/3B 拆分） | Phase 3 开工前 |
 | [phase-3-plan.md](./phase-3-plan.md) | Phase 3 实施计划（并行轨道） | Phase 3 排期与分工 |
 | [roadmap.md](./roadmap.md) | 项目路线图和里程碑 | 了解长期计划时 |
+| [orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) | 小轨 Agent 实现学习指南（架构、链路、Tool、Wave 1–5） | 开发/调试 AI 助手时 |
+| [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) | 小轨完善路线图（Wave 0–5） | 规划 AI 能力迭代时 |
 | [decisions/](./decisions/) | 架构决策记录（ADR） | 理解技术选型时 |
 
 ---
@@ -56,7 +63,11 @@
 
 ### 我想了解项目整体
 
-👉 阅读：[product.md](./product.md) + [architecture.md](./architecture.md)
+👉 阅读：[product.md](./product.md) + [architecture.md](./architecture.md) + [architecture-principles.md](./architecture-principles.md)
+
+### 我要设计新模块或做架构评审
+
+👉 阅读：[architecture-principles.md](./architecture-principles.md) + 相关 [decisions/](./decisions/) ADR
 
 ### 我要开始编写代码
 
@@ -64,11 +75,11 @@
 
 ### 我要实现一个新功能
 
-👉 阅读：[roadmap.md](./roadmap.md) + [architecture.md](./architecture.md) + [coding-rules.md](./coding-rules.md)
+👉 阅读：[roadmap.md](./roadmap.md) + [architecture-principles.md](./architecture-principles.md) + [coding-rules.md](./coding-rules.md)
 
 ### 我要设计新 API 端点
 
-👉 阅读：[api-spec.md](./api-spec.md) + [coding-rules.md](./coding-rules.md)
+👉 阅读：[api-spec.md](./api-spec.md) + [decisions/18-api-robustness.md](./decisions/18-api-robustness.md) + [coding-rules.md](./coding-rules.md)
 
 ### 我要参与数据库设计
 
@@ -77,6 +88,10 @@
 ### 我是 AI Agent，第一次来这个项目
 
 👉 **必读**：[../AGENTS.md](../AGENTS.md)
+
+### 我要理解小轨（Orbit Guide）Agent 实现
+
+👉 阅读：[orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) + [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) + [decisions/17-ai-agent-architecture.md](./decisions/17-ai-agent-architecture.md)
 
 ---
 
@@ -87,6 +102,7 @@ docs/
 ├── README.md              # 本文件 - 文档导航
 ├── product.md             # 产品定义
 ├── architecture.md        # 系统架构
+├── architecture-principles.md  # 架构设计原则
 ├── coding-rules.md        # 编码规范
 ├── api-spec.md            # API 规范
 ├── multi-client.md        # 多端客户端规范

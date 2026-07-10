@@ -17,6 +17,7 @@ import { followUser, unfollowUser } from '../follow-service';
 import { createOrGetDirectConversation } from '../conversation-service';
 import { createMessage as createChatMessage } from '../message-service';
 import { createPost } from '../post-service';
+import { createMemory } from './memory-service';
 
 interface SendDmInput {
   targetUserId: string;
@@ -31,6 +32,11 @@ interface CreatePostInput {
 interface FollowUserInput {
   targetUserId: string;
   targetUsername: string;
+}
+
+interface RememberFactInput {
+  kind: 'preference' | 'fact' | 'nickname';
+  content: string;
 }
 
 function toolCallTimelineBefore(cursor: TimelineCursor | undefined) {
@@ -71,6 +77,18 @@ function isFollowUserInput(input: unknown): input is FollowUserInput {
     'targetUsername' in input &&
     typeof input.targetUserId === 'string' &&
     typeof input.targetUsername === 'string'
+  );
+}
+
+function isRememberFactInput(input: unknown): input is RememberFactInput {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'kind' in input &&
+    'content' in input &&
+    typeof input.kind === 'string' &&
+    typeof input.content === 'string' &&
+    (input.kind === 'preference' || input.kind === 'fact' || input.kind === 'nickname')
   );
 }
 
@@ -241,6 +259,23 @@ export async function createPendingUnfollowUserToolCall(input: {
   });
 }
 
+export async function createPendingRememberFactToolCall(input: {
+  conversationId: string;
+  userId: string;
+  kind: RememberFactInput['kind'];
+  content: string;
+}): Promise<AiToolCall> {
+  return createPendingToolCall({
+    conversationId: input.conversationId,
+    userId: input.userId,
+    toolName: 'remember_fact',
+    payload: {
+      kind: input.kind,
+      content: input.content,
+    } satisfies RememberFactInput,
+  });
+}
+
 export async function listAiToolCalls(
   conversationId: string,
   userId: string,
@@ -265,10 +300,7 @@ export async function listAiToolCalls(
 }
 
 export async function rejectAiToolCall(toolCallId: string, userId: string): Promise<AiToolCall> {
-  const toolCall = await getOwnedToolCall(toolCallId, userId);
-  if (toolCall.status !== 'pending') {
-    throw new AppError('VALIDATION_ERROR', 'Only pending tool calls can be rejected', 400);
-  }
+  await getOwnedToolCall(toolCallId, userId);
 
   const now = new Date();
   const [updated] = await db
@@ -278,11 +310,11 @@ export async function rejectAiToolCall(toolCallId: string, userId: string): Prom
       confirmedAt: now,
       updatedAt: now,
     })
-    .where(eq(aiToolCalls.id, toolCallId))
+    .where(and(eq(aiToolCalls.id, toolCallId), eq(aiToolCalls.status, 'pending')))
     .returning();
 
   if (!updated) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to reject AI tool call', 500);
+    throw new AppError('VALIDATION_ERROR', 'Only pending tool calls can be rejected', 400);
   }
 
   return toAiToolCallDto(updated);
@@ -346,11 +378,27 @@ async function executeUnfollowUserToolCall(
   });
 }
 
+async function executeRememberFactToolCall(
+  toolCallId: string,
+  userId: string,
+  conversationId: string,
+  input: RememberFactInput
+): Promise<AiToolCall> {
+  const memory = await createMemory(userId, {
+    kind: input.kind,
+    content: input.content,
+    source: 'tool',
+    conversationId,
+  });
+  return markToolCallExecuted(toolCallId, {
+    memoryId: memory.id,
+    kind: memory.kind,
+    content: memory.content,
+  });
+}
+
 export async function approveAiToolCall(toolCallId: string, userId: string): Promise<AiToolCall> {
   const toolCall = await getOwnedToolCall(toolCallId, userId);
-  if (toolCall.status !== 'pending') {
-    throw new AppError('VALIDATION_ERROR', 'Only pending tool calls can be approved', 400);
-  }
 
   const now = new Date();
   const [approved] = await db
@@ -360,11 +408,11 @@ export async function approveAiToolCall(toolCallId: string, userId: string): Pro
       confirmedAt: now,
       updatedAt: now,
     })
-    .where(eq(aiToolCalls.id, toolCallId))
+    .where(and(eq(aiToolCalls.id, toolCallId), eq(aiToolCalls.status, 'pending')))
     .returning();
 
   if (!approved) {
-    throw new AppError('INTERNAL_ERROR', 'Failed to approve AI tool call', 500);
+    throw new AppError('VALIDATION_ERROR', 'Only pending tool calls can be approved', 400);
   }
 
   try {
@@ -389,6 +437,16 @@ export async function approveAiToolCall(toolCallId: string, userId: string): Pro
           throw new AppError('VALIDATION_ERROR', 'Invalid unfollow_user tool input', 400);
         }
         return executeUnfollowUserToolCall(toolCallId, userId, toolCall.input);
+      case 'remember_fact':
+        if (!isRememberFactInput(toolCall.input)) {
+          throw new AppError('VALIDATION_ERROR', 'Invalid remember_fact tool input', 400);
+        }
+        return executeRememberFactToolCall(
+          toolCallId,
+          userId,
+          toolCall.conversationId,
+          toolCall.input
+        );
       default:
         throw new AppError('VALIDATION_ERROR', 'Unsupported AI tool call', 400);
     }

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type {
   Agent,
   AiConversation,
@@ -24,19 +24,37 @@ import {
 } from '../../lib/cursor';
 import { AppError } from '../../lib/errors';
 import type { AgentOrchestrator } from '../../lib/agent-runtime/orchestrator';
-import type { AgentToolCallResult, LlmMessage } from '../../lib/agent-runtime/types';
+import type { AgentRunCallbacks, AgentToolCallResult } from '../../lib/agent-runtime/types';
 import type {
   AiCursorQueryInput,
   CreateAiConversationInput,
   CreateAiMessageInput,
 } from '../../schemas/ai';
+import { getProfileByUserId, getUserById } from '../user-service';
+import { listMemoriesForUser } from './memory-service';
+import {
+  loadRuntimeContext,
+  maybeRefreshConversationSummary,
+} from './summary-service';
 
 const DEFAULT_AGENT = {
   slug: 'orbit-guide',
   name: '小轨',
-  description: 'Orbitchat 内置助手，支持闲聊、笑话、井字棋、联系人搜索与写操作确认。',
-  systemPrompt:
-    '你是 Orbitchat 的内置 AI 助手小轨。你可以闲聊、讲简短笑话、与用户下井字棋（你执 O，用户执 X），并在工具结果提供时帮用户理解联系人搜索结果或待确认操作。',
+  description:
+    'Orbitchat 内置助手，支持闲聊、笑话、井字棋、平台资料查询、联系人搜索与写操作确认。',
+  systemPrompt: `你是 Orbitchat 的内置 AI 助手小轨。
+
+## 闲聊
+你可以轻松闲聊、讲简短笑话，保持友好简洁。
+
+## 平台助手
+通过工具查询当前用户或他人的公开资料和近期帖子，帮用户搜索联系人。涉及个人资料、帖子、粉丝数等信息时，必须通过工具查询真实数据，不得编造。
+
+## 游戏
+与用户下井字棋（你执 O，用户执 X）。
+
+## 写操作与记忆
+在用户确认后执行发私信、发帖、关注/取关；在用户确认后记住偏好。在工具结果提供时，帮用户理解查询结果或待确认操作。`,
 };
 
 function conversationListBefore(cursor: ConversationListCursor | undefined) {
@@ -185,21 +203,11 @@ export async function listAiMessages(
   };
 }
 
-async function loadRuntimeHistory(conversationId: string): Promise<LlmMessage[]> {
-  const rows = await db
-    .select()
-    .from(aiMessages)
-    .where(and(eq(aiMessages.conversationId, conversationId), isNull(aiMessages.toolName)))
-    .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
-    .limit(20);
-
-  return rows
-    .reverse()
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-    }));
+export interface CreateAiMessageRunCallbacks {
+  streamingMessageId: string;
+  onDelta?: (delta: string) => void | Promise<void>;
+  onToolStarted?: (toolName: string, input: unknown) => void | Promise<void>;
+  onToolCall?: (toolCall: AgentToolCallResult) => void | Promise<void>;
 }
 
 export async function createAiMessageAndRun(input: {
@@ -207,6 +215,7 @@ export async function createAiMessageAndRun(input: {
   userId: string;
   body: CreateAiMessageInput;
   orchestrator: AgentOrchestrator;
+  stream?: CreateAiMessageRunCallbacks;
 }): Promise<{
   userMessage: AiMessage;
   assistantMessage: AiMessage;
@@ -238,18 +247,42 @@ export async function createAiMessageAndRun(input: {
     })
     .where(eq(aiConversations.id, input.conversationId));
 
-  const history = await loadRuntimeHistory(input.conversationId);
+  await maybeRefreshConversationSummary(input.conversationId);
+  const { history, conversationSummary } = await loadRuntimeContext(input.conversationId);
 
-  const result = await input.orchestrator.run({
-    systemPrompt: agent.systemPrompt,
-    history,
-    userMessage: input.body.content,
-    tools: true,
-    toolContext: {
-      conversationId: input.conversationId,
-      userId: input.userId,
+  const [user, profile, memories] = await Promise.all([
+    getUserById(input.userId),
+    getProfileByUserId(input.userId),
+    listMemoriesForUser(input.userId, { limit: 8 }),
+  ]);
+
+  const orchestratorCallbacks: AgentRunCallbacks | undefined = input.stream
+    ? {
+        onDelta: input.stream.onDelta,
+        onToolStarted: input.stream.onToolStarted,
+        onToolCall: input.stream.onToolCall,
+      }
+    : undefined;
+
+  const result = await input.orchestrator.run(
+    {
+      systemPrompt: agent.systemPrompt,
+      history,
+      userMessage: input.body.content,
+      conversationSummary,
+      tools: true,
+      toolContext: {
+        conversationId: input.conversationId,
+        userId: input.userId,
+      },
+      userContext: {
+        username: user.username,
+        displayName: profile.displayName,
+      },
+      memories: memories.map(({ kind, content }) => ({ kind, content })),
     },
-  });
+    orchestratorCallbacks
+  );
 
   const assistantContent = result.content.trim();
   const [assistantMessage] = await db

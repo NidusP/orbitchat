@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { zValidator } from '@hono/zod-validator';
 import type { AiSseEvent, AiSseEventType, AiSsePayloadByType } from '@orbitchat/shared-types';
 import { Hono } from 'hono';
@@ -17,6 +18,8 @@ import {
   aiCursorQuerySchema,
   createAiConversationSchema,
   createAiMessageSchema,
+  createUserAgentMemorySchema,
+  listUserAgentMemoriesQuerySchema,
 } from '../../schemas/ai';
 import {
   createAiConversation,
@@ -25,6 +28,11 @@ import {
   listAiConversations,
   listAiMessages,
 } from '../../services/ai/conversation-service';
+import {
+  createMemory,
+  listMemoriesForUser,
+  softDeleteMemory,
+} from '../../services/ai/memory-service';
 import {
   approveAiToolCall,
   listAiToolCalls,
@@ -35,9 +43,12 @@ export const aiRouter = new Hono();
 
 const provider = env.LLM_E2E_MOCK
   ? new E2eMockLlmProvider()
-  : new OpenAiCompatibleProvider(env.LLM_BASE_URL, env.LLM_TIMEOUT_MS);
+  : new OpenAiCompatibleProvider(env.LLM_BASE_URL, env.LLM_TIMEOUT_MS, env.LLM_API_KEY);
 const orchestrator = new AgentOrchestrator(provider, env.LLM_MODEL, executeAgentTool);
 const limiter = new AiRunLimiter(env.AI_MAX_CONCURRENT_RUNS);
+
+/** @internal Exposed for route tests only */
+export const testAiRunLimiter = limiter;
 
 function parseConversationId(rawId: string): string {
   return parseUuidParam(rawId, 'id', 'Invalid AI conversation id');
@@ -45,6 +56,10 @@ function parseConversationId(rawId: string): string {
 
 function parseToolCallId(rawId: string): string {
   return parseUuidParam(rawId, 'id', 'Invalid AI tool call id');
+}
+
+function parseMemoryId(rawId: string): string {
+  return parseUuidParam(rawId, 'id', 'Invalid memory id');
 }
 
 function event<TType extends AiSseEventType>(
@@ -58,17 +73,51 @@ function event<TType extends AiSseEventType>(
   };
 }
 
-function chunkText(content: string, size = 80): string[] {
-  const chunks: string[] = [];
-  for (let index = 0; index < content.length; index += size) {
-    chunks.push(content.slice(index, index + size));
-  }
-  return chunks.length > 0 ? chunks : [''];
+async function writeSseEvent(
+  stream: { writeSSE: (payload: { event: string; data: string }) => Promise<void> },
+  type: AiSseEventType,
+  payload: AiSsePayloadByType[AiSseEventType]
+): Promise<void> {
+  await stream.writeSSE({
+    event: type,
+    data: JSON.stringify(event(type, payload)),
+  });
 }
 
 aiRouter.get('/agents', authMiddleware, async (c) => {
   const agents = await listAgents();
   return c.json(successResponse(agents), 200);
+});
+
+aiRouter.get(
+  '/memories',
+  authMiddleware,
+  zValidator('query', listUserAgentMemoriesQuerySchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const query = c.req.valid('query');
+    const memories = await listMemoriesForUser(auth.userId, query);
+    return c.json(successResponse(memories), 200);
+  }
+);
+
+aiRouter.post(
+  '/memories',
+  authMiddleware,
+  zValidator('json', createUserAgentMemorySchema, zodValidationHook),
+  async (c) => {
+    const auth = c.get('auth');
+    const input = c.req.valid('json');
+    const memory = await createMemory(auth.userId, input);
+    return c.json(successResponse(memory), 201);
+  }
+);
+
+aiRouter.delete('/memories/:id', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const memoryId = parseMemoryId(c.req.param('id'));
+  await softDeleteMemory(memoryId, auth.userId);
+  return c.json(successResponse({ success: true as const }), 200);
 });
 
 aiRouter.get(
@@ -144,67 +193,68 @@ aiRouter.post(
     const conversationId = parseConversationId(c.req.param('id'));
     const body = c.req.valid('json');
 
-    return streamSSE(c, async (stream) => {
-      try {
-        const result = await limiter.run(() =>
-          createAiMessageAndRun({
-            conversationId,
-            userId: auth.userId,
-            body,
-            orchestrator,
-          })
-        );
+    if (!limiter.tryAcquire()) {
+      throw new AppError(
+        'AI_BUSY',
+        'Too many AI requests are running. Please try again soon.',
+        429
+      );
+    }
 
-        for (const toolCall of result.toolCalls) {
-          await stream.writeSSE({
-            event: 'tool.call',
-            data: JSON.stringify(
-              event('tool.call', {
+    return streamSSE(c, async (stream) => {
+      const streamingMessageId = randomUUID();
+
+      try {
+        await writeSseEvent(stream, 'run.started', { conversationId });
+
+        const result = await createAiMessageAndRun({
+          conversationId,
+          userId: auth.userId,
+          body,
+          orchestrator,
+          stream: {
+            streamingMessageId,
+            onDelta: async (delta) => {
+              await writeSseEvent(stream, 'message.delta', {
+                conversationId,
+                messageId: streamingMessageId,
+                delta,
+              });
+            },
+            onToolStarted: async (toolName, input) => {
+              await writeSseEvent(stream, 'tool.started', {
+                conversationId,
+                toolName,
+                input,
+              });
+            },
+            onToolCall: async (toolCall) => {
+              await writeSseEvent(stream, 'tool.call', {
                 conversationId,
                 toolName: toolCall.toolName,
                 input: toolCall.input,
                 output: toolCall.output,
-              })
-            ),
-          });
-        }
+              });
+            },
+          },
+        });
 
-        for (const delta of chunkText(result.assistantMessage.content)) {
-          await stream.writeSSE({
-            event: 'message.delta',
-            data: JSON.stringify(
-              event('message.delta', {
-                conversationId,
-                messageId: result.assistantMessage.id,
-                delta,
-              })
-            ),
-          });
-        }
-
-        await stream.writeSSE({
-          event: 'message.done',
-          data: JSON.stringify(
-            event('message.done', {
-              conversationId,
-              message: result.assistantMessage,
-            })
-          ),
+        await writeSseEvent(stream, 'message.done', {
+          conversationId,
+          message: result.assistantMessage,
         });
       } catch (error) {
         const appError =
           error instanceof AppError
             ? error
             : new AppError('INTERNAL_ERROR', 'Failed to run AI conversation', 500);
-        await stream.writeSSE({
-          event: 'error',
-          data: JSON.stringify(
-            event('error', {
-              code: appError.code,
-              message: appError.message,
-            })
-          ),
+        await writeSseEvent(stream, 'error', {
+          code: appError.code,
+          message: appError.message,
+          ...(appError.details !== undefined ? { details: appError.details } : {}),
         });
+      } finally {
+        limiter.release();
       }
     });
   }

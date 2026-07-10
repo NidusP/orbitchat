@@ -1,8 +1,17 @@
-import type { Agent, AiConversation, AiMessage, AiToolCall } from '@orbitchat/shared-types';
+import type {
+  Agent,
+  AiConversation,
+  AiMessage,
+  AiToolCall,
+  UserAgentMemory,
+  UserAgentMemoryKind,
+  UserAgentMemorySource,
+} from '@orbitchat/shared-types';
 import type { Agent as DbAgent } from '../db/schema/agents';
 import type { AiConversation as DbAiConversation } from '../db/schema/ai-conversations';
 import type { AiMessage as DbAiMessage } from '../db/schema/ai-messages';
 import type { AiToolCall as DbAiToolCall } from '../db/schema/ai-tool-calls';
+import type { UserAgentMemory as DbUserAgentMemory } from '../db/schema/user-agent-memories';
 
 function toIsoString(date: Date): string {
   return date.toISOString();
@@ -58,5 +67,20 @@ export function toAiToolCallDto(toolCall: DbAiToolCall): AiToolCall {
     updatedAt: toIsoString(toolCall.updatedAt),
     confirmedAt: toolCall.confirmedAt?.toISOString() ?? null,
     executedAt: toolCall.executedAt?.toISOString() ?? null,
+  };
+}
+
+export function toUserAgentMemoryDto(memory: DbUserAgentMemory): UserAgentMemory {
+  return {
+    id: memory.id,
+    userId: memory.userId,
+    agentId: memory.agentId,
+    kind: memory.kind as UserAgentMemoryKind,
+    content: memory.content,
+    source: memory.source as UserAgentMemorySource,
+    conversationId: memory.conversationId,
+    createdAt: toIsoString(memory.createdAt),
+    updatedAt: toIsoString(memory.updatedAt),
+    deletedAt: memory.deletedAt ? toIsoString(memory.deletedAt) : null,
   };
 }

@@ -19,13 +19,15 @@ const jwtLib = await import('../../lib/jwt');
 const sessionService = await import('../../services/session-service');
 const aiService = await import('../../services/ai/conversation-service');
 const toolCallService = await import('../../services/ai/tool-call-service');
-const { aiRouter } = await import('./ai');
+const memoryService = await import('../../services/ai/memory-service');
+const { aiRouter, testAiRunLimiter } = await import('./ai');
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const AGENT_ID = '22222222-2222-4222-8222-222222222222';
 const CONVERSATION_ID = '33333333-3333-4333-8333-333333333333';
 const USER_MESSAGE_ID = '44444444-4444-4444-8444-444444444444';
 const ASSISTANT_MESSAGE_ID = '55555555-5555-4555-8555-555555555555';
+const MEMORY_ID = '66666666-6666-4666-8666-666666666666';
 
 const sampleAgent: Agent = {
   id: AGENT_ID,
@@ -111,17 +113,27 @@ describe('aiRouter', () => {
       items: [userMessage, assistantMessage],
       nextCursor: null,
     }));
-    spyOn(aiService, 'createAiMessageAndRun').mockImplementation(async () => ({
-      userMessage,
-      assistantMessage,
-      toolCalls: [
-        {
-          toolName: 'search_contact',
-          input: { query: 'luna' },
-          output: { items: [] },
-        },
-      ],
-    }));
+    spyOn(aiService, 'createAiMessageAndRun').mockImplementation(async (input) => {
+      await input.stream?.onToolStarted?.('search_contact', { query: 'luna' });
+      await input.stream?.onDelta?.('Why did the satellite ');
+      await input.stream?.onDelta?.('bring a map?');
+      await input.stream?.onToolCall?.({
+        toolName: 'search_contact',
+        input: { query: 'luna' },
+        output: { items: [] },
+      });
+      return {
+        userMessage,
+        assistantMessage,
+        toolCalls: [
+          {
+            toolName: 'search_contact',
+            input: { query: 'luna' },
+            output: { items: [] },
+          },
+        ],
+      };
+    });
   });
 
   test('lists agents', async () => {
@@ -181,10 +193,33 @@ describe('aiRouter', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/event-stream');
+    expect(text).toContain('event: run.started');
+    expect(text).toContain('"type":"run.started"');
+    expect(text).toContain('event: tool.started');
     expect(text).toContain('event: tool.call');
     expect(text).toContain('event: message.delta');
     expect(text).toContain('event: message.done');
     expect(text).toContain(ASSISTANT_MESSAGE_ID);
+  });
+
+  test('returns AI_BUSY as JSON 429 when concurrent runs are exhausted', async () => {
+    spyOn(testAiRunLimiter, 'tryAcquire').mockReturnValue(false);
+
+    const app = createApp();
+    const response = await app.request(`/ai/conversations/${CONVERSATION_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: 'Hold a slot' }),
+    });
+    const body = (await response.json()) as { code: string; message: string };
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(response.headers.get('content-type')).not.toContain('text/event-stream');
+    expect(body.code).toBe('AI_BUSY');
   });
 
   test('rejects invalid agent id', async () => {
@@ -210,6 +245,148 @@ describe('aiRouter', () => {
 
     expect(response.status).toBe(401);
     expect(body.code).toBe('UNAUTHORIZED');
+  });
+
+  test('lists AI memories for the current user', async () => {
+    const listSpy = spyOn(memoryService, 'listMemoriesForUser').mockImplementation(async () => [
+      {
+        id: MEMORY_ID,
+        userId: USER_ID,
+        agentId: null,
+        kind: 'nickname',
+        content: 'Call me Orbit',
+        source: 'user_explicit',
+        conversationId: null,
+        createdAt: '2026-07-09T10:00:00.000Z',
+        updatedAt: '2026-07-09T10:00:00.000Z',
+        deletedAt: null,
+      },
+    ]);
+    const app = createApp();
+    const response = await app.request('/ai/memories?limit=10', {
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+    const body = (await response.json()) as {
+      code: string;
+      data: Array<{ content: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.data[0]?.content).toBe('Call me Orbit');
+    expect(listSpy).toHaveBeenCalledWith(USER_ID, { limit: 10 });
+  });
+
+  test('creates an AI memory', async () => {
+    const createSpy = spyOn(memoryService, 'createMemory').mockImplementation(async () => ({
+      id: MEMORY_ID,
+      userId: USER_ID,
+      agentId: null,
+      kind: 'preference',
+      content: 'Prefer short replies',
+      source: 'user_explicit',
+      conversationId: null,
+      createdAt: '2026-07-09T10:00:00.000Z',
+      updatedAt: '2026-07-09T10:00:00.000Z',
+      deletedAt: null,
+    }));
+    const app = createApp();
+    const response = await app.request('/ai/memories', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'preference',
+        content: 'Prefer short replies',
+      }),
+    });
+    const body = (await response.json()) as { code: string; data: { id: string } };
+
+    expect(response.status).toBe(201);
+    expect(body.data.id).toBe(MEMORY_ID);
+    expect(createSpy).toHaveBeenCalledWith(USER_ID, {
+      kind: 'preference',
+      content: 'Prefer short replies',
+    });
+  });
+
+  test('deletes an AI memory', async () => {
+    const deleteSpy = spyOn(memoryService, 'softDeleteMemory').mockImplementation(async () => {});
+    const app = createApp();
+    const response = await app.request(`/ai/memories/${MEMORY_ID}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+    const body = (await response.json()) as { code: string; data: { success: true } };
+
+    expect(response.status).toBe(200);
+    expect(body.data.success).toBe(true);
+    expect(deleteSpy).toHaveBeenCalledWith(MEMORY_ID, USER_ID);
+  });
+
+  test('rejects invalid memory id on delete', async () => {
+    const app = createApp();
+    const response = await app.request('/ai/memories/not-a-uuid', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer valid-token' },
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('rejects empty memory content on create', async () => {
+    const app = createApp();
+    const response = await app.request('/ai/memories', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'preference',
+        content: '',
+      }),
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('VALIDATION_ERROR');
+  });
+
+  test('rejects a pending tool call', async () => {
+    const rejectSpy = spyOn(toolCallService, 'rejectAiToolCall').mockImplementation(async () => ({
+      id: '77777777-7777-4777-8777-777777777777',
+      conversationId: CONVERSATION_ID,
+      requestedByUserId: USER_ID,
+      toolName: 'remember_fact',
+      status: 'rejected',
+      input: { kind: 'nickname', content: 'Call me Orbit' },
+      output: null,
+      error: null,
+      createdAt: '2026-07-06T10:00:00.000Z',
+      updatedAt: '2026-07-06T10:01:00.000Z',
+      confirmedAt: '2026-07-06T10:00:30.000Z',
+      executedAt: null,
+    }));
+    const app = createApp();
+    const response = await app.request(
+      '/ai/tool-calls/77777777-7777-4777-8777-777777777777/reject',
+      {
+        method: 'POST',
+        headers: { Authorization: 'Bearer valid-token' },
+      }
+    );
+    const body = (await response.json()) as { code: string; data: { status: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.data.status).toBe('rejected');
+    expect(rejectSpy).toHaveBeenCalledWith(
+      '77777777-7777-4777-8777-777777777777',
+      USER_ID
+    );
   });
 
   test('approves a pending tool call', async () => {
