@@ -30,8 +30,28 @@ export const aiToolCallStatusEnum = pgEnum('ai_tool_call_status', [
   'failed',
 ]);
 
+export const userAgentMemoryKindEnum = pgEnum('user_agent_memory_kind', [
+  'preference',
+  'fact',
+  'nickname',
+]);
+
+export const userAgentMemorySourceEnum = pgEnum('user_agent_memory_source', [
+  'user_explicit',
+  'tool',
+  'admin',
+]);
+
+export const knowledgeChunkSourceTypeEnum = pgEnum('knowledge_chunk_source_type', [
+  'post',
+  'doc',
+]);
+
 export type DbClientPlatform = (typeof clientPlatformEnum.enumValues)[number];
 export type DbConversationMemberRole = (typeof conversationMemberRoleEnum.enumValues)[number];
 export type DbConversationType = (typeof conversationTypeEnum.enumValues)[number];
 export type DbAiMessageRole = (typeof aiMessageRoleEnum.enumValues)[number];
 export type DbAiToolCallStatus = (typeof aiToolCallStatusEnum.enumValues)[number];
+export type DbUserAgentMemoryKind = (typeof userAgentMemoryKindEnum.enumValues)[number];
+export type DbUserAgentMemorySource = (typeof userAgentMemorySourceEnum.enumValues)[number];
+export type DbKnowledgeChunkSourceType = (typeof knowledgeChunkSourceTypeEnum.enumValues)[number];

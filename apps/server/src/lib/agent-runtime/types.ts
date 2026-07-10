@@ -25,8 +25,19 @@ export interface LlmChatResult {
   toolCalls: LlmToolCall[];
 }
 
+export interface LlmStreamHandlers {
+  onDelta: (text: string) => void;
+}
+
 export interface LlmProvider {
   chat(input: LlmChatInput): Promise<LlmChatResult>;
+  chatStream(input: LlmChatInput, handlers: LlmStreamHandlers): Promise<LlmChatResult>;
+}
+
+export interface AgentRunCallbacks {
+  onDelta?: (text: string) => void | Promise<void>;
+  onToolStarted?: (toolName: string, input: unknown) => void | Promise<void>;
+  onToolCall?: (result: AgentToolCallResult) => void | Promise<void>;
 }
 
 export interface AgentToolContext {
@@ -49,8 +60,17 @@ export interface AgentRuntimeInput {
   systemPrompt: string;
   history: LlmMessage[];
   userMessage: string;
+  conversationSummary?: string;
   tools?: boolean;
   toolContext?: AgentToolContext;
+  userContext?: {
+    username: string;
+    displayName: string;
+  };
+  memories?: Array<{
+    kind: string;
+    content: string;
+  }>;
 }
 
 export interface AgentRuntimeResult {
