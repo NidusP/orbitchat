@@ -81,7 +81,7 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 
 ## 后续
 
-1. Migration `0015_knowledge_chunks` + Drizzle schema
+1. Migration `0016_knowledge_chunks` + Drizzle schema
 2. `embedding-provider.ts` + env（`EMBEDDING_*`, `RAG_ENABLED`）
 3. `docker-compose.yml` → `pgvector/pgvector:pg16`
 4. `rag-service` + post 写入钩子 + Tool（Wave 3 应用层）

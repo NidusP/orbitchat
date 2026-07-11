@@ -253,7 +253,7 @@ ADR：[21-agent-memory-model.md](./decisions/21-agent-memory-model.md)
 
 | 能力 | 关键文件 |
 |------|----------|
-| 表 `knowledge_chunks` + pgvector（migration `0015`） | `db/schema/knowledge-chunks.ts` |
+| 表 `knowledge_chunks` + pgvector（migration `0016`） | `db/schema/knowledge-chunks.ts` |
 | Embedding | `embedding-provider.ts`、`env` `EMBEDDING_*` |
 | 帖子 on-write 索引 | `post-service.ts` → `indexPostChunk` |
 | 帮助文档启动索引 | `index.ts` → `ensureHelpDocsIndexed` |
@@ -267,7 +267,7 @@ ADR：[22-agent-rag-boundaries.md](./decisions/22-agent-rag-boundaries.md)
 
 | 能力 | 关键文件 |
 |------|----------|
-| 表 `ai_conversation_summaries`（migration `0016`） | `db/schema/ai-conversation-summaries.ts` |
+| 表 `ai_conversation_summaries`（migration `0015`） | `db/schema/ai-conversation-summaries.ts` |
 | 触发：消息数 > 30，保留最近 20 条 | `summary-service.ts` → `maybeRefreshConversationSummary` |
 | 增量摘要（基于 `upToMessageId`） | `generateSummaryText` + LlmProvider |
 | 注入 orchestrator | `loadRuntimeContext`、`conversationSummary` on `AgentRuntimeInput` |

@@ -425,7 +425,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 |-----------|------|------|
 | ai_tool_calls | Agent 写操作审计 | ✅ Phase 4B |
 | user_agent_memories | 跨会话 Agent 用户记忆 | ✅ Orbit Guide M1 |
-| knowledge_chunks | RAG 向量索引（帖子 + 帮助文档） | 📋 Orbit Guide M2 Wave 3 |
+| knowledge_chunks | RAG 向量索引（帖子 + 帮助文档） | ✅ Orbit Guide M2 Wave 3 |
 | call_sessions | 通话记录 | 📋 Phase 4 |
 | storefront.* | 商品、订单 | 📋 可能独立 DB（Go 服务） |
 

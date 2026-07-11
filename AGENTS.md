@@ -30,11 +30,11 @@
 
 ### 项目阶段
 
-**Phase 4 Orbit Guide（Wave 0–5 代码完成，待交付）**（2026-07-10）
+**Phase 4 Orbit Guide（Wave 0–5 已合入 `master`）**（2026-07-11）
 
-分支 `feat/api-robustness-concurrency`：API 健壮性 + 群管理扩展 + 小轨 Wave 1–5（平台感知 / M1 记忆 / M2 RAG / M3 摘要 / UX）。**本地未 commit**，自动化：**217 server tests + 37 E2E** 通过。
+API 健壮性、群邀请/公告、小轨 Wave 1–5（平台感知 / M1 记忆 / M2 RAG / M3 摘要 / UX）已在 `master`。自动化：**217 server tests + 37 E2E**。
 
-**下一步（Wave 0）**：拆 PR → push → 合 `master`；可选 UI 改版后手测。
+**下一步**：UI 改版 + 整体手测。
 
 ### 项目特征
 
@@ -397,15 +397,13 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-07-10）**：`feat/api-robustness-concurrency` 本地完成 Wave 0–5 + 测试补齐；**未 push/合 main**。
+**结论（2026-07-11）**：PR #3–#5 已合入 `master`（`71d2d55`）。Wave 0 交付完成。
 
 | 维度 | 状态 |
 |------|------|
-| API 健壮性 + 群公告/邀请/消息策略（0009–0013） | ✅ 代码 |
-| 小轨 Wave 1–5（Tool / 记忆 / RAG / 摘要 / UX） | ✅ 代码 |
-| 单测 + E2E | ✅ 217 + 37 |
-| 迁移 journal + pgvector 容错 | ✅ |
-| Git 交付（commit / PR / merge） | ⏸ 待做 |
+| API 健壮性 + 群邀请/公告（0009–0013） | ✅ 已合 master |
+| 小轨 Wave 1–5 + 0014–0016 | ✅ 已合 master |
+| 测试补齐（217 单测 + 37 E2E） | ✅ 已合 master |
 | 手测 / UI 改版 | ⏸ 用户计划 |
 
 **本地开发速查**
@@ -418,7 +416,7 @@ app.onError((err, c) => {
 | E2E | `CI=true pnpm e2e`（`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`） |
 | RAG 全量重建 | `cd apps/server && bun scripts/reindex-rag.ts`（需 `RAG_ENABLED=true` + pgvector） |
 
-**建议下一迭代**：见 [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md) § Wave 0；学习指南 [orbit-guide-agent-implementation.md](./docs/orbit-guide-agent-implementation.md)。
+**建议下一迭代**：UI 改版 + 整体手测；或见 [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md) 后续项。
 
 **关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) · [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md)
 
