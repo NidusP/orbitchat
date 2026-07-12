@@ -4,11 +4,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { Conversation } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ConversationListSkeleton } from '@/components/ui/skeleton';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
-import { ApiError } from '@/lib/api/errors';
-import { getConversationDisplayName, listConversations } from '@/lib/api/conversations';
+import {
+  getConversationDisplayName,
+  getOtherParticipant,
+  listConversations,
+} from '@/lib/api/conversations';
 
 function previewContent(content: string, max = 72): string {
   const trimmed = content.trim();
@@ -66,8 +71,8 @@ export default function MessagesPage() {
     try {
       const page = await listConversations({ limit: 50 });
       setConversations(sortConversations(page.items));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load conversations.');
+    } catch {
+      setError('加载会话失败，请稍后重试。');
     } finally {
       setIsLoading(false);
     }
@@ -121,62 +126,90 @@ export default function MessagesPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <header className="page-header section-header">
+          <h1>消息</h1>
+        </header>
+        <ConversationListSkeleton count={4} />
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
-        <h1>Messages</h1>
+        <h1>消息</h1>
         <Link href="/messages/new-group" className="btn btn-primary">
-          New group
+          创建群聊
         </Link>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
 
       {conversations.length === 0 ? (
-        <div className="card empty-state">
-          <p className="text-muted">No conversations yet.</p>
-          <p className="text-muted">
-            Visit a user profile and click <strong>Message</strong> to start chatting.
-          </p>
-          <Link href="/search" className="btn btn-primary" style={{ marginTop: 12 }}>
-            Find people
+        <EmptyState
+          title="还没有会话"
+          description="去搜索页发起私聊，或者创建群聊开始互动。"
+          actionLabel="发起私聊"
+          href="/search"
+        >
+          <Link href="/messages/new-group" className="btn btn-secondary">
+            创建群聊
           </Link>
-        </div>
+        </EmptyState>
       ) : (
         <ul className="conversation-list">
           {conversations.map((conversation) => {
             const title = user
               ? getConversationDisplayName(conversation, user.id)
-              : 'Conversation';
-            const preview = conversation.lastMessage?.content ?? 'No messages yet';
+              : '会话';
+            const otherParticipant = user ? getOtherParticipant(conversation, user.id) : null;
+            const avatarDisplayName =
+              conversation.type === 'group'
+                ? conversation.title?.trim() || '群'
+                : otherParticipant?.displayName ?? title;
+            const avatarUserId =
+              conversation.type === 'group'
+                ? conversation.id
+                : otherParticipant?.id ?? conversation.id;
+            const avatarUrl =
+              conversation.type === 'group'
+                ? null
+                : otherParticipant?.avatarUrl ?? null;
+            const preview = conversation.lastMessage?.content ?? '还没有消息';
             const memberHint =
               conversation.type === 'group'
-                ? `${conversation.participants.length} members`
+                ? `${conversation.participants.length} 位成员`
                 : null;
 
             return (
               <li key={conversation.id}>
-                <Link href={`/messages/${conversation.id}`} className="conversation-list-item">
-                  <div className="conversation-list-main">
-                    <span className="conversation-list-title">{title}</span>
-                    <span className="conversation-list-time">
-                      {formatListTime(conversation.lastMessageAt)}
-                    </span>
-                  </div>
-                  <div className="conversation-list-preview-row">
-                    <span className="conversation-list-preview">
-                      {memberHint ? `${memberHint} · ${previewContent(preview)}` : previewContent(preview)}
-                    </span>
-                    {conversation.unreadCount > 0 && (
-                      <span className="conversation-unread-badge">{conversation.unreadCount}</span>
-                    )}
+                <Link
+                  href={`/messages/${conversation.id}`}
+                  className="conversation-list-item conversation-list-item-with-avatar"
+                >
+                  <UserAvatar
+                    displayName={avatarDisplayName}
+                    userId={avatarUserId}
+                    avatarUrl={avatarUrl}
+                    size="md"
+                  />
+                  <div className="conversation-list-content">
+                    <div className="conversation-list-main">
+                      <span className="conversation-list-title">{title}</span>
+                      <span className="conversation-list-time">
+                        {formatListTime(conversation.lastMessageAt)}
+                      </span>
+                    </div>
+                    <div className="conversation-list-preview-row">
+                      <span className="conversation-list-preview">
+                        {memberHint
+                          ? `${memberHint} · ${previewContent(preview)}`
+                          : previewContent(preview)}
+                      </span>
+                      {conversation.unreadCount > 0 && (
+                        <span className="conversation-unread-badge">{conversation.unreadCount}</span>
+                      )}
+                    </div>
                   </div>
                 </Link>
               </li>

@@ -106,6 +106,7 @@ describe('rag-service', () => {
       sourceType: 'post',
       sourceId: POST_A,
       text: 'Weekend hiking in the Alps',
+      contentHash: 'test-hash',
       ownerUserId: USER_A,
       embedding: null,
     });
@@ -139,5 +140,63 @@ describe('rag-service', () => {
 
     await service.removePostChunk(POST_A);
     expect(chunkStore.chunks).toHaveLength(0);
+  });
+
+  test('ensureHelpDocsIndexed skips embedding when content hash is unchanged', async () => {
+    let embedCalls = 0;
+    const chunkStore = createInMemoryChunkStore();
+    const hashProvider = new HashMockEmbeddingProvider(EMBEDDING_DIMENSIONS);
+    const embeddingProvider = {
+      embed: async (text: string): Promise<number[]> => {
+        embedCalls += 1;
+        return hashProvider.embed(text);
+      },
+    };
+
+    const service = createRagService({
+      chunkStore,
+      embeddingProvider,
+      ragEnabled: true,
+      readFileFn: async (filePath) => {
+        if (filePath.endsWith('product.md')) {
+          return '# Orbitchat\n\nStable product doc.';
+        }
+        if (filePath.endsWith('api-spec.md')) {
+          return '# API Spec\n\nStable api doc.';
+        }
+        throw new Error(`Unexpected file path: ${filePath}`);
+      },
+    });
+
+    await service.ensureHelpDocsIndexed();
+    expect(embedCalls).toBe(2);
+
+    await service.ensureHelpDocsIndexed();
+    expect(embedCalls).toBe(2);
+  });
+
+  test('indexPostChunk skips embedding when post content is unchanged', async () => {
+    let embedCalls = 0;
+    const chunkStore = createInMemoryChunkStore();
+    const hashProvider = new HashMockEmbeddingProvider(EMBEDDING_DIMENSIONS);
+    const embeddingProvider = {
+      embed: async (text: string): Promise<number[]> => {
+        embedCalls += 1;
+        return hashProvider.embed(text);
+      },
+    };
+
+    const service = createRagService({
+      chunkStore,
+      embeddingProvider,
+      ragEnabled: true,
+    });
+
+    const content = 'Same post body for RAG';
+    await service.indexPostChunk(POST_A, USER_A, content);
+    expect(embedCalls).toBe(1);
+
+    await service.indexPostChunk(POST_A, USER_A, content);
+    expect(embedCalls).toBe(1);
   });
 });

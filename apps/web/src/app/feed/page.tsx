@@ -1,16 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { PostWithAuthor } from '@orbitchat/shared-types';
 import { PostCard } from '@/components/post-card';
 import { PostComposer } from '@/components/post-composer';
-import { SiteNav } from '@/components/site-nav';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PostCardSkeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
 import { useFeedPolling } from '@/hooks/use-feed-polling';
 import { getHomeFeed } from '@/lib/api/feed';
-import { ApiError } from '@/lib/api/errors';
 import { likePost, unlikePost } from '@/lib/api/posts';
 import {
   applyLikeOptimistic,
@@ -40,9 +39,9 @@ export default function FeedPage() {
       if (!options?.silent) {
         setNextCursor(page.nextCursor);
       }
-    } catch (err) {
+    } catch {
       if (!options?.silent) {
-        setError(err instanceof ApiError ? err.message : 'Failed to load feed.');
+        setError('加载动态失败，请稍后重试。');
       }
     } finally {
       if (!options?.silent) {
@@ -81,8 +80,8 @@ export default function FeedPage() {
       const page = await getHomeFeed({ cursor: nextCursor, limit: 20 });
       setPosts((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load more posts.');
+    } catch {
+      setError('加载更多动态失败，请稍后重试。');
     } finally {
       setIsLoadingMore(false);
     }
@@ -115,9 +114,9 @@ export default function FeedPage() {
     try {
       const result = currentlyLiked ? await unlikePost(postId) : await likePost(postId);
       setPosts((current) => applyLikeResult(current, postId, result.liked, result.likeCount));
-    } catch (err) {
+    } catch {
       setPosts((current) => applyLikeOptimistic(current, postId, currentlyLiked));
-      setError(err instanceof ApiError ? err.message : 'Failed to update like.');
+      setError('更新点赞状态失败，请稍后重试。');
     } finally {
       setLikePendingId(null);
     }
@@ -126,22 +125,26 @@ export default function FeedPage() {
   if (isLoading || !isAuthenticated) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <header className="page-header section-header">
+          <div>
+            <h1>动态</h1>
+            <p className="text-muted">关注的人发布的内容会显示在这里。</p>
+          </div>
+        </header>
+        <PostCardSkeleton count={3} />
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
-          <h1>Home feed</h1>
-          <p className="text-muted">Posts from people you follow · auto-refreshes every 60s</p>
+          <h1>动态</h1>
+          <p className="text-muted">关注的人更新会出现在这里 · 每 60 秒自动刷新</p>
         </div>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadFirstPage()}>
-          Refresh
+          刷新
         </button>
       </header>
 
@@ -156,12 +159,15 @@ export default function FeedPage() {
       )}
 
       {isLoadingFeed ? (
-        <p className="text-muted" style={{ marginTop: 16 }}>
-          Loading feed…
-        </p>
+        <PostCardSkeleton count={3} />
       ) : posts.length === 0 ? (
-        <div className="card empty-state" style={{ marginTop: 16 }}>
-          <p>No posts yet. Follow someone from <Link href="/search">search</Link> or publish your first post.</p>
+        <div style={{ marginTop: 16 }}>
+          <EmptyState
+            title="还没有动态"
+            description="关注更多用户后，这里会出现他们发布的内容。"
+            actionLabel="发现用户"
+            href="/search"
+          />
         </div>
       ) : (
         <div className="post-list">
@@ -188,7 +194,7 @@ export default function FeedPage() {
             disabled={isLoadingMore}
             onClick={() => void handleLoadMore()}
           >
-            {isLoadingMore ? 'Loading…' : 'Load more'}
+            {isLoadingMore ? '加载中…' : '加载更多'}
           </button>
         </div>
       )}

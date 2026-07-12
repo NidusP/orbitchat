@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useState } from 'react';
 import type { PostWithAuthor } from '@orbitchat/shared-types';
 import { PostComments } from '@/components/post-comments';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { ApiError } from '@/lib/api/errors';
 import { deletePost, updatePost } from '@/lib/api/posts';
 import { formatRelativeTime } from '@/lib/posts-utils';
@@ -76,8 +77,16 @@ export function PostCard({
     <article className="post-card" data-testid={`feed-post-${post.id}`}>
       <header className="post-card-header">
         <Link href={`/users/${post.author.id}`} className="post-author-link">
-          <strong>{post.author.displayName}</strong>
-          <span className="text-muted"> @{post.author.username}</span>
+          <UserAvatar
+            displayName={post.author.displayName}
+            userId={post.author.id}
+            avatarUrl={post.author.avatarUrl}
+            size="sm"
+          />
+          <span className="post-author-meta">
+            <strong>{post.author.displayName}</strong>
+            <span className="text-muted"> @{post.author.username}</span>
+          </span>
         </Link>
         <time className="text-muted" dateTime={post.createdAt}>
           {formatRelativeTime(post.createdAt)}

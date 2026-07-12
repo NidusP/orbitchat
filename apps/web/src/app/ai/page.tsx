@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Agent, AiConversation, AiMessage, AiSseEvent, AiToolCall } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { parseTicTacToeToolContent, TicTacToeBoard } from '@/components/tic-tac-toe-board';
 import { useAuth } from '@/contexts/auth-context';
 import {
@@ -25,6 +24,13 @@ import {
   formatAiError,
   formatToolMessageContent,
 } from '@/lib/ai-agent-ui';
+
+const AI_SUGGESTION_CHIPS = [
+  '帮我记一下我喜欢喝燕麦拿铁',
+  '我最近发了什么帖子？',
+  '帮我写一条动态，主题是周末放松',
+  '我们来玩井字棋',
+] as const;
 
 function createLocalMessage(input: {
   conversationId: string;
@@ -51,7 +57,7 @@ function mergeAiMessages(current: AiMessage[], incoming: AiMessage[]): AiMessage
 }
 
 function getConversationTitle(conversation: AiConversation, agent: Agent | undefined): string {
-  return conversation.title ?? `${agent?.name ?? 'Agent'} chat`;
+  return conversation.title ?? `${agent?.name ?? '小轨'} 对话`;
 }
 
 function isAiToolCall(value: unknown): value is AiToolCall {
@@ -92,78 +98,95 @@ function describeToolCall(toolCall: AiToolCall): string {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : 'unknown';
+          : '未知用户';
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Send DM to @${targetUsername}: ${content}`;
+      return `发送给 @${targetUsername}${content ? `：${content}` : ''}`;
     }
     case 'create_post': {
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Create post: ${content}`;
+      return content ? `动态内容：${content}` : '将发布一条新动态';
     }
     case 'follow_user':
     case 'unfollow_user': {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : 'unknown';
-      const action = toolCall.toolName === 'follow_user' ? 'Follow' : 'Unfollow';
+          : '未知用户';
+      const action = toolCall.toolName === 'follow_user' ? '关注' : '取消关注';
       return `${action} @${targetUsername}`;
     }
     case 'remember_fact': {
-      const kind = 'kind' in input && typeof input.kind === 'string' ? input.kind : 'fact';
+      const kind = 'kind' in input && typeof input.kind === 'string' ? input.kind : '偏好';
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Remember ${kind}: ${content}`;
+      return `记住${kind}：${content}`;
     }
     default:
-      return `${toolCall.toolName} (${toolCall.status})`;
+      return `操作：${toolCall.toolName}`;
+  }
+}
+
+function getToolCallApprovalTitle(toolCall: AiToolCall): string {
+  switch (toolCall.toolName) {
+    case 'send_dm':
+      return '小轨想帮你发送私信，是否同意？';
+    case 'create_post':
+      return '小轨想帮你发布动态，是否同意？';
+    case 'follow_user':
+      return '小轨想帮你关注用户，是否同意？';
+    case 'unfollow_user':
+      return '小轨想帮你取消关注，是否同意？';
+    case 'remember_fact':
+      return '小轨想记住这条偏好，是否同意？';
+    default:
+      return '小轨想帮你执行一个站内操作，是否同意？';
   }
 }
 
 function describeRunningTool(toolName: string): string {
   switch (toolName) {
     case 'search_contact':
-      return 'Searching contacts…';
+      return '小轨正在查找联系人…';
     case 'get_my_profile':
-      return 'Loading your profile…';
+      return '小轨正在读取你的资料…';
     case 'list_my_recent_posts':
-      return 'Loading your recent posts…';
+      return '小轨正在读取你最近的动态…';
     case 'search_my_posts':
-      return 'Searching your posts…';
+      return '小轨正在搜索你的动态…';
     case 'search_help_docs':
-      return 'Searching help docs…';
+      return '小轨正在查询帮助资料…';
     case 'get_user_profile':
-      return 'Loading user profile…';
+      return '小轨正在读取对方资料…';
     case 'list_user_recent_posts':
-      return 'Loading user posts…';
+      return '小轨正在读取对方动态…';
     case 'play_tictactoe':
-      return 'Updating tic-tac-toe game…';
+      return '小轨正在更新井字棋棋局…';
     case 'send_dm':
-      return 'Preparing direct message…';
+      return '小轨正在准备私信…';
     case 'create_post':
-      return 'Preparing post…';
+      return '小轨正在准备动态…';
     case 'follow_user':
-      return 'Preparing follow action…';
+      return '小轨正在准备关注操作…';
     case 'unfollow_user':
-      return 'Preparing unfollow action…';
+      return '小轨正在准备取消关注…';
     case 'remember_fact':
-      return 'Preparing memory…';
+      return '小轨正在准备记忆…';
     default:
-      return `Running ${toolName}…`;
+      return `小轨正在执行 ${toolName}…`;
   }
 }
 
 function executedToolMessage(toolCall: AiToolCall): string {
   switch (toolCall.toolName) {
     case 'send_dm':
-      return 'Direct message sent successfully.';
+      return '私信发送成功。';
     case 'create_post':
-      return 'Post published successfully.';
+      return '动态发布成功。';
     case 'follow_user':
-      return 'Followed user successfully.';
+      return '已完成关注。';
     case 'unfollow_user':
-      return 'Unfollowed user successfully.';
+      return '已取消关注。';
     case 'remember_fact':
-      return 'Memory saved successfully.';
+      return '偏好已记住。';
     case 'search_my_posts':
       return `搜索你的帖子：找到 ${countToolOutputItems(toolCall.output)} 条结果`;
     case 'search_help_docs':
@@ -171,7 +194,7 @@ function executedToolMessage(toolCall: AiToolCall): string {
     case 'list_my_recent_posts':
       return `最近帖子：共 ${countToolOutputItems(toolCall.output)} 条`;
     default:
-      return `${toolCall.toolName} executed successfully.`;
+      return '操作已执行完成。';
   }
 }
 
@@ -192,21 +215,13 @@ export default function AiPage() {
   const [isThinking, setIsThinking] = useState(false);
   const [toolRunningStatus, setToolRunningStatus] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
-
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? null,
-    [conversations, selectedConversationId]
-  );
 
   const agentsById = useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
     [agents]
   );
-
-  const selectedAgent = selectedConversation
-    ? agentsById.get(selectedConversation.agentId)
-    : agentsById.get(selectedAgentId);
 
   const citationsByAssistantId = useMemo(
     () => buildCitationsByAssistantMessage(messages),
@@ -226,7 +241,7 @@ export default function AiPage() {
       setConversations(conversationPage.items);
       setSelectedConversationId(conversationPage.items[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load AI chat.');
+      setError(err instanceof ApiError ? err.message : '加载小轨页面失败，请稍后重试。');
     } finally {
       setIsLoadingPage(false);
     }
@@ -267,7 +282,7 @@ export default function AiPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'Failed to load AI messages.');
+          setError(err instanceof ApiError ? err.message : '加载对话失败，请稍后重试。');
         }
       }
     }
@@ -297,7 +312,7 @@ export default function AiPage() {
       setMessages([]);
       setToolCalls([]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create AI conversation.');
+      setError(err instanceof ApiError ? err.message : '创建对话失败，请稍后重试。');
     } finally {
       setIsCreating(false);
     }
@@ -308,7 +323,7 @@ export default function AiPage() {
       return selectedConversationId;
     }
     if (!selectedAgentId) {
-      setError('Select an agent first.');
+      setError('请先选择一个助手。');
       return null;
     }
     const conversation = await createAiConversation({ agentId: selectedAgentId });
@@ -414,7 +429,7 @@ export default function AiPage() {
         );
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `Failed to ${action} tool call.`);
+      setError(err instanceof ApiError ? err.message : `操作失败：${action === 'approve' ? '同意' : '拒绝'}请求未完成。`);
     }
   }
 
@@ -479,21 +494,21 @@ export default function AiPage() {
   if (authLoading || isLoadingPage) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">加载中…</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide chat-page">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
-          <h1>AI Chat</h1>
+          <h1>小轨</h1>
           <p className="text-muted">
-            Chat with Orbitchat built-in agents.{' '}
-            <Link href="/ai/memories">记忆管理</Link>
+            你的站内助手 · 能聊天、查资料、记偏好、帮你发帖和发私信
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: '0.875rem' }}>
+            <Link href="/ai/memories">管理小轨记忆</Link>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -515,7 +530,7 @@ export default function AiPage() {
             disabled={!selectedAgentId || isCreating}
             onClick={() => void handleNewChat()}
           >
-            {isCreating ? 'Creating…' : 'New chat'}
+            {isCreating ? '创建中…' : '新建对话'}
           </button>
         </div>
       </header>
@@ -528,9 +543,9 @@ export default function AiPage() {
 
       <div className="ai-layout">
         <aside className="ai-sidebar card">
-          <h2 className="section-title">Conversations</h2>
+          <h2 className="section-title">对话记录</h2>
           {conversations.length === 0 ? (
-            <p className="text-muted">No AI chats yet.</p>
+            <p className="text-muted">还没有对话，来和小轨聊聊吧。</p>
           ) : (
             <div className="ai-conversation-list">
               {conversations.map((conversation) => {
@@ -545,7 +560,7 @@ export default function AiPage() {
                     onClick={() => setSelectedConversationId(conversation.id)}
                   >
                     <span>{getConversationTitle(conversation, agent)}</span>
-                    <small>{agent?.name ?? 'Agent'}</small>
+                    <small>{agent?.name ?? '小轨'}</small>
                   </button>
                 );
               })}
@@ -555,8 +570,30 @@ export default function AiPage() {
 
         <section className="chat-panel card">
           <div className="ai-agent-summary">
-            <strong>{selectedAgent?.name ?? 'Select an agent'}</strong>
-            {selectedAgent && <span>{selectedAgent.description}</span>}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#7c2d12',
+                  background: 'linear-gradient(180deg, #ffedd5, #fed7aa)',
+                  border: '1px solid #fdba74',
+                }}
+              >
+                轨
+              </div>
+              <div style={{ display: 'grid', gap: 2 }}>
+                <strong>小轨</strong>
+                <span>你的站内助手 · 能聊天、查资料、记偏好、帮你发帖和发私信</span>
+              </div>
+            </div>
           </div>
 
           <div className="chat-messages">
@@ -567,12 +604,12 @@ export default function AiPage() {
                   .map((toolCall) => (
                     <div key={toolCall.id} className="ai-tool-call-card">
                       <div>
-                        <strong>Confirm action</strong>
+                        <strong>{getToolCallApprovalTitle(toolCall)}</strong>
                         <p>{describeToolCall(toolCall)}</p>
                         {toolCall.toolName === 'remember_fact' && (
                           <p className="ai-tool-call-helper">
                             确认后小轨会在之后的对话中记住这条信息。{' '}
-                            <Link href="/ai/memories">查看记忆</Link>
+                            <Link href="/ai/memories">管理小轨记忆</Link>
                           </p>
                         )}
                       </div>
@@ -582,14 +619,14 @@ export default function AiPage() {
                           className="btn btn-primary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'approve')}
                         >
-                          Approve
+                          同意
                         </button>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'reject')}
                         >
-                          Reject
+                          拒绝
                         </button>
                       </div>
                     </div>
@@ -598,9 +635,36 @@ export default function AiPage() {
             )}
             {messages.length === 0 ? (
               <div className="chat-empty">
-                <p className="text-muted">Ask for a joke, play tic-tac-toe, or try:</p>
-                <p>
-                  <code>我们来下井字棋</code> or <code>[e2e:tictactoe]</code>
+                <p>你好，我是小轨 👋 想先从哪件事开始？</p>
+                <p className="text-muted" style={{ marginBottom: 12 }}>
+                  点一下这些建议会自动填入输入框。
+                </p>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    maxWidth: 640,
+                    margin: '0 auto',
+                  }}
+                >
+                  {AI_SUGGESTION_CHIPS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setDraft(suggestion);
+                        composerRef.current?.focus();
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-muted" style={{ marginTop: 12 }}>
+                  也可以输入 <code>[e2e:tictactoe]</code> 触发测试棋局。
                 </p>
               </div>
             ) : (
@@ -614,7 +678,7 @@ export default function AiPage() {
                     ? parseTicTacToeToolContent(message.content)
                     : null;
                 const toolMessageContent = isTool
-                  ? `Tool ${message.toolName ?? ''}\n${formatToolMessageContent(message.toolName, message.content)}`
+                  ? `小轨执行结果\n${formatToolMessageContent(message.toolName, message.content)}`
                   : message.content;
                 return (
                   <div
@@ -635,7 +699,7 @@ export default function AiPage() {
                       >
                         {ticTacToe ? (
                           <div className="tic-tac-toe-tool">
-                            <p className="chat-bubble-content">Tic-tac-toe board</p>
+                            <p className="chat-bubble-content">井字棋棋盘</p>
                             <TicTacToeBoard board={ticTacToe.board} />
                             <pre className="tic-tac-toe-visual">{ticTacToe.boardVisual}</pre>
                           </div>
@@ -665,7 +729,7 @@ export default function AiPage() {
             )}
             {isThinking && (
               <p className="text-muted ai-thinking-indicator" aria-live="polite">
-                Thinking…
+                小轨正在思考…
               </p>
             )}
             {toolRunningStatus && (
@@ -678,10 +742,11 @@ export default function AiPage() {
 
           <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
             <textarea
+              ref={composerRef}
               className="chat-input"
               rows={2}
               value={draft}
-              placeholder="Ask 小轨 something…"
+              placeholder="想和小轨聊点什么？"
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -691,7 +756,7 @@ export default function AiPage() {
               }}
             />
             <button type="submit" className="btn btn-primary" disabled={isSending || !draft.trim()}>
-              {isSending ? 'Thinking…' : 'Send'}
+              {isSending ? '发送中…' : '发送'}
             </button>
           </form>
         </section>

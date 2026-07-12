@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import {
   createAiMemory,
@@ -122,7 +121,6 @@ export default function AiMemoriesPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <p className="text-muted">Loading…</p>
       </main>
     );
@@ -130,7 +128,6 @@ export default function AiMemoriesPage() {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
           <h1>AI Memories</h1>

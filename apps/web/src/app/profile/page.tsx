@@ -49,7 +49,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setProfileError(err instanceof ApiError ? err.message : 'Failed to load profile.');
+          setProfileError(err instanceof ApiError ? `加载资料失败：${err.message}` : '加载资料失败。');
         }
       } finally {
         if (!cancelled) {
@@ -86,9 +86,9 @@ export default function ProfilePage() {
         email: email.trim(),
       });
       await refreshUser();
-      setAccountSuccess('Account updated.');
+      setAccountSuccess('账号信息已更新。');
     } catch (err) {
-      setAccountError(err instanceof ApiError ? err.message : 'Failed to update account.');
+      setAccountError(err instanceof ApiError ? `更新账号失败：${err.message}` : '更新账号失败。');
     } finally {
       setIsAccountSubmitting(false);
     }
@@ -109,9 +109,9 @@ export default function ProfilePage() {
         displayName,
         bio: bio.trim() === '' ? null : bio,
       });
-      setProfileSuccess('Profile updated.');
+      setProfileSuccess('个人资料已更新。');
     } catch (err) {
-      setProfileError(err instanceof ApiError ? err.message : 'Failed to update profile.');
+      setProfileError(err instanceof ApiError ? `更新资料失败：${err.message}` : '更新资料失败。');
     } finally {
       setIsProfileSubmitting(false);
     }
@@ -121,7 +121,7 @@ export default function ProfilePage() {
     return (
       <main>
         <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">加载中…</p>
       </main>
     );
   }
@@ -129,19 +129,24 @@ export default function ProfilePage() {
   return (
     <main>
       <SiteNav />
-      <header className="page-header">
-        <h1>Profile</h1>
-        <p>View and edit your public profile.</p>
+      <header className="page-header section-header">
+        <div>
+          <h1>我的</h1>
+          <p>查看并编辑你的账号与公开资料。</p>
+        </div>
+        <Link href="/settings" className="btn btn-secondary">
+          设置
+        </Link>
       </header>
 
       <div className="card">
-        <h2 className="section-title">Account</h2>
+        <h2 className="section-title">账号信息</h2>
         <form className="form" onSubmit={handleAccountSubmit}>
           {accountError && <div className="alert alert-error">{accountError}</div>}
           {accountSuccess && <div className="alert alert-success">{accountSuccess}</div>}
 
           <div className="field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">用户名</label>
             <input
               id="username"
               type="text"
@@ -156,7 +161,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">邮箱</label>
             <input
               id="email"
               type="email"
@@ -168,22 +173,22 @@ export default function ProfilePage() {
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={isAccountSubmitting}>
-            {isAccountSubmitting ? 'Saving…' : 'Save account'}
+            {isAccountSubmitting ? '保存中…' : '保存账号信息'}
           </button>
         </form>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="section-title">Public profile</h2>
+        <h2 className="section-title">公开资料</h2>
         {profileLoading ? (
-          <p className="text-muted">Loading profile…</p>
+          <p className="text-muted">资料加载中…</p>
         ) : (
           <form className="form" onSubmit={handleProfileSubmit}>
             {profileError && <div className="alert alert-error">{profileError}</div>}
             {profileSuccess && <div className="alert alert-success">{profileSuccess}</div>}
 
             <div className="field">
-              <label htmlFor="displayName">Display name</label>
+              <label htmlFor="displayName">显示名称</label>
               <input
                 id="displayName"
                 type="text"
@@ -195,7 +200,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="field">
-              <label htmlFor="bio">Bio</label>
+              <label htmlFor="bio">简介</label>
               <textarea
                 id="bio"
                 maxLength={500}
@@ -205,16 +210,16 @@ export default function ProfilePage() {
             </div>
 
             <button type="submit" className="btn btn-primary" disabled={isProfileSubmitting}>
-              {isProfileSubmitting ? 'Saving…' : 'Save profile'}
+              {isProfileSubmitting ? '保存中…' : '保存公开资料'}
             </button>
           </form>
         )}
       </div>
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/settings/sessions">Manage sessions</Link>
+        <Link href="/settings/sessions">管理会话</Link>
         {' · '}
-        <Link href="/">Back to home</Link>
+        <Link href="/">返回首页</Link>
       </p>
     </main>
   );

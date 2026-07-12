@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import type { GroupInvite, GroupMember, GroupMemberRole, UserSearchResult } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 import {
@@ -263,7 +262,6 @@ export default function GroupSettingsPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <p className="text-muted">Loading…</p>
       </main>
     );
@@ -274,7 +272,6 @@ export default function GroupSettingsPage() {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <h1>Group settings</h1>
         <Link href={`/messages/${conversationId}`} className="btn btn-secondary">

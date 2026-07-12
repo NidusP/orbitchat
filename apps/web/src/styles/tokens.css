@@ -1,0 +1,66 @@
+/**
+ * Orbitchat warm UI — Layer 1 design tokens.
+ * Chat backgrounds are theme-swappable via data-chat-theme on <html>.
+ */
+
+:root {
+  /* App-wide warm palette */
+  --warm-bg-app: #faf7f2;
+  --warm-bg-surface: #fffcf8;
+  --warm-bg-muted: #f5f0e8;
+  --warm-text-primary: #2c2a28;
+  --warm-text-secondary: #7a756e;
+  --warm-text-muted: #9c958c;
+  --warm-accent: #8b9aff;
+  --warm-accent-hover: #7588f5;
+  --warm-accent-soft: #eef0ff;
+  --warm-border: #ebe4da;
+  --warm-border-soft: #f3ede5;
+  --warm-shadow-soft: 0 4px 16px rgba(60, 50, 40, 0.08);
+  --warm-shadow-bubble-theirs: 0 3px 12px rgba(80, 70, 60, 0.1);
+  --warm-shadow-bubble-mine: 0 3px 12px rgba(90, 100, 180, 0.18);
+  --warm-radius-sm: 10px;
+  --warm-radius-md: 16px;
+  --warm-radius-lg: 20px;
+  --warm-radius-pill: 999px;
+
+  /* Chat bubbles (overridable per theme) */
+  --bubble-theirs-bg: #fffcf8;
+  --bubble-theirs-text: #2c2a28;
+  --bubble-theirs-shadow: var(--warm-shadow-bubble-theirs);
+  --bubble-mine-bg: #8b9aff;
+  --bubble-mine-text: #ffffff;
+  --bubble-mine-shadow: var(--warm-shadow-bubble-mine);
+  --bubble-radius: 18px;
+  --bubble-padding-y: 12px;
+  --bubble-padding-x: 16px;
+  --bubble-font-size: 0.9375rem;
+  --bubble-line-height: 1.5;
+  --bubble-gap: 10px;
+}
+
+/* Default chat theme: warm solid gradient (no texture assets yet) */
+:root,
+[data-chat-theme='solid-warm'] {
+  --chat-bg-color: #f5f0e8;
+  --chat-bg-image: linear-gradient(
+    165deg,
+    #faf7f2 0%,
+    #f0ebe3 45%,
+    #ebe4da 100%
+  );
+  --chat-composer-bg: rgba(255, 252, 248, 0.92);
+  --chat-panel-border: transparent;
+}
+
+/* Placeholder for Layer 2 faux-fur assets — same flat fallback for now */
+[data-chat-theme='faux-fur-light'] {
+  --chat-bg-color: #f8f5f0;
+  --chat-bg-image: linear-gradient(
+    180deg,
+    #fffdfb 0%,
+    #f3ede5 60%,
+    #ebe3d8 100%
+  );
+  --chat-composer-bg: rgba(255, 253, 251, 0.94);
+}

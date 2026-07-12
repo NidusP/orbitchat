@@ -408,6 +408,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | source_id | VARCHAR(128) | 来源 ID（如 `post` UUID 或 doc 路径 slug） |
 | owner_user_id | UUID FK → users, nullable | `post` 为发帖用户；`doc` 为 `NULL`（公开） |
 | text | TEXT | 切块正文 |
+| content_hash | VARCHAR(64), nullable | 切块正文 SHA-256；用于跳过未变更内容的 re-embed |
 | embedding | vector(768) | pgvector 嵌入 |
 | created_at / updated_at | TIMESTAMPTZ | |
 
@@ -417,7 +418,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 - `(owner_user_id)` — 按用户过滤本人帖子
 - HNSW `(embedding vector_cosine_ops)` — 余弦相似度 ANN
 
-**原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。
+**原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。`content_hash` 未变时跳过 embedding（启动索引与 on-write 均适用）。
 
 ## Phase 4B+：橱窗 / 音视频（概要）
 

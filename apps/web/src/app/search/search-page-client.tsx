@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { UserSearchResult } from '@orbitchat/shared-types';
 import { SiteNav } from '@/components/site-nav';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 import { followUser, searchUsers, unfollowUser } from '@/lib/api/social';
@@ -42,7 +43,7 @@ export function SearchPageClient() {
       setResults((current) => (cursor ? [...current, ...page.items] : page.items));
       setNextCursor(page.nextCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed.');
+      setError(err instanceof ApiError ? `搜索失败：${err.message}` : '搜索失败，请稍后重试。');
     } finally {
       setIsSearching(false);
     }
@@ -86,7 +87,7 @@ export function SearchPageClient() {
         setFollowingIds((current) => new Set(current).add(target.id));
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update follow.');
+      setError(err instanceof ApiError ? `更新关注失败：${err.message}` : '更新关注失败。');
     } finally {
       setPendingId(null);
     }
@@ -96,7 +97,7 @@ export function SearchPageClient() {
     return (
       <main className="main-wide">
         <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">加载中…</p>
       </main>
     );
   }
@@ -105,21 +106,21 @@ export function SearchPageClient() {
     <main className="main-wide">
       <SiteNav />
       <header className="page-header">
-        <h1>Search users</h1>
-        <p className="text-muted">Find people to follow by username or display name.</p>
+        <h1>搜索用户</h1>
+        <p className="text-muted">通过用户名或显示名称发现值得关注的人。</p>
       </header>
 
       <div className="card">
         <form className="form" onSubmit={handleSubmit}>
           <div className="field">
-            <label htmlFor="search-q">Query</label>
+            <label htmlFor="search-q">关键词</label>
             <input
               id="search-q"
               type="search"
               data-testid="search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="username or name"
+              placeholder="输入用户名或显示名称"
               maxLength={64}
             />
           </div>
@@ -129,7 +130,7 @@ export function SearchPageClient() {
             data-testid="search-submit"
             disabled={isSearching || query.trim() === ''}
           >
-            {isSearching ? 'Searching…' : 'Search'}
+            {isSearching ? '搜索中…' : '搜索'}
           </button>
         </form>
       </div>
@@ -148,11 +149,19 @@ export function SearchPageClient() {
 
             return (
               <li key={result.id} className="user-result-item">
-                <div>
-                  <Link href={`/users/${result.id}`}>
-                    <strong>{result.displayName}</strong>
-                  </Link>
-                  <p className="text-muted">@{result.username}</p>
+                <div className="user-result-main">
+                  <UserAvatar
+                    displayName={result.displayName}
+                    userId={result.id}
+                    avatarUrl={result.avatarUrl}
+                    size="md"
+                  />
+                  <div className="user-result-meta">
+                    <Link href={`/users/${result.id}`}>
+                      <strong>{result.displayName}</strong>
+                    </Link>
+                    <p className="text-muted">@{result.username}</p>
+                  </div>
                 </div>
                 {!isSelf && (
                   <button
@@ -162,7 +171,7 @@ export function SearchPageClient() {
                     disabled={pendingId === result.id}
                     onClick={() => void handleToggleFollow(result)}
                   >
-                    {isFollowing ? 'Following' : 'Follow'}
+                    {isFollowing ? '已关注' : '关注'}
                   </button>
                 )}
               </li>
@@ -179,7 +188,7 @@ export function SearchPageClient() {
             disabled={isSearching}
             onClick={() => void runSearch(query, nextCursor)}
           >
-            Load more
+            加载更多
           </button>
         </div>
       )}

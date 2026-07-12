@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { isValidPassword } from '@orbitchat/shared-utils';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 
@@ -25,7 +24,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     if (!isValidPassword(password)) {
-      setError('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+      setError('密码至少 8 位，且包含大写字母、小写字母和数字。');
       setIsSubmitting(false);
       return;
     }
@@ -45,9 +44,9 @@ export default function RegisterPage() {
       router.push('/profile');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(err.message ? `注册失败：${err.message}` : '注册失败，请检查输入信息。');
       } else {
-        setError('Registration failed. Please try again.');
+        setError('注册失败，请稍后重试。');
       }
     } finally {
       setIsSubmitting(false);
@@ -56,10 +55,9 @@ export default function RegisterPage() {
 
   return (
     <main>
-      <SiteNav />
       <header className="page-header">
-        <h1>Register</h1>
-        <p>Create a new Orbitchat account.</p>
+        <h1>注册</h1>
+        <p>创建你的 Orbitchat 新账号。</p>
       </header>
 
       <div className="card">
@@ -67,7 +65,7 @@ export default function RegisterPage() {
           {error && <div className="alert alert-error">{error}</div>}
 
           <div className="field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">用户名</label>
             <input
               id="username"
               type="text"
@@ -82,7 +80,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="displayName">Display name</label>
+            <label htmlFor="displayName">显示名称</label>
             <input
               id="displayName"
               type="text"
@@ -94,7 +92,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">邮箱</label>
             <input
               id="email"
               type="email"
@@ -106,7 +104,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">密码</label>
             <input
               id="password"
               type="password"
@@ -117,8 +115,7 @@ export default function RegisterPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
             <span className="text-muted">
-              At least 8 characters with an uppercase letter, a lowercase letter, and a number (e.g.
-              Password123).
+              至少 8 位，且包含大写字母、小写字母和数字（例如 Password123）。
             </span>
           </div>
 
@@ -128,16 +125,16 @@ export default function RegisterPage() {
               checked={trustDevice}
               onChange={(event) => setTrustDevice(event.target.checked)}
             />
-            Trust this device
+            信任此设备
           </label>
 
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating account…' : 'Create account'}
+            {isSubmitting ? '创建中…' : '创建账号'}
           </button>
         </form>
 
         <p className="text-muted" style={{ marginTop: 16 }}>
-          Already have an account? <Link href="/login">Login</Link>
+          已有账号？<Link href="/login">去登录</Link>
         </p>
       </div>
     </main>

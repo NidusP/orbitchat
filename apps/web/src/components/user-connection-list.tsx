@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { UserSearchResult } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 import { followUser, getFollowers, getFollowing, unfollowUser } from '@/lib/api/social';
@@ -142,7 +141,6 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
   if (isLoading || isLoadingPage || !viewer) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <p className="text-muted">Loading…</p>
       </main>
     );
@@ -151,7 +149,6 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
   if (error && !displayName) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <div className="alert alert-error">{error}</div>
       </main>
     );
@@ -159,7 +156,6 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header">
         <h1>{copy.title}</h1>
         {displayName && username && (

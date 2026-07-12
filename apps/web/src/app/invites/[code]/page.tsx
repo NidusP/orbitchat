@@ -3,7 +3,6 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { GroupInvitePreview } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { ApiError } from '@/lib/api/errors';
 import { acceptGroupInvite, getGroupInvitePreview } from '@/lib/api/conversations';
@@ -62,7 +61,6 @@ export default function InviteJoinPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <p className="text-muted">Loading...</p>
       </main>
     );
@@ -70,7 +68,6 @@ export default function InviteJoinPage() {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <h1>Group invite</h1>
       </header>

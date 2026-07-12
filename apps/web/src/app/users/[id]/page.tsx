@@ -81,7 +81,7 @@ export default function UserProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'Failed to load user.');
+          setError(err instanceof ApiError ? `加载用户失败：${err.message}` : '加载用户失败。');
         }
       } finally {
         if (!cancelled) {
@@ -121,7 +121,7 @@ export default function UserProfilePage() {
       }
       setFollowKnown(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update follow.');
+      setError(err instanceof ApiError ? `更新关注失败：${err.message}` : '更新关注失败。');
     } finally {
       setFollowPending(false);
     }
@@ -136,7 +136,7 @@ export default function UserProfilePage() {
     try {
       await loadPosts(nextCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load more posts.');
+      setError(err instanceof ApiError ? `加载更多动态失败：${err.message}` : '加载更多动态失败。');
     } finally {
       setIsLoadingMore(false);
     }
@@ -170,7 +170,7 @@ export default function UserProfilePage() {
       const conversation = await createConversation({ participantUserId: userId });
       router.push(`/messages/${conversation.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to start conversation.');
+      setError(err instanceof ApiError ? `发起私聊失败：${err.message}` : '发起私聊失败。');
     } finally {
       setMessagePending(false);
     }
@@ -185,7 +185,7 @@ export default function UserProfilePage() {
       setPosts((current) => applyLikeResult(current, postId, result.liked, result.likeCount));
     } catch (err) {
       setPosts((current) => applyLikeOptimistic(current, postId, currentlyLiked));
-      setError(err instanceof ApiError ? err.message : 'Failed to update like.');
+      setError(err instanceof ApiError ? `更新点赞失败：${err.message}` : '更新点赞失败。');
     } finally {
       setLikePendingId(null);
     }
@@ -195,7 +195,7 @@ export default function UserProfilePage() {
     return (
       <main className="main-wide">
         <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">正在加载...</p>
       </main>
     );
   }
@@ -223,11 +223,11 @@ export default function UserProfilePage() {
           {profile.bio && <p>{profile.bio}</p>}
           <p className="text-muted" style={{ marginTop: 8 }}>
             <Link href={`/users/${userId}/followers`} data-testid="profile-followers-link">
-              Followers
+              粉丝
             </Link>
             {' · '}
             <Link href={`/users/${userId}/following`} data-testid="profile-following-link">
-              Following
+              关注
             </Link>
           </p>
         </div>
@@ -239,7 +239,7 @@ export default function UserProfilePage() {
               disabled={messagePending}
               onClick={() => void handleMessage()}
             >
-              {messagePending ? 'Opening…' : 'Message'}
+              {messagePending ? '打开中…' : '发消息'}
             </button>
             <button
               type="button"
@@ -247,7 +247,7 @@ export default function UserProfilePage() {
               disabled={followPending}
               onClick={() => void handleToggleFollow()}
             >
-              {isFollowing ? 'Following' : 'Follow'}
+              {isFollowing ? '已关注' : '关注'}
             </button>
           </div>
         )}
@@ -259,10 +259,10 @@ export default function UserProfilePage() {
         </div>
       )}
 
-      <h2 className="section-title">Posts</h2>
+      <h2 className="section-title">动态</h2>
       {posts.length === 0 ? (
         <div className="card empty-state">
-          <p className="text-muted">No posts yet.</p>
+          <p className="text-muted">还没有动态。</p>
         </div>
       ) : (
         <div className="post-list">
@@ -289,13 +289,13 @@ export default function UserProfilePage() {
             disabled={isLoadingMore}
             onClick={() => void handleLoadMore()}
           >
-            {isLoadingMore ? 'Loading…' : 'Load more'}
+            {isLoadingMore ? '加载中…' : '加载更多'}
           </button>
         </div>
       )}
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/feed">Back to feed</Link>
+        <Link href="/feed">返回动态广场</Link>
       </p>
     </main>
   );
