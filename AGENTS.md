@@ -418,7 +418,7 @@ app.onError((err, c) => {
 
 **建议下一迭代**：UI 改版 + 整体手测；或见 [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md) 后续项。
 
-**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md)（含 §后续迭代） · [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md)
+**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) · [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md)
 
 ### 联系和反馈
 
@@ -442,5 +442,5 @@ app.onError((err, c) => {
 ## 版本
 
 - **当前版本**：0.1.0
-- **最后更新**：2026-07-11（Wave 0–5 + 0009–0016 已合 master；见 phase-3b-4b-closeout §后续迭代）
-- **下次审查**：UI 改版后整体手测
+- **最后更新**：2026-07-07（3B+4B 合入 master；见 phase-3b-4b-closeout）
+- **下次审查**：UI 改版后整体手测，或启动 3B.1 邀请链接 / M1 记忆轨

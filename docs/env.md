@@ -121,29 +121,6 @@ RAG_ENABLED=true
 - `RAG_ENABLED=false` 关闭索引与检索（运维开关）；表结构仍可通过 migration 存在。
 - **`LLM_E2E_MOCK=true`** 时，embedding 使用 **确定性 hash 向量**（`HashMockEmbeddingProvider`），不调用 Ollama embedding API，保证 Playwright E2E 可重复。
 
-#### pgvector 降级（无 `vector` 扩展时）
-
-Migration `0016_knowledge_chunks` 在 `CREATE EXTENSION vector` 或 `ADD COLUMN embedding` 失败时**仍创建** `knowledge_chunks` 表（仅 `text` 等列，**无** `embedding`）。常见于本机沿用旧 `postgres:16-alpine` 容器而非 Compose 里的 `pgvector/pgvector:pg16`。
-
-| 能力 | 有 pgvector | 无 pgvector（降级） |
-|------|-------------|---------------------|
-| 迁移 `0016` | ✅ 表 + `embedding vector(768)` | ✅ 表，无 `embedding` 列 |
-| 写入索引（帖子 / help docs） | ✅ 向量 upsert | ❌ upsert 失败，服务端打 `[rag] indexPostChunk failed` 日志 |
-| 检索 `search_*` Tool | ✅ 余弦 ANN | ⚠️ 向量查询失败后 **ILIKE 文本回退**（仅当 `text` 行已存在时有效） |
-| E2E（`RAG_ENABLED=false`） | — | ✅ 不依赖 pgvector |
-
-**恢复语义检索**：
-
-1. 使用 pgvector 镜像：`docker compose up -d postgres`（见根目录 `docker-compose.yml`）。
-2. 若表已存在且无 `embedding` 列，在 psql 中执行：
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS embedding vector(768);
-   ```
-3. 设置 `RAG_ENABLED=true`，拉取 `nomic-embed-text`，运行 `cd apps/server && bun scripts/reindex-rag.ts`。
-
-实现细节：`rag-service.ts` 在 Postgres `42703`（未定义列）或其它向量错误时静默回退 `searchByText`（`ILIKE`）。
-
 ---
 
 ## apps/web

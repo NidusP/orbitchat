@@ -50,7 +50,7 @@ pnpm e2e               # Playwright（需 Postgres + migrate；勿与 pnpm dev 3
 pnpm type-check && pnpm lint
 ```
 
-**E2E 环境**：Docker `im-postgres` 运行 → Playwright 启动前自动 `db:migrate`（失败即中断，见 `playwright.config.ts`）→ `pnpm e2e`（自起 3100/3101，`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`）。E2E **不**要求 pgvector；但迁移 `0009–0016` 必须全部成功，否则相关表缺失会导致 AI/群聊用例 500。
+**E2E 环境**：Docker `im-postgres` 运行 → Playwright 启动前自动 `db:migrate`（见 `playwright.config.ts`）→ `pnpm e2e`（自起 3100/3101，`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`）。
 
 **Agent E2E 场景**（`chat-agent-flow.spec.ts`）：`remember_fact` Approve/Reject + 记忆页、`/ai/memories` CRUD、`[e2e:my_posts]`、`[e2e:my_profile]`、`[e2e:search_posts]`、`[e2e:search_help]`、记忆管理入口链接。
 

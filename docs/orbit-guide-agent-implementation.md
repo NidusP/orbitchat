@@ -4,7 +4,7 @@
 > **前置阅读**：[AGENTS.md](../AGENTS.md)、[phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md)、[ADR 17](./decisions/17-ai-agent-architecture.md)  
 > **API 契约**：见 [api-spec.md § AI](./api-spec.md)（本文不重复完整 endpoint 定义）
 
-**最后更新**：2026-07-11（Wave 1–5 + 0009–0016 已合 master）
+**最后更新**：2026-07-09（Wave 1–5 已落地）
 
 ---
 
@@ -358,13 +358,6 @@ bun scripts/reindex-rag.ts        # 重索引所有活跃帖子 + help docs
 ```
 
 服务启动时若 `RAG_ENABLED=true`，会自动 `ensureHelpDocsIndexed()`（索引 `docs/product.md`、`docs/api-spec.md`）。
-
-### 10.5 pgvector 与降级
-
-- **完整 RAG**：Compose 使用 `pgvector/pgvector:pg16`，migrate `0016` 后表含 `embedding vector(768)`，`RAG_ENABLED=true`，`ollama pull nomic-embed-text`。
-- **无 pgvector**（例如本机旧 `im-postgres` 为 `postgres:16-alpine`）：`0016` 仍成功，但无 `embedding` 列；索引写入打日志失败；`search_*` 在向量失败后走 **ILIKE 文本回退**（见 `rag-service.ts`）。
-- **E2E**：`RAG_ENABLED=false` + `LLM_E2E_MOCK=true`，不依赖 pgvector 或 embedding 模型。
-- **恢复**：换 pgvector 镜像 → 手动 `CREATE EXTENSION` + `ADD COLUMN embedding` → `bun scripts/reindex-rag.ts`。详见 [env.md](./env.md)。
 
 ### 10.4 手测检查清单
 
