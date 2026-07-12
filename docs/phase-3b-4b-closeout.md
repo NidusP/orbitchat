@@ -22,6 +22,8 @@
 
 **本阶段未做（后续）**：群邀请链接、presence、群头像、群公告、消息编辑/删除。
 
+> **2026-07-11 更新**：上述「后续」项中 **群邀请链接、群公告、消息编辑/撤回** 已在 Post-3B/4B 迭代合入 `master`（见下文 §后续迭代）。
+
 ### Phase 4B：Agent Tool + 井字棋
 
 - **架构**：OpenAI-compatible **Function Calling** + `AgentOrchestrator` tool loop（最多 5 轮）。
@@ -40,6 +42,8 @@
 - Web `/ai`：pending 卡片、井字棋棋盘组件。
 
 **本阶段未做（4B 可选 / 后续）**：SSE 真流式、云 `LLM_API_KEY`、M1 长期记忆 / RAG（见 [phase-4-agent-memory-rag-plan.md](./phase-4-agent-memory-rag-plan.md)）。
+
+> **2026-07-11 更新**：M1 记忆 / M2 RAG / M3 摘要 / Wave 1–5 已在 [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) 交付并合入 `master`（见下文 §后续迭代）。
 
 ---
 
@@ -77,7 +81,68 @@ pnpm --filter @orbitchat/server db:migrate     # 含 0006–0008
 1. **小模型 FC**：`llama3.2` 等可能只回文字不调工具；E2E 用 mock 覆盖。
 2. **UI**：功能优先，整体 UI 改版与手测留待后续迭代。
 3. **多实例 WS**：单进程 ChatHub；Redis Pub/Sub 未接。
-4. **群邀请链接**：见 [phase-3b1-group-plan.md](./phase-3b1-group-plan.md) P1。
+4. **群邀请链接**：~~见 [phase-3b1-group-plan.md](./phase-3b1-group-plan.md) P1~~ → ✅ 已交付（`0009_group_invites`，2026-07-11）。
+
+---
+
+## 后续迭代（Post-3B/4B → `master`，2026-07-11）
+
+原 3B+4B closeout 之后的 stacked PR #3–#5 已合入 `master`（`239f71c`）。本节补全迁移编号与交付范围，避免与 Wave 0–5 文档脱节。
+
+### DB 迁移对照（0009–0016）
+
+| 编号 | 文件 | 内容 |
+|------|------|------|
+| 0009 | `group_invites` | 群邀请链接（code、过期、使用次数） |
+| 0010 | `message_edits_recalls` | 消息编辑 / 撤回记录表 |
+| 0011 | `message_recalls_unique` | 撤回幂等唯一约束 |
+| 0012 | `conversations.metadata_version` | 群元数据乐观锁版本 |
+| 0013 | `conversations.announcement` | 群公告字段 |
+| 0014 | `user_agent_memories` | M1 跨会话显式记忆 |
+| 0015 | `ai_conversation_summaries` | M3 长聊摘要 |
+| 0016 | `knowledge_chunks` | M2 RAG 向量索引（pgvector，无扩展时降级建表） |
+
+本地 / CI 须执行 `pnpm --filter @orbitchat/server db:migrate`；Playwright 启动前迁移失败会**中断** E2E（不再 `|| true` 吞错）。
+
+### API 健壮性 + 群扩展（PR #3）
+
+- ADR 18–19：写操作幂等、乐观锁 / 悲观锁边界
+- 群邀请：`POST /conversations/:id/invites`、公开 `GET /invites/:code`
+- 群公告：与改群名共用 `metadata_version`
+- 消息编辑 / 撤回（direct + group）
+
+### Orbit Guide Wave 0–5（PR #4）
+
+- Wave 1：平台感知 Tool（`my_profile`、`list_my_recent_posts` 等）
+- Wave 2 M1：`remember_fact` + `user_agent_memories`
+- Wave 3 M2：`search_my_posts` / `search_help_docs` + `knowledge_chunks`
+- Wave 4 M3：长聊摘要注入
+- Wave 5：记忆管理 UI、引用 chips、错误文案
+
+详见 [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md)、[orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md)。
+
+### 测试加固（PR #5）
+
+- Server：**217** tests（含 agent / RAG / postgres-errors）
+- E2E：**37** tests（含 agent 记忆、RAG mock、`my_profile`）
+- `postgres-errors`：识别 Drizzle 包装的 `42P01` / `42703`
+- `0016` 迁移：无 pgvector 时仍建 `knowledge_chunks` 表（无 `embedding` 列）
+
+### pgvector 降级（开发环境必读）
+
+- **推荐**：`docker compose` 使用 `pgvector/pgvector:pg16`（见 `docker-compose.yml`）。
+- **旧库**（如本机 `postgres:16-alpine` 容器 `im-postgres`）：`0016` 迁移成功但**无** `embedding` 列；写入索引会打日志失败，检索自动 **ILIKE 文本回退**（见 [env.md](./env.md) § RAG）。
+- **恢复语义检索**：换 pgvector 镜像 → 手动 `CREATE EXTENSION vector` + `ALTER TABLE ... ADD COLUMN embedding vector(768)` → `bun scripts/reindex-rag.ts`。
+
+### 验证记录（2026-07-11）
+
+```bash
+pnpm type-check
+pnpm lint
+pnpm --filter @orbitchat/server test          # 217 pass
+CI=true pnpm e2e                               # 37 pass
+pnpm --filter @orbitchat/server db:migrate     # 含 0009–0016
+```
 
 ---
 
@@ -106,10 +171,11 @@ apps/web/e2e/chat-agent-flow.spec.ts
 | 优先级 | 方向 | 文档 |
 |--------|------|------|
 | P0 | UI 改版 + 整体功能手测 | 用户主导 |
-| P1 | 群邀请链接（3B.1 P1） | [phase-3b1-group-plan.md](./phase-3b1-group-plan.md) |
+| ~~P1~~ | ~~群邀请链接（3B.1 P1）~~ | ✅ 已合 master |
+| ~~P2~~ | ~~M1 记忆 / M2 RAG~~ | ✅ [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) |
 | P2 | Agent：SSE 真流式 / 云 API | 4B 余量 |
 | P2 | Redis 多实例 WS | 部署前 |
-| 远期 | M1 记忆 / M2 RAG / 4C WebRTC | [phase-4-agent-memory-rag-plan.md](./phase-4-agent-memory-rag-plan.md)、roadmap |
+| 远期 | 4C WebRTC、Fine-tuning | roadmap |
 
 ---
 
@@ -119,7 +185,9 @@ apps/web/e2e/chat-agent-flow.spec.ts
 |------|------|
 | 用户 / 社交 / 1:1 私聊 | ✅ |
 | 群聊 + 群管理 + 私聊 typing | ✅ 本阶段 |
+| 群邀请 / 公告 / 消息编辑撤回 | ✅ Post-3B/4B |
 | AI Chat + 写 Tool + 井字棋 | ✅ 本阶段 |
-| 推送、4C 多媒体、M1 记忆 | 📋 后续 |
+| Orbit Guide Wave 0–5（记忆/RAG/摘要） | ✅ Post-3B/4B |
+| 推送、4C 多媒体 | 📋 后续 |
 
-**粗估**：P0–P1 主干约 **~70–75%**；UI 打磨、推送、4C、长期记忆仍待做。
+**粗估**：P0–P1 主干约 **~80–85%**；UI 打磨、推送、4C 仍待做。

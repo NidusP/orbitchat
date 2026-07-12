@@ -67,6 +67,18 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 - `LLM_E2E_MOCK=true` 时，embedding 使用 **确定性 hash 向量**（`HashMockEmbeddingProvider`），不依赖 Ollama embedding 模型
 - `RAG_ENABLED=false` 可关闭索引与检索（运维开关）
 
+### pgvector 降级（开发 / 旧 Postgres）
+
+Migration `0016_knowledge_chunks` 用 `DO … EXCEPTION` 包裹：无 `vector` 扩展时仍创建 `knowledge_chunks`，但**不**添加 `embedding` 列（`RAISE NOTICE`，迁移不失败）。
+
+| 阶段 | 行为 |
+|------|------|
+| 迁移 | 表就绪；有 pgvector 则有 `embedding vector(768)` |
+| 索引 on-write | 依赖 `embedding` 列；缺失时 upsert 失败并打日志，不阻塞发帖 |
+| 检索 Tool | `searchByVector` 失败（含 Postgres `42703`）→ `searchByText`（`ILIKE`）静默回退 |
+
+**推荐**：本地用 `docker-compose.yml` 的 `pgvector/pgvector:pg16`。若从旧 `postgres:16-alpine` 升级，见 [env.md](../env.md) § pgvector 降级恢复步骤。
+
 ## 原因
 
 - **权限最小化**：只索引用户明确拥有的帖子与公开文档，避免 RAG 泄露私信。
@@ -81,11 +93,12 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 
 ## 后续
 
-1. Migration `0016_knowledge_chunks` + Drizzle schema
-2. `embedding-provider.ts` + env（`EMBEDDING_*`, `RAG_ENABLED`）
-3. `docker-compose.yml` → `pgvector/pgvector:pg16`
-4. `rag-service` + post 写入钩子 + Tool（Wave 3 应用层）
-5. `docs/db-schema.md` 同步
+1. ~~Migration `0016_knowledge_chunks` + Drizzle schema~~ ✅
+2. ~~`embedding-provider.ts` + env（`EMBEDDING_*`, `RAG_ENABLED`）~~ ✅
+3. ~~`docker-compose.yml` → `pgvector/pgvector:pg16`~~ ✅
+4. ~~`rag-service` + post 写入钩子 + Tool（Wave 3 应用层）~~ ✅
+5. ~~`docs/db-schema.md` 同步~~ ✅
+6. 帖量大后异步 re-index job；跨用户帖子语义搜（远期）
 
 ## 相关
 
