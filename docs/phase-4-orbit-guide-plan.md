@@ -240,7 +240,7 @@ Orchestrator：**走 Tool**，不每次请求全库扫描。
 
 | 项 | 状态 |
 |----|------|
-| ADR 22 + `knowledge_chunks` 迁移 `0016` + pgvector | ✅ |
+| ADR 22 + `knowledge_chunks` 迁移 `0015` + pgvector | ✅ |
 | `EMBEDDING_*` / `RAG_ENABLED` env + Docker pgvector 镜像 | ✅ |
 | `embedding-provider` + `rag-service`（向量 + ILIKE 降级） | ✅ |
 | 帖子 on-write 索引 + `search_my_posts` / `search_help_docs` Tool | ✅ |
@@ -248,7 +248,7 @@ Orchestrator：**走 Tool**，不每次请求全库扫描。
 | 开发恢复脚本 `bun scripts/reindex-rag.ts` | ✅ |
 | E2E mock `[e2e:search_posts]` / `[e2e:search_help]` | ✅ |
 
-**验收**：217 server tests + 37 E2E 通过（master，2026-07-11）。手测需 migrate `0014`–`0016` + 拉取 `nomic-embed-text` embedding 模型（完整语义 RAG 需 pgvector，见 [env.md](./env.md)）。
+**验收**：184 server tests 通过；server + web type-check 通过。手测需 migrate `0015` + 拉取 `nomic-embed-text` embedding 模型。
 
 ---
 
@@ -266,7 +266,7 @@ Orchestrator：**走 Tool**，不每次请求全库扫描。
 
 | 项 | 状态 |
 |----|------|
-| `ai_conversation_summaries` 表 + migration `0015` | ✅ |
+| `ai_conversation_summaries` 表 + migration `0016` | ✅ |
 | `maybeRefreshConversationSummary`（>30 条触发） | ✅ |
 | `loadRuntimeContext` + `conversationSummary` 注入 | ✅ |
 | `summary-service` 单测 + orchestrator 单测 | ✅ |

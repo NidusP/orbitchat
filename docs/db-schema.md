@@ -408,16 +408,14 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | source_id | VARCHAR(128) | 来源 ID（如 `post` UUID 或 doc 路径 slug） |
 | owner_user_id | UUID FK → users, nullable | `post` 为发帖用户；`doc` 为 `NULL`（公开） |
 | text | TEXT | 切块正文 |
-| embedding | vector(768) | pgvector 嵌入；**无 pgvector 时列不存在**（见下方降级） |
+| embedding | vector(768) | pgvector 嵌入 |
 | created_at / updated_at | TIMESTAMPTZ | |
 
 **索引**：
 
 - `UNIQUE (source_type, source_id)` — upsert 幂等
 - `(owner_user_id)` — 按用户过滤本人帖子
-- HNSW `(embedding vector_cosine_ops)` — 余弦相似度 ANN（需 pgvector + `embedding` 列）
-
-**pgvector 降级**：Migration `0016` 在扩展不可用时仍建表但不加 `embedding` 列。索引写入失败（日志）；`rag-service` 检索时向量失败则 **ILIKE 文本回退**。恢复步骤见 [env.md](./env.md) § RAG / pgvector 降级。
+- HNSW `(embedding vector_cosine_ops)` — 余弦相似度 ANN
 
 **原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。
 
@@ -427,7 +425,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 |-----------|------|------|
 | ai_tool_calls | Agent 写操作审计 | ✅ Phase 4B |
 | user_agent_memories | 跨会话 Agent 用户记忆 | ✅ Orbit Guide M1 |
-| knowledge_chunks | RAG 向量索引（帖子 + 帮助文档） | ✅ Orbit Guide M2 Wave 3 |
+| knowledge_chunks | RAG 向量索引（帖子 + 帮助文档） | 📋 Orbit Guide M2 Wave 3 |
 | call_sessions | 通话记录 | 📋 Phase 4 |
 | storefront.* | 商品、订单 | 📋 可能独立 DB（Go 服务） |
 
