@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { CommentWithAuthor } from '@orbitchat/shared-types';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { createComment, deleteComment, getPostComments } from '@/lib/api/posts';
 import { formatRelativeTime } from '@/lib/posts-utils';
@@ -12,6 +13,8 @@ interface PostCommentsProps {
   commentCount: number;
   currentUserId: string | null;
   onCommentCountChange?: (nextCount: number) => void;
+  toggleLabel?: string;
+  hideLabel?: string;
 }
 
 export function PostComments({
@@ -20,7 +23,12 @@ export function PostComments({
   commentCount,
   currentUserId,
   onCommentCountChange,
+  toggleLabel,
+  hideLabel,
 }: PostCommentsProps) {
+  const { t } = useI18n();
+  const resolvedToggleLabel = toggleLabel ?? t('postCard.comments');
+  const resolvedHideLabel = hideLabel ?? t('postCard.hideComments');
   const [isOpen, setIsOpen] = useState(false);
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
   const [content, setContent] = useState('');
@@ -38,11 +46,11 @@ export function PostComments({
       setComments(page.items);
       setHasLoaded(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load comments.');
+      setError(err instanceof ApiError ? err.message : t('postComments.errors.load'));
     } finally {
       setIsLoading(false);
     }
-  }, [postId]);
+  }, [postId, t]);
 
   useEffect(() => {
     if (isOpen && !hasLoaded) {
@@ -66,14 +74,14 @@ export function PostComments({
       setContent('');
       onCommentCountChange?.(commentCount + 1);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to post comment.');
+      setError(err instanceof ApiError ? err.message : t('postComments.errors.post'));
     } finally {
       setIsSubmitting(false);
     }
   }
 
   async function handleDeleteComment(commentId: string) {
-    if (!window.confirm('Delete this comment?')) {
+    if (!window.confirm(t('postComments.confirmDelete'))) {
       return;
     }
 
@@ -84,7 +92,7 @@ export function PostComments({
       setComments((current) => current.filter((item) => item.id !== commentId));
       onCommentCountChange?.(Math.max(0, commentCount - 1));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to delete comment.');
+      setError(err instanceof ApiError ? err.message : t('postComments.errors.delete'));
     }
   }
 
@@ -97,7 +105,7 @@ export function PostComments({
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
       >
-        {isOpen ? 'Hide comments' : 'Comments'} ({commentCount})
+        {isOpen ? resolvedHideLabel : resolvedToggleLabel} ({commentCount})
       </button>
 
       {isOpen && (
@@ -105,7 +113,7 @@ export function PostComments({
           <form className="form comment-form" onSubmit={handleSubmit}>
             {error && <div className="alert alert-error">{error}</div>}
             <div className="field">
-              <label htmlFor={`comment-${postId}`}>Add a comment</label>
+              <label htmlFor={`comment-${postId}`}>{t('postComments.form.label')}</label>
               <textarea
                 id={`comment-${postId}`}
                 data-testid={`comment-input-${postId}`}
@@ -113,7 +121,7 @@ export function PostComments({
                 rows={2}
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                placeholder="Write a comment…"
+                placeholder={t('postComments.form.placeholder')}
               />
             </div>
             <button
@@ -122,14 +130,14 @@ export function PostComments({
               data-testid={`comment-submit-${postId}`}
               disabled={isSubmitting || content.trim() === ''}
             >
-              {isSubmitting ? 'Posting…' : 'Comment'}
+              {isSubmitting ? t('postComments.actions.posting') : t('postComments.actions.comment')}
             </button>
           </form>
 
           {isLoading ? (
-            <p className="text-muted">Loading comments…</p>
+            <p className="text-muted">{t('postComments.states.loading')}</p>
           ) : comments.length === 0 ? (
-            <p className="text-muted">No comments yet.</p>
+            <p className="text-muted">{t('postComments.states.empty')}</p>
           ) : (
             <ul className="comment-list">
               {comments.map((comment) => {
@@ -156,7 +164,7 @@ export function PostComments({
                         data-testid={`comment-delete-${comment.id}`}
                         onClick={() => void handleDeleteComment(comment.id)}
                       >
-                        Delete
+                        {t('postComments.actions.delete')}
                       </button>
                     )}
                   </div>

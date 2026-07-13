@@ -54,7 +54,7 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 
 - **同步 on-write**：帖子 `INSERT` / `UPDATE` 时立即切块（整帖一条 chunk MVP）并 upsert `knowledge_chunks`
 - 唯一键 `(source_type, source_id)` 支持幂等 upsert
-- 帮助文档：部署或启动时批量索引（Wave 3 后续任务）；表结构先就绪
+- 帮助文档：部署或启动时批量索引；**`content_hash` 未变则跳过 embed**（向量仍存 Postgres）
 - 帖子软删：后续 wave 在 `post-service` 删除 chunk；本 ADR 仅定边界
 
 ### 检索路径

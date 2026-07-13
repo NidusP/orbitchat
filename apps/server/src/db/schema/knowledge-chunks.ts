@@ -8,6 +8,7 @@ export const knowledgeChunks = pgTable(
     sourceType: varchar('source_type', { length: 16 }).notNull(),
     sourceId: varchar('source_id', { length: 255 }).notNull(),
     text: text('text').notNull(),
+    contentHash: varchar('content_hash', { length: 64 }),
     ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

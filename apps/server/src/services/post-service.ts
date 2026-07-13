@@ -4,10 +4,12 @@ import { db } from '../db';
 import { likes } from '../db/schema/likes';
 import { posts } from '../db/schema/posts';
 import { AppError } from '../lib/errors';
-import { loadAuthorSummaries, loadLikedPostIds } from '../lib/social-loaders';
+import { loadAuthorSummaries, loadLikedPostIds, loadPostMediaByPostIds } from '../lib/social-loaders';
 import { toPostWithAuthor } from '../lib/social-mappers';
 import type { CreatePostInput, UpdatePostInput } from '../schemas/posts';
 import { indexPostChunk, removePostChunk } from './ai/rag-service';
+import { createPostLikedNotification } from './notification-service';
+import { linkPostMedia } from './upload-service';
 
 async function getActivePost(postId: string) {
   const post = await db.query.posts.findFirst({
@@ -22,24 +24,33 @@ async function getActivePost(postId: string) {
 }
 
 async function toPostDto(post: typeof posts.$inferSelect, viewerId: string | null): Promise<PostWithAuthor> {
-  const authors = await loadAuthorSummaries([post.authorId]);
+  const [authors, mediaByPost, likedIds] = await Promise.all([
+    loadAuthorSummaries([post.authorId]),
+    loadPostMediaByPostIds([post.id]),
+    viewerId !== null ? loadLikedPostIds(viewerId, [post.id]) : Promise.resolve(new Set<string>()),
+  ]);
   const author = authors.get(post.authorId);
   if (!author) {
     throw new AppError('NOT_FOUND', 'Author not found', 404);
   }
 
-  const likedIds =
-    viewerId !== null ? await loadLikedPostIds(viewerId, [post.id]) : new Set<string>();
-
-  return toPostWithAuthor(post, author, viewerId !== null && likedIds.has(post.id));
+  return toPostWithAuthor(
+    post,
+    author,
+    viewerId !== null && likedIds.has(post.id),
+    mediaByPost.get(post.id) ?? []
+  );
 }
 
 export async function createPost(authorId: string, input: CreatePostInput): Promise<PostWithAuthor> {
+  const content = input.content ?? '';
+  const uploadIds = input.uploadIds ?? [];
+
   const [created] = await db
     .insert(posts)
     .values({
       authorId,
-      content: input.content,
+      content,
     })
     .returning();
 
@@ -47,9 +58,19 @@ export async function createPost(authorId: string, input: CreatePostInput): Prom
     throw new AppError('INTERNAL_ERROR', 'Failed to create post', 500);
   }
 
-  void indexPostChunk(created.id, authorId, created.content).catch(console.error);
+  const media = uploadIds.length > 0 ? await linkPostMedia(created.id, authorId, uploadIds) : [];
 
-  return toPostDto(created, authorId);
+  if (content.length > 0) {
+    void indexPostChunk(created.id, authorId, content).catch(console.error);
+  }
+
+  const authors = await loadAuthorSummaries([authorId]);
+  const author = authors.get(authorId);
+  if (!author) {
+    throw new AppError('NOT_FOUND', 'Author not found', 404);
+  }
+
+  return toPostWithAuthor(created, author, false, media);
 }
 
 export async function getPostById(postId: string, viewerId: string | null): Promise<PostWithAuthor> {
@@ -144,6 +165,10 @@ export async function likePost(postId: string, userId: string): Promise<{ liked:
       .update(posts)
       .set({ likeCount: post.likeCount + 1 })
       .where(eq(posts.id, postId));
+
+    if (userId !== post.authorId) {
+      void createPostLikedNotification(postId, userId, post.authorId).catch(console.error);
+    }
 
     return { liked: true, likeCount: post.likeCount + 1 };
   });

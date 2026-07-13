@@ -1,24 +1,27 @@
+'use client';
+
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { SiteNav } from '@/components/site-nav';
+import { useI18n } from '@/contexts/i18n-context';
 import LoginForm from './login-form';
 
 export default function LoginPage() {
+  const { t } = useI18n();
+
   return (
     <main>
-      <SiteNav />
       <header className="page-header">
-        <h1>Login</h1>
-        <p>Sign in to your Orbitchat account.</p>
+        <h1>{t('auth.loginTitle')}</h1>
+        <p>{t('auth.loginDescription')}</p>
       </header>
 
       <div className="card">
-        <Suspense fallback={<p className="text-muted">Loading…</p>}>
+        <Suspense fallback={<p className="text-muted">{t('common.loading')}</p>}>
           <LoginForm />
         </Suspense>
 
         <p className="text-muted" style={{ marginTop: 16 }}>
-          No account? <Link href="/register">Register</Link>
+          {t('auth.noAccount')} <Link href="/register">{t('auth.registerNow')}</Link>
         </p>
       </div>
     </main>

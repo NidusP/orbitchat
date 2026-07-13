@@ -1,4 +1,4 @@
-import type { CommentAuthorSummary, CommentWithAuthor, PostAuthorSummary, PostWithAuthor } from '@orbitchat/shared-types';
+import type { CommentAuthorSummary, CommentWithAuthor, PostAuthorSummary, PostMediaItem, PostWithAuthor } from '@orbitchat/shared-types';
 import type { Comment as DbComment } from '../db/schema/comments';
 import type { Post as DbPost } from '../db/schema/posts';
 
@@ -9,7 +9,8 @@ function toIsoString(date: Date): string {
 export function toPostWithAuthor(
   post: DbPost,
   author: PostAuthorSummary,
-  likedByMe: boolean
+  likedByMe: boolean,
+  media: PostMediaItem[] = []
 ): PostWithAuthor {
   return {
     id: post.id,
@@ -17,6 +18,7 @@ export function toPostWithAuthor(
     content: post.content,
     likeCount: post.likeCount,
     commentCount: post.commentCount,
+    media,
     createdAt: toIsoString(post.createdAt),
     updatedAt: toIsoString(post.updatedAt),
     author,

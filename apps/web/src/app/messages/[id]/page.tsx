@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message, MessageEditRecord, MessageRecall } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import {
   deleteMessage,
@@ -80,6 +80,7 @@ export default function ConversationPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { subscribe, sendTyping, isConnected } = useChatWs();
+  const { t } = useI18n();
 
   const [conversation, setConversation] = useState<Awaited<ReturnType<typeof getConversation>> | null>(
     null
@@ -93,6 +94,9 @@ export default function ConversationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isRetryingSend, setIsRetryingSend] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [historyMessageId, setHistoryMessageId] = useState<string | null>(null);
@@ -100,6 +104,7 @@ export default function ConversationPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [hasConnectedOnce, setHasConnectedOnce] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -108,13 +113,26 @@ export default function ConversationPage() {
 
   const headerTitle = useMemo(() => {
     if (!conversation || !user) {
-      return 'Chat';
+      return t('messages.conversation.headerFallback');
     }
     return getConversationDisplayName(conversation, user.id);
-  }, [conversation, user]);
+  }, [conversation, t, user]);
+
+  const otherParticipant = useMemo(() => {
+    if (!conversation || conversation.type !== 'direct') {
+      return null;
+    }
+    return conversation.participants.find((participant) => participant.id !== user?.id) ?? null;
+  }, [conversation, user?.id]);
 
   const memberCount =
     conversation?.type === 'group' ? conversation.participants.length : null;
+
+  const connectionStatusLabel = !isConnected
+    ? hasConnectedOnce
+      ? t('messages.connection.disconnectedReconnecting')
+      : t('messages.connection.connecting')
+    : null;
 
   const timeline = useMemo(() => buildTimeline(messages, recalls), [messages, recalls]);
 
@@ -132,11 +150,11 @@ export default function ConversationPage() {
       setNextCursor(messagePage.nextCursor);
       await markConversationRead(conversationId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load conversation.');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadConversation'));
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -155,6 +173,12 @@ export default function ConversationPage() {
     const timer = setInterval(() => setNowMs(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (isConnected) {
+      setHasConnectedOnce(true);
+    }
+  }, [isConnected]);
 
   useEffect(() => {
     return subscribe((event) => {
@@ -271,7 +295,7 @@ export default function ConversationPage() {
         }
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load older messages.');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadOlder'));
     } finally {
       setIsLoadingMore(false);
     }
@@ -280,21 +304,48 @@ export default function ConversationPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = draft.trim();
-    if (!content || isSending) {
+    if (!content || isSending || isRetryingSend) {
       return;
     }
 
     setIsSending(true);
     setError(null);
+    setSendError(null);
     stopTyping();
     try {
       const message = await sendMessage(conversationId, { content });
       setMessages((current) => mergeMessages(current, [message]));
       setDraft('');
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to send message.');
+      setLastFailedContent(null);
+    } catch {
+      setSendError(t('messages.errors.send'));
+      setLastFailedContent(content);
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function handleRetrySend(): Promise<void> {
+    if (!lastFailedContent || isSending || isRetryingSend) {
+      return;
+    }
+
+    const retryContent = lastFailedContent;
+    setIsRetryingSend(true);
+    setError(null);
+    setSendError(null);
+    stopTyping();
+    try {
+      const message = await sendMessage(conversationId, { content: retryContent });
+      setMessages((current) => mergeMessages(current, [message]));
+      setDraft((currentDraft) =>
+        currentDraft.trim() === retryContent ? '' : currentDraft
+      );
+      setLastFailedContent(null);
+    } catch {
+      setSendError(t('messages.errors.send'));
+    } finally {
+      setIsRetryingSend(false);
     }
   }
 
@@ -303,7 +354,7 @@ export default function ConversationPage() {
       return;
     }
 
-    if (!window.confirm('Withdraw this message?')) {
+    if (!window.confirm(t('messages.confirm.recall'))) {
       return;
     }
 
@@ -312,7 +363,7 @@ export default function ConversationPage() {
     try {
       await deleteMessage(conversationId, messageId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to recall message.');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.recall'));
     } finally {
       setActionMessageId(null);
     }
@@ -324,7 +375,7 @@ export default function ConversationPage() {
       return;
     }
     if (content === originalContent) {
-      setError('Message content is unchanged.');
+      setError(t('messages.errors.editUnchanged'));
       return;
     }
 
@@ -336,7 +387,7 @@ export default function ConversationPage() {
       setEditingMessageId(null);
       setEditDraft('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to edit message.');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.edit'));
     } finally {
       setActionMessageId(null);
     }
@@ -350,7 +401,7 @@ export default function ConversationPage() {
       const history = await listMessageEdits(conversationId, messageId);
       setEditHistory(history);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load edit history.');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadEditHistory'));
       setHistoryMessageId(null);
     } finally {
       setIsLoadingHistory(false);
@@ -360,8 +411,10 @@ export default function ConversationPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <div className="chat-loading-state">
+          <p className="text-muted">{t('messages.loading')}</p>
+          <div className="chat-loading-skeleton" aria-hidden="true" />
+        </div>
       </main>
     );
   }
@@ -369,10 +422,9 @@ export default function ConversationPage() {
   if (!conversation) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <div className="alert alert-error">{error ?? 'Conversation not found.'}</div>
+        <div className="alert alert-error">{error ?? t('messages.notFound')}</div>
         <p style={{ marginTop: 16 }}>
-          <Link href="/messages">Back to messages</Link>
+          <Link href="/messages">{t('messages.backToList')}</Link>
         </p>
       </main>
     );
@@ -383,33 +435,37 @@ export default function ConversationPage() {
       <span hidden data-testid="chat-ws-connected">
         {isConnected ? 'yes' : 'no'}
       </span>
-      <SiteNav />
-      <header className="page-header section-header">
-        <div>
+      <header className="chat-conversation-header">
+        <Link href="/messages" className="chat-conversation-back">
+          {t('messages.backLabel')}
+        </Link>
+        <div className="chat-conversation-title-block">
           <h1>{headerTitle}</h1>
           {conversation.type === 'group' ? (
-            <p className="text-muted">{memberCount} members</p>
-          ) : (
-            (() => {
-              const other = conversation.participants.find((p) => p.id !== user?.id);
-              return other ? <p className="text-muted">@{other.username}</p> : null;
-            })()
-          )}
+            <p className="text-muted">{t('messages.memberCount', { count: memberCount ?? 0 })}</p>
+          ) : otherParticipant ? (
+            <p className="text-muted">@{otherParticipant.username}</p>
+          ) : null}
         </div>
-        {conversation.type === 'group' ? (
-          <Link href={`/messages/${conversationId}/settings`} className="btn btn-secondary btn-sm">
-            Settings
-          </Link>
-        ) : (
-          (() => {
-            const other = conversation.participants.find((p) => p.id !== user?.id);
-            return other ? (
-              <Link href={`/users/${other.id}`} className="btn btn-secondary btn-sm">
-                Profile
-              </Link>
-            ) : null;
-          })()
-        )}
+        <div className="chat-conversation-actions">
+          {connectionStatusLabel ? (
+            <span className="chat-connection-status">{connectionStatusLabel}</span>
+          ) : (
+            <span
+              className="chat-connection-status chat-connection-status-online"
+              title={t('messages.connection.okTitle')}
+            />
+          )}
+          {conversation.type === 'group' ? (
+            <Link href={`/messages/${conversationId}/settings`} className="btn btn-secondary btn-sm">
+              {t('messages.groupSettings')}
+            </Link>
+          ) : otherParticipant ? (
+            <Link href={`/users/${otherParticipant.id}`} className="btn btn-secondary btn-sm">
+              {t('messages.profile')}
+            </Link>
+          ) : null}
+        </div>
       </header>
 
       {error && (
@@ -427,20 +483,20 @@ export default function ConversationPage() {
               disabled={isLoadingMore}
               onClick={() => void handleLoadMore()}
             >
-              {isLoadingMore ? 'Loading…' : 'Load older messages'}
+              {isLoadingMore ? t('messages.loading') : t('messages.loadMore')}
             </button>
           </div>
         )}
 
         <div className="chat-messages" ref={listRef}>
           {timeline.length === 0 ? (
-            <p className="text-muted chat-empty">Say hello to start the conversation.</p>
+            <p className="text-muted chat-empty">{t('messages.empty')}</p>
           ) : (
             timeline.map((item) => {
               if (item.kind === 'recall') {
                 return (
                   <p key={`recall-${item.recall.id}`} className="chat-system-notice">
-                    {item.recall.recalledBy.displayName} withdrew a message
+                    {t('messages.systemRecalled', { name: item.recall.recalledBy.displayName })}
                   </p>
                 );
               }
@@ -475,7 +531,7 @@ export default function ConversationPage() {
                             }
                             onClick={() => void handleSaveEdit(message.id, message.content)}
                           >
-                            Save
+                            {t('messages.actions.save')}
                           </button>
                           <button
                             type="button"
@@ -485,7 +541,7 @@ export default function ConversationPage() {
                               setEditDraft('');
                             }}
                           >
-                            Cancel
+                            {t('messages.actions.cancel')}
                           </button>
                         </div>
                       </div>
@@ -502,7 +558,7 @@ export default function ConversationPage() {
                               className="chat-edited-label"
                               onClick={() => void handleShowEditHistory(message.id)}
                             >
-                              Edited
+                              {t('messages.edited')}
                             </button>
                           )}
                         </div>
@@ -520,7 +576,7 @@ export default function ConversationPage() {
                               setEditDraft(message.content);
                             }}
                           >
-                            Edit
+                            {t('messages.actions.edit')}
                           </button>
                         )}
                         {showRecall && (
@@ -530,7 +586,7 @@ export default function ConversationPage() {
                             disabled={actionMessageId === message.id}
                             onClick={() => void handleRecall(message.id)}
                           >
-                            Recall
+                            {t('messages.actions.recall')}
                           </button>
                         )}
                       </div>
@@ -545,8 +601,22 @@ export default function ConversationPage() {
 
         {typingLabel && (
           <p className="chat-typing-indicator" data-testid="chat-typing-indicator" aria-live="polite">
-            {typingLabel} is typing…
+            {t('messages.typing', { name: typingLabel })}
           </p>
+        )}
+
+        {sendError && (
+          <div className="chat-send-error" role="alert">
+            <span>{sendError}</span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={!lastFailedContent || isRetryingSend || isSending}
+              onClick={() => void handleRetrySend()}
+            >
+              {isRetryingSend ? t('messages.actions.retrying') : t('messages.actions.retry')}
+            </button>
+          </div>
         )}
 
         <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
@@ -554,7 +624,7 @@ export default function ConversationPage() {
             className="chat-input"
             rows={2}
             value={draft}
-            placeholder="Write a message…"
+            placeholder={t('messages.inputPlaceholder')}
             onChange={(event) => {
               setDraft(event.target.value);
               notifyTyping();
@@ -567,8 +637,12 @@ export default function ConversationPage() {
               }
             }}
           />
-          <button type="submit" className="btn btn-primary" disabled={isSending || !draft.trim()}>
-            {isSending ? 'Sending…' : 'Send'}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSending || isRetryingSend || !draft.trim()}
+          >
+            {isSending ? t('messages.actions.sending') : t('messages.actions.send')}
           </button>
         </form>
       </div>
@@ -577,7 +651,7 @@ export default function ConversationPage() {
         <div className="chat-history-overlay" role="dialog" aria-modal="true">
           <div className="card chat-history-panel">
             <header className="section-header">
-              <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Edit history</h2>
+              <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('messages.editHistory.title')}</h2>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -586,13 +660,13 @@ export default function ConversationPage() {
                   setEditHistory([]);
                 }}
               >
-                Close
+                {t('messages.actions.close')}
               </button>
             </header>
             {isLoadingHistory ? (
-              <p className="text-muted">Loading…</p>
+              <p className="text-muted">{t('messages.historyLoading')}</p>
             ) : editHistory.length === 0 ? (
-              <p className="text-muted">No edit history.</p>
+              <p className="text-muted">{t('messages.editHistory.empty')}</p>
             ) : (
               <ul className="chat-history-list">
                 {editHistory.map((entry) => (
@@ -606,10 +680,6 @@ export default function ConversationPage() {
           </div>
         </div>
       )}
-
-      <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/messages">Back to messages</Link>
-      </p>
     </main>
   );
 }

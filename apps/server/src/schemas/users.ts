@@ -34,12 +34,18 @@ export const updateProfileSchema = z
       .optional(),
     bio: z.string().max(500, 'Bio must be at most 500 characters').nullable().optional(),
     avatarUrl: z.string().url('Invalid avatar URL').max(512).nullable().optional(),
+    avatarUploadId: z.string().uuid('Invalid avatar upload id').optional(),
+  })
+  .refine((data) => data.avatarUrl === undefined || data.avatarUploadId === undefined, {
+    message: 'avatarUrl and avatarUploadId are mutually exclusive',
+    path: ['avatarUploadId'],
   })
   .refine(
     (data) =>
       data.displayName !== undefined ||
       data.bio !== undefined ||
-      data.avatarUrl !== undefined,
+      data.avatarUrl !== undefined ||
+      data.avatarUploadId !== undefined,
     {
       message: 'At least one field is required',
     }

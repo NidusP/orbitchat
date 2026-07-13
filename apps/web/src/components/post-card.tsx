@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import type { PostWithAuthor } from '@orbitchat/shared-types';
+import type { PostMediaItem, PostWithAuthor } from '@orbitchat/shared-types';
 import { PostComments } from '@/components/post-comments';
+import { UserAvatar } from '@/components/ui/user-avatar';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
+import { resolveMediaUrl } from '@/lib/media-url';
 import { deletePost, updatePost } from '@/lib/api/posts';
 import { formatRelativeTime } from '@/lib/posts-utils';
 
@@ -18,6 +21,38 @@ interface PostCardProps {
   likePending?: boolean;
 }
 
+function PostMediaGrid({ media }: { media: PostMediaItem[] }) {
+  const { t } = useI18n();
+
+  if (media.length === 0) {
+    return null;
+  }
+
+  const sortedMedia = [...media].sort((a, b) => a.sortOrder - b.sortOrder);
+  const gridClass =
+    sortedMedia.length === 1 ? 'post-media-grid-1' : `post-media-grid-${Math.min(sortedMedia.length, 4)}`;
+
+  return (
+    <div className={`post-media-grid ${gridClass}`} data-testid="post-media-grid">
+      {sortedMedia.map((item, index) => (
+        <a
+          key={item.id}
+          className="post-media-item"
+          href={resolveMediaUrl(item.url)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <img
+            src={resolveMediaUrl(item.url)}
+            alt={t('postCard.mediaAlt', { index: index + 1 })}
+            loading="lazy"
+          />
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function PostCard({
   post,
   currentUserId,
@@ -27,12 +62,14 @@ export function PostCard({
   onPostDeleted,
   likePending = false,
 }: PostCardProps) {
+  const { t } = useI18n();
   const isAuthor = currentUserId !== null && post.authorId === currentUserId;
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [manageError, setManageError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const hasContent = post.content.trim().length > 0;
 
   async function handleSaveEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,14 +86,14 @@ export function PostCard({
       onPostUpdated?.(updated);
       setIsEditing(false);
     } catch (err) {
-      setManageError(err instanceof ApiError ? err.message : 'Failed to update post.');
+      setManageError(err instanceof ApiError ? err.message : t('postCard.errors.update'));
     } finally {
       setIsSaving(false);
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm('Delete this post?')) {
+    if (!window.confirm(t('postCard.confirmDelete'))) {
       return;
     }
 
@@ -67,7 +104,7 @@ export function PostCard({
       await deletePost(post.id);
       onPostDeleted?.(post.id);
     } catch (err) {
-      setManageError(err instanceof ApiError ? err.message : 'Failed to delete post.');
+      setManageError(err instanceof ApiError ? err.message : t('postCard.errors.delete'));
       setIsDeleting(false);
     }
   }
@@ -76,8 +113,16 @@ export function PostCard({
     <article className="post-card" data-testid={`feed-post-${post.id}`}>
       <header className="post-card-header">
         <Link href={`/users/${post.author.id}`} className="post-author-link">
-          <strong>{post.author.displayName}</strong>
-          <span className="text-muted"> @{post.author.username}</span>
+          <UserAvatar
+            displayName={post.author.displayName}
+            userId={post.author.id}
+            avatarUrl={post.author.avatarUrl}
+            size="sm"
+          />
+          <span className="post-author-meta">
+            <strong>{post.author.displayName}</strong>
+            <span className="text-muted"> @{post.author.username}</span>
+          </span>
         </Link>
         <time className="text-muted" dateTime={post.createdAt}>
           {formatRelativeTime(post.createdAt)}
@@ -89,7 +134,7 @@ export function PostCard({
       {isEditing ? (
         <form className="form" onSubmit={handleSaveEdit}>
           <div className="field">
-            <label htmlFor={`edit-post-${post.id}`}>Edit post</label>
+            <label htmlFor={`edit-post-${post.id}`}>{t('postCard.editLabel')}</label>
             <textarea
               id={`edit-post-${post.id}`}
               data-testid={`post-edit-input-${post.id}`}
@@ -106,7 +151,7 @@ export function PostCard({
               data-testid={`post-edit-save-${post.id}`}
               disabled={isSaving || editContent.trim() === ''}
             >
-              {isSaving ? 'Saving…' : 'Save'}
+              {isSaving ? t('postCard.actions.saving') : t('postCard.actions.save')}
             </button>
             <button
               type="button"
@@ -117,14 +162,19 @@ export function PostCard({
                 setManageError(null);
               }}
             >
-              Cancel
+              {t('postCard.actions.cancel')}
             </button>
           </div>
         </form>
       ) : (
-        <p className="post-content" data-testid={`post-content-${post.id}`}>
-          {post.content}
-        </p>
+        <>
+          {hasContent && (
+            <p className="post-content" data-testid={`post-content-${post.id}`}>
+              {post.content}
+            </p>
+          )}
+          <PostMediaGrid media={post.media} />
+        </>
       )}
 
       {isAuthor && !isEditing && (
@@ -135,7 +185,7 @@ export function PostCard({
             data-testid={`post-edit-${post.id}`}
             onClick={() => setIsEditing(true)}
           >
-            Edit
+            {t('postCard.actions.edit')}
           </button>
           <button
             type="button"
@@ -144,7 +194,7 @@ export function PostCard({
             disabled={isDeleting}
             onClick={() => void handleDelete()}
           >
-            {isDeleting ? 'Deleting…' : 'Delete'}
+            {isDeleting ? t('postCard.actions.deleting') : t('postCard.actions.delete')}
           </button>
         </div>
       )}
@@ -157,7 +207,7 @@ export function PostCard({
           disabled={likePending}
           onClick={() => onToggleLike(post.id, post.likedByMe)}
         >
-          {post.likedByMe ? '♥ Liked' : '♡ Like'} ({post.likeCount})
+          {post.likedByMe ? t('postCard.actions.liked') : t('postCard.actions.like')} ({post.likeCount})
         </button>
         <PostComments
           postId={post.id}
@@ -165,6 +215,8 @@ export function PostCard({
           commentCount={post.commentCount}
           currentUserId={currentUserId}
           onCommentCountChange={(count) => onCommentCountChange?.(post.id, count)}
+          toggleLabel={t('postCard.comments')}
+          hideLabel={t('postCard.hideComments')}
         />
       </footer>
     </article>

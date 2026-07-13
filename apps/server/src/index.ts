@@ -7,6 +7,7 @@ import { registerChatWs } from './realtime/chat-ws';
 import { v1Router } from './routes/v1';
 import { ensureBuiltinAgents } from './services/ai/conversation-service';
 import { ensureHelpDocsIndexed } from './services/ai/rag-service';
+import { ensureBucketOnStartup } from './services/storage-service';
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -60,10 +61,11 @@ console.log(`✅ Server running at http://localhost:${server.port}`);
 void (async () => {
   try {
     await ensureBuiltinAgents();
+    await ensureBucketOnStartup();
     if (env.RAG_ENABLED) {
       await ensureHelpDocsIndexed();
     }
   } catch (error: unknown) {
-    console.error('[startup] agent seed or help-doc index failed:', error);
+    console.error('[startup] agent seed, storage, or help-doc index failed:', error);
   }
 })();

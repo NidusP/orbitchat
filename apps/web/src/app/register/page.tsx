@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { isValidPassword } from '@orbitchat/shared-utils';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register, login } = useAuth();
+  const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +26,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     if (!isValidPassword(password)) {
-      setError('Password must be at least 8 characters and include uppercase, lowercase, and a number.');
+      setError(t('auth.passwordPolicyError'));
       setIsSubmitting(false);
       return;
     }
@@ -45,9 +46,13 @@ export default function RegisterPage() {
       router.push('/profile');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(
+          err.message
+            ? t('auth.registerFailedPrefix', { message: err.message })
+            : t('auth.registerFailedInvalid')
+        );
       } else {
-        setError('Registration failed. Please try again.');
+        setError(t('auth.registerFailedRetry'));
       }
     } finally {
       setIsSubmitting(false);
@@ -56,10 +61,9 @@ export default function RegisterPage() {
 
   return (
     <main>
-      <SiteNav />
       <header className="page-header">
-        <h1>Register</h1>
-        <p>Create a new Orbitchat account.</p>
+        <h1>{t('auth.registerTitle')}</h1>
+        <p>{t('auth.registerDescription')}</p>
       </header>
 
       <div className="card">
@@ -67,7 +71,7 @@ export default function RegisterPage() {
           {error && <div className="alert alert-error">{error}</div>}
 
           <div className="field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               id="username"
               type="text"
@@ -82,7 +86,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="displayName">Display name</label>
+            <label htmlFor="displayName">{t('auth.displayName')}</label>
             <input
               id="displayName"
               type="text"
@@ -94,7 +98,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('auth.email')}</label>
             <input
               id="email"
               type="email"
@@ -106,7 +110,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               id="password"
               type="password"
@@ -117,8 +121,7 @@ export default function RegisterPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
             <span className="text-muted">
-              At least 8 characters with an uppercase letter, a lowercase letter, and a number (e.g.
-              Password123).
+              {t('auth.passwordHint')}
             </span>
           </div>
 
@@ -128,16 +131,16 @@ export default function RegisterPage() {
               checked={trustDevice}
               onChange={(event) => setTrustDevice(event.target.checked)}
             />
-            Trust this device
+            {t('auth.trustDevice')}
           </label>
 
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating account…' : 'Create account'}
+            {isSubmitting ? t('auth.creatingAccount') : t('auth.createAccount')}
           </button>
         </form>
 
         <p className="text-muted" style={{ marginTop: 16 }}>
-          Already have an account? <Link href="/login">Login</Link>
+          {t('auth.hasAccount')} <Link href="/login">{t('auth.goLogin')}</Link>
         </p>
       </div>
     </main>

@@ -4,18 +4,24 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { Conversation } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ConversationListSkeleton } from '@/components/ui/skeleton';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
-import { ApiError } from '@/lib/api/errors';
-import { getConversationDisplayName, listConversations } from '@/lib/api/conversations';
+import { useI18n } from '@/contexts/i18n-context';
+import {
+  getConversationDisplayName,
+  getOtherParticipant,
+  listConversations,
+} from '@/lib/api/conversations';
 
 function previewContent(content: string, max = 72): string {
   const trimmed = content.trim();
   return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
 }
 
-function formatListTime(iso: string | null): string {
+function formatListTime(iso: string | null, locale: 'zh' | 'en'): string {
   if (!iso) {
     return '';
   }
@@ -25,9 +31,10 @@ function formatListTime(iso: string | null): string {
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
+  const localeTag = locale === 'zh' ? 'zh-CN' : 'en-US';
   return sameDay
-    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleDateString();
+    ? date.toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString(localeTag);
 }
 
 function sortConversations(items: Conversation[]): Conversation[] {
@@ -56,6 +63,7 @@ export default function MessagesPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { subscribe } = useChatWs();
+  const { locale, t } = useI18n();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,12 +74,12 @@ export default function MessagesPage() {
     try {
       const page = await listConversations({ limit: 50 });
       setConversations(sortConversations(page.items));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load conversations.');
+    } catch {
+      setError(t('messagesList.loadFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -121,62 +129,90 @@ export default function MessagesPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <header className="page-header section-header">
+          <h1>{t('messagesList.title')}</h1>
+        </header>
+        <ConversationListSkeleton count={4} />
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
-        <h1>Messages</h1>
+        <h1>{t('messagesList.title')}</h1>
         <Link href="/messages/new-group" className="btn btn-primary">
-          New group
+          {t('messagesList.createGroup')}
         </Link>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
 
       {conversations.length === 0 ? (
-        <div className="card empty-state">
-          <p className="text-muted">No conversations yet.</p>
-          <p className="text-muted">
-            Visit a user profile and click <strong>Message</strong> to start chatting.
-          </p>
-          <Link href="/search" className="btn btn-primary" style={{ marginTop: 12 }}>
-            Find people
+        <EmptyState
+          title={t('messagesList.emptyTitle')}
+          description={t('messagesList.emptyDescription')}
+          actionLabel={t('messagesList.startDm')}
+          href="/search"
+        >
+          <Link href="/messages/new-group" className="btn btn-secondary">
+            {t('messagesList.createGroup')}
           </Link>
-        </div>
+        </EmptyState>
       ) : (
         <ul className="conversation-list">
           {conversations.map((conversation) => {
             const title = user
               ? getConversationDisplayName(conversation, user.id)
-              : 'Conversation';
-            const preview = conversation.lastMessage?.content ?? 'No messages yet';
+              : t('messagesList.fallbackTitle');
+            const otherParticipant = user ? getOtherParticipant(conversation, user.id) : null;
+            const avatarDisplayName =
+              conversation.type === 'group'
+                ? conversation.title?.trim() || t('messagesList.fallbackGroupName')
+                : otherParticipant?.displayName ?? title;
+            const avatarUserId =
+              conversation.type === 'group'
+                ? conversation.id
+                : otherParticipant?.id ?? conversation.id;
+            const avatarUrl =
+              conversation.type === 'group'
+                ? null
+                : otherParticipant?.avatarUrl ?? null;
+            const preview = conversation.lastMessage?.content ?? t('messagesList.noMessagesYet');
             const memberHint =
               conversation.type === 'group'
-                ? `${conversation.participants.length} members`
+                ? t('messagesList.members', { count: conversation.participants.length })
                 : null;
 
             return (
               <li key={conversation.id}>
-                <Link href={`/messages/${conversation.id}`} className="conversation-list-item">
-                  <div className="conversation-list-main">
-                    <span className="conversation-list-title">{title}</span>
-                    <span className="conversation-list-time">
-                      {formatListTime(conversation.lastMessageAt)}
-                    </span>
-                  </div>
-                  <div className="conversation-list-preview-row">
-                    <span className="conversation-list-preview">
-                      {memberHint ? `${memberHint} · ${previewContent(preview)}` : previewContent(preview)}
-                    </span>
-                    {conversation.unreadCount > 0 && (
-                      <span className="conversation-unread-badge">{conversation.unreadCount}</span>
-                    )}
+                <Link
+                  href={`/messages/${conversation.id}`}
+                  className="conversation-list-item conversation-list-item-with-avatar"
+                >
+                  <UserAvatar
+                    displayName={avatarDisplayName}
+                    userId={avatarUserId}
+                    avatarUrl={avatarUrl}
+                    size="md"
+                  />
+                  <div className="conversation-list-content">
+                    <div className="conversation-list-main">
+                      <span className="conversation-list-title">{title}</span>
+                      <span className="conversation-list-time">
+                        {formatListTime(conversation.lastMessageAt, locale)}
+                      </span>
+                    </div>
+                    <div className="conversation-list-preview-row">
+                      <span className="conversation-list-preview">
+                        {memberHint
+                          ? `${memberHint} · ${previewContent(preview)}`
+                          : previewContent(preview)}
+                      </span>
+                      {conversation.unreadCount > 0 && (
+                        <span className="conversation-unread-badge">{conversation.unreadCount}</span>
+                      )}
+                    </div>
                   </div>
                 </Link>
               </li>

@@ -8,6 +8,7 @@ const samplePost = (id: string, createdAt: string): PostWithAuthor => ({
   content: 'hello',
   likeCount: 1,
   commentCount: 0,
+  media: [],
   createdAt,
   updatedAt: createdAt,
   likedByMe: false,

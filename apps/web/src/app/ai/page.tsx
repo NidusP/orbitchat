@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Agent, AiConversation, AiMessage, AiSseEvent, AiToolCall } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { parseTicTacToeToolContent, TicTacToeBoard } from '@/components/tic-tac-toe-board';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import {
   createAiConversation,
   approveAiToolCall,
@@ -19,12 +19,23 @@ import {
   sortAiMessages,
 } from '@/lib/api/ai';
 import { ApiError } from '@/lib/api/errors';
+import type { I18nKey, MessageValues } from '@/lib/i18n';
 import {
   buildCitationsByAssistantMessage,
   countToolOutputItems,
   formatAiError,
   formatToolMessageContent,
+  resolveAgentDisplayName,
 } from '@/lib/ai-agent-ui';
+
+const AI_SUGGESTION_KEYS = [
+  'ai.suggestion.memoryLatte',
+  'ai.suggestion.recentPosts',
+  'ai.suggestion.weekendPost',
+  'ai.suggestion.ticTacToe',
+] as const satisfies readonly I18nKey[];
+
+type TranslateFn = (key: I18nKey, values?: MessageValues) => string;
 
 function createLocalMessage(input: {
   conversationId: string;
@@ -50,10 +61,6 @@ function mergeAiMessages(current: AiMessage[], incoming: AiMessage[]): AiMessage
   return sortAiMessages([...map.values()]);
 }
 
-function getConversationTitle(conversation: AiConversation, agent: Agent | undefined): string {
-  return conversation.title ?? `${agent?.name ?? 'Agent'} chat`;
-}
-
 function isAiToolCall(value: unknown): value is AiToolCall {
   return (
     typeof value === 'object' &&
@@ -76,14 +83,14 @@ function extractToolCall(output: unknown): AiToolCall | null {
   return isAiToolCall(toolCall) ? toolCall : null;
 }
 
-function formatCaughtAiError(err: unknown): string {
+function formatCaughtAiError(err: unknown, t: TranslateFn): string {
   if (err instanceof ApiError) {
     return formatAiError(err.code, err.message);
   }
-  return '发送失败，请稍后重试。';
+  return t('ai.errors.sendFailed');
 }
 
-function describeToolCall(toolCall: AiToolCall): string {
+function describeToolCall(toolCall: AiToolCall, t: TranslateFn): string {
   const input =
     typeof toolCall.input === 'object' && toolCall.input !== null ? toolCall.input : {};
 
@@ -92,92 +99,126 @@ function describeToolCall(toolCall: AiToolCall): string {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : 'unknown';
+          : t('ai.toolCall.describe.unknownUser');
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Send DM to @${targetUsername}: ${content}`;
+      return t('ai.toolCall.describe.sendDm', {
+        targetUsername,
+        contentSuffix: content ? `: ${content}` : '',
+      });
     }
     case 'create_post': {
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Create post: ${content}`;
+      return content
+        ? t('ai.toolCall.describe.createPost', { content })
+        : t('ai.toolCall.describe.createPostNoContent');
     }
     case 'follow_user':
     case 'unfollow_user': {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : 'unknown';
-      const action = toolCall.toolName === 'follow_user' ? 'Follow' : 'Unfollow';
-      return `${action} @${targetUsername}`;
+          : t('ai.toolCall.describe.unknownUser');
+      if (toolCall.toolName === 'follow_user') {
+        return t('ai.toolCall.describe.follow', { targetUsername });
+      }
+      return t('ai.toolCall.describe.unfollow', { targetUsername });
     }
     case 'remember_fact': {
-      const kind = 'kind' in input && typeof input.kind === 'string' ? input.kind : 'fact';
+      const kind =
+        'kind' in input && typeof input.kind === 'string'
+          ? input.kind
+          : t('ai.toolCall.describe.rememberKindDefault');
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `Remember ${kind}: ${content}`;
+      return t('ai.toolCall.describe.rememberFact', { kind, content });
     }
     default:
-      return `${toolCall.toolName} (${toolCall.status})`;
+      return t('ai.toolCall.describe.default', { toolName: toolCall.toolName });
   }
 }
 
-function describeRunningTool(toolName: string): string {
-  switch (toolName) {
-    case 'search_contact':
-      return 'Searching contacts…';
-    case 'get_my_profile':
-      return 'Loading your profile…';
-    case 'list_my_recent_posts':
-      return 'Loading your recent posts…';
-    case 'search_my_posts':
-      return 'Searching your posts…';
-    case 'search_help_docs':
-      return 'Searching help docs…';
-    case 'get_user_profile':
-      return 'Loading user profile…';
-    case 'list_user_recent_posts':
-      return 'Loading user posts…';
-    case 'play_tictactoe':
-      return 'Updating tic-tac-toe game…';
-    case 'send_dm':
-      return 'Preparing direct message…';
-    case 'create_post':
-      return 'Preparing post…';
-    case 'follow_user':
-      return 'Preparing follow action…';
-    case 'unfollow_user':
-      return 'Preparing unfollow action…';
-    case 'remember_fact':
-      return 'Preparing memory…';
-    default:
-      return `Running ${toolName}…`;
-  }
-}
-
-function executedToolMessage(toolCall: AiToolCall): string {
+function getToolCallApprovalTitle(toolCall: AiToolCall, t: TranslateFn): string {
   switch (toolCall.toolName) {
     case 'send_dm':
-      return 'Direct message sent successfully.';
+      return t('ai.toolCall.approval.send_dm');
     case 'create_post':
-      return 'Post published successfully.';
+      return t('ai.toolCall.approval.create_post');
     case 'follow_user':
-      return 'Followed user successfully.';
+      return t('ai.toolCall.approval.follow_user');
     case 'unfollow_user':
-      return 'Unfollowed user successfully.';
+      return t('ai.toolCall.approval.unfollow_user');
     case 'remember_fact':
-      return 'Memory saved successfully.';
-    case 'search_my_posts':
-      return `搜索你的帖子：找到 ${countToolOutputItems(toolCall.output)} 条结果`;
-    case 'search_help_docs':
-      return `搜索帮助文档：找到 ${countToolOutputItems(toolCall.output)} 条结果`;
-    case 'list_my_recent_posts':
-      return `最近帖子：共 ${countToolOutputItems(toolCall.output)} 条`;
+      return t('ai.toolCall.approval.remember_fact');
     default:
-      return `${toolCall.toolName} executed successfully.`;
+      return t('ai.toolCall.approval.default');
+  }
+}
+
+function describeRunningTool(toolName: string, t: TranslateFn): string {
+  switch (toolName) {
+    case 'search_contact':
+      return t('ai.toolCall.running.search_contact');
+    case 'get_my_profile':
+      return t('ai.toolCall.running.get_my_profile');
+    case 'list_my_recent_posts':
+      return t('ai.toolCall.running.list_my_recent_posts');
+    case 'search_my_posts':
+      return t('ai.toolCall.running.search_my_posts');
+    case 'search_help_docs':
+      return t('ai.toolCall.running.search_help_docs');
+    case 'get_user_profile':
+      return t('ai.toolCall.running.get_user_profile');
+    case 'list_user_recent_posts':
+      return t('ai.toolCall.running.list_user_recent_posts');
+    case 'play_tictactoe':
+      return t('ai.toolCall.running.play_tictactoe');
+    case 'send_dm':
+      return t('ai.toolCall.running.send_dm');
+    case 'create_post':
+      return t('ai.toolCall.running.create_post');
+    case 'follow_user':
+      return t('ai.toolCall.running.follow_user');
+    case 'unfollow_user':
+      return t('ai.toolCall.running.unfollow_user');
+    case 'remember_fact':
+      return t('ai.toolCall.running.remember_fact');
+    default:
+      return t('ai.toolCall.running.default', { toolName });
+  }
+}
+
+function executedToolMessage(toolCall: AiToolCall, t: TranslateFn): string {
+  switch (toolCall.toolName) {
+    case 'send_dm':
+      return t('ai.toolCall.executed.send_dm');
+    case 'create_post':
+      return t('ai.toolCall.executed.create_post');
+    case 'follow_user':
+      return t('ai.toolCall.executed.follow_user');
+    case 'unfollow_user':
+      return t('ai.toolCall.executed.unfollow_user');
+    case 'remember_fact':
+      return t('ai.toolCall.executed.remember_fact');
+    case 'search_my_posts':
+      return t('ai.toolCall.executed.search_my_posts', {
+        count: countToolOutputItems(toolCall.output),
+      });
+    case 'search_help_docs':
+      return t('ai.toolCall.executed.search_help_docs', {
+        count: countToolOutputItems(toolCall.output),
+      });
+    case 'list_my_recent_posts':
+      return t('ai.toolCall.executed.list_my_recent_posts', {
+        count: countToolOutputItems(toolCall.output),
+      });
+    default:
+      return t('ai.toolCall.executed.default');
   }
 }
 
 export default function AiPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [conversations, setConversations] = useState<AiConversation[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -192,26 +233,20 @@ export default function AiPage() {
   const [isThinking, setIsThinking] = useState(false);
   const [toolRunningStatus, setToolRunningStatus] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
-
-  const selectedConversation = useMemo(
-    () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? null,
-    [conversations, selectedConversationId]
-  );
 
   const agentsById = useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
     [agents]
   );
 
-  const selectedAgent = selectedConversation
-    ? agentsById.get(selectedConversation.agentId)
-    : agentsById.get(selectedAgentId);
-
   const citationsByAssistantId = useMemo(
     () => buildCitationsByAssistantMessage(messages),
     [messages]
   );
+
+  const suggestionChips = useMemo(() => AI_SUGGESTION_KEYS.map((key) => t(key)), [t]);
 
   const loadInitial = useCallback(async () => {
     setIsLoadingPage(true);
@@ -226,11 +261,11 @@ export default function AiPage() {
       setConversations(conversationPage.items);
       setSelectedConversationId(conversationPage.items[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load AI chat.');
+      setError(err instanceof ApiError ? err.message : t('ai.errors.pageLoadFailed'));
     } finally {
       setIsLoadingPage(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -267,7 +302,7 @@ export default function AiPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'Failed to load AI messages.');
+          setError(err instanceof ApiError ? err.message : t('ai.errors.conversationLoadFailed'));
         }
       }
     }
@@ -277,7 +312,7 @@ export default function AiPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId]);
+  }, [selectedConversationId, t]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -297,7 +332,7 @@ export default function AiPage() {
       setMessages([]);
       setToolCalls([]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create AI conversation.');
+      setError(err instanceof ApiError ? err.message : t('ai.errors.createConversationFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -308,7 +343,7 @@ export default function AiPage() {
       return selectedConversationId;
     }
     if (!selectedAgentId) {
-      setError('Select an agent first.');
+      setError(t('ai.errors.selectAssistantFirst'));
       return null;
     }
     const conversation = await createAiConversation({ agentId: selectedAgentId });
@@ -325,7 +360,7 @@ export default function AiPage() {
 
     if (event.type === 'tool.started') {
       setIsThinking(false);
-      setToolRunningStatus(describeRunningTool(event.payload.toolName));
+      setToolRunningStatus(describeRunningTool(event.payload.toolName, t));
       return;
     }
 
@@ -408,13 +443,17 @@ export default function AiPage() {
               conversationId: updated.conversationId,
               role: 'tool',
               toolName: updated.toolName,
-              content: executedToolMessage(updated),
+              content: executedToolMessage(updated, t),
             }),
           ])
         );
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `Failed to ${action} tool call.`);
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : t(action === 'approve' ? 'ai.errors.approveFailed' : 'ai.errors.rejectFailed')
+      );
     }
   }
 
@@ -465,7 +504,7 @@ export default function AiPage() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      setError(formatCaughtAiError(err));
+      setError(formatCaughtAiError(err, t));
     } finally {
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null;
@@ -479,21 +518,19 @@ export default function AiPage() {
   if (authLoading || isLoadingPage) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('messages.loading')}</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide chat-page">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
-          <h1>AI Chat</h1>
-          <p className="text-muted">
-            Chat with Orbitchat built-in agents.{' '}
-            <Link href="/ai/memories">记忆管理</Link>
+          <h1>{t('ai.title')}</h1>
+          <p className="text-muted">{t('ai.description')}</p>
+          <p style={{ margin: '4px 0 0', fontSize: '0.875rem' }}>
+            <Link href="/ai/memories">{t('ai.manageMemories')}</Link>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -505,7 +542,7 @@ export default function AiPage() {
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
-                {agent.name}
+                {resolveAgentDisplayName(agent, t)}
               </option>
             ))}
           </select>
@@ -515,7 +552,7 @@ export default function AiPage() {
             disabled={!selectedAgentId || isCreating}
             onClick={() => void handleNewChat()}
           >
-            {isCreating ? 'Creating…' : 'New chat'}
+            {isCreating ? t('ai.creatingConversation') : t('ai.newConversation')}
           </button>
         </div>
       </header>
@@ -528,9 +565,9 @@ export default function AiPage() {
 
       <div className="ai-layout">
         <aside className="ai-sidebar card">
-          <h2 className="section-title">Conversations</h2>
+          <h2 className="section-title">{t('ai.section.conversations')}</h2>
           {conversations.length === 0 ? (
-            <p className="text-muted">No AI chats yet.</p>
+            <p className="text-muted">{t('ai.emptyConversations')}</p>
           ) : (
             <div className="ai-conversation-list">
               {conversations.map((conversation) => {
@@ -544,8 +581,13 @@ export default function AiPage() {
                     }`}
                     onClick={() => setSelectedConversationId(conversation.id)}
                   >
-                    <span>{getConversationTitle(conversation, agent)}</span>
-                    <small>{agent?.name ?? 'Agent'}</small>
+                    <span>
+                      {conversation.title ??
+                        t('ai.conversationTitleFallback', {
+                          agentName: resolveAgentDisplayName(agent, t),
+                        })}
+                    </span>
+                    <small>{resolveAgentDisplayName(agent, t)}</small>
                   </button>
                 );
               })}
@@ -555,8 +597,30 @@ export default function AiPage() {
 
         <section className="chat-panel card">
           <div className="ai-agent-summary">
-            <strong>{selectedAgent?.name ?? 'Select an agent'}</strong>
-            {selectedAgent && <span>{selectedAgent.description}</span>}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: '9999px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#7c2d12',
+                  background: 'linear-gradient(180deg, #ffedd5, #fed7aa)',
+                  border: '1px solid #fdba74',
+                }}
+              >
+                {t('ai.avatarInitial')}
+              </div>
+              <div style={{ display: 'grid', gap: 2 }}>
+                <strong>{t('ai.title')}</strong>
+                <span>{t('ai.description')}</span>
+              </div>
+            </div>
           </div>
 
           <div className="chat-messages">
@@ -567,12 +631,12 @@ export default function AiPage() {
                   .map((toolCall) => (
                     <div key={toolCall.id} className="ai-tool-call-card">
                       <div>
-                        <strong>Confirm action</strong>
-                        <p>{describeToolCall(toolCall)}</p>
+                        <strong>{getToolCallApprovalTitle(toolCall, t)}</strong>
+                        <p>{describeToolCall(toolCall, t)}</p>
                         {toolCall.toolName === 'remember_fact' && (
                           <p className="ai-tool-call-helper">
-                            确认后小轨会在之后的对话中记住这条信息。{' '}
-                            <Link href="/ai/memories">查看记忆</Link>
+                            {t('ai.rememberFactHelper')}{' '}
+                            <Link href="/ai/memories">{t('ai.manageMemories')}</Link>
                           </p>
                         )}
                       </div>
@@ -582,14 +646,14 @@ export default function AiPage() {
                           className="btn btn-primary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'approve')}
                         >
-                          Approve
+                          {t('ai.actions.approve')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'reject')}
                         >
-                          Reject
+                          {t('ai.actions.reject')}
                         </button>
                       </div>
                     </div>
@@ -598,9 +662,36 @@ export default function AiPage() {
             )}
             {messages.length === 0 ? (
               <div className="chat-empty">
-                <p className="text-muted">Ask for a joke, play tic-tac-toe, or try:</p>
-                <p>
-                  <code>我们来下井字棋</code> or <code>[e2e:tictactoe]</code>
+                <p>{t('ai.emptyGreeting')}</p>
+                <p className="text-muted" style={{ marginBottom: 12 }}>
+                  {t('ai.emptyHint')}
+                </p>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    maxWidth: 640,
+                    margin: '0 auto',
+                  }}
+                >
+                  {suggestionChips.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setDraft(suggestion);
+                        composerRef.current?.focus();
+                      }}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-muted" style={{ marginTop: 12 }}>
+                  {t('ai.emptyE2EHint')}
                 </p>
               </div>
             ) : (
@@ -614,7 +705,7 @@ export default function AiPage() {
                     ? parseTicTacToeToolContent(message.content)
                     : null;
                 const toolMessageContent = isTool
-                  ? `Tool ${message.toolName ?? ''}\n${formatToolMessageContent(message.toolName, message.content)}`
+                  ? `${t('ai.toolResultPrefix')}\n${formatToolMessageContent(message.toolName, message.content)}`
                   : message.content;
                 return (
                   <div
@@ -635,7 +726,7 @@ export default function AiPage() {
                       >
                         {ticTacToe ? (
                           <div className="tic-tac-toe-tool">
-                            <p className="chat-bubble-content">Tic-tac-toe board</p>
+                            <p className="chat-bubble-content">{t('ai.tictactoeBoard')}</p>
                             <TicTacToeBoard board={ticTacToe.board} />
                             <pre className="tic-tac-toe-visual">{ticTacToe.boardVisual}</pre>
                           </div>
@@ -646,7 +737,7 @@ export default function AiPage() {
                         )}
                       </div>
                       {citations.length > 0 && (
-                        <div className="ai-citations" aria-label="引用来源">
+                        <div className="ai-citations" aria-label={t('ai.citationsAriaLabel')}>
                           {citations.map((citation) => (
                             <span
                               key={citation.id}
@@ -665,7 +756,7 @@ export default function AiPage() {
             )}
             {isThinking && (
               <p className="text-muted ai-thinking-indicator" aria-live="polite">
-                Thinking…
+                {t('ai.thinking')}
               </p>
             )}
             {toolRunningStatus && (
@@ -678,10 +769,11 @@ export default function AiPage() {
 
           <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
             <textarea
+              ref={composerRef}
               className="chat-input"
               rows={2}
               value={draft}
-              placeholder="Ask 小轨 something…"
+              placeholder={t('ai.inputPlaceholder')}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -691,7 +783,7 @@ export default function AiPage() {
               }}
             />
             <button type="submit" className="btn btn-primary" disabled={isSending || !draft.trim()}>
-              {isSending ? 'Thinking…' : 'Send'}
+              {isSending ? t('ai.actions.sending') : t('ai.actions.send')}
             </button>
           </form>
         </section>

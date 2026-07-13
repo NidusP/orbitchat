@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import type { UserSearchResult } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { createGroupConversation } from '@/lib/api/conversations';
 import { searchUsers } from '@/lib/api/social';
@@ -13,6 +13,7 @@ import { searchUsers } from '@/lib/api/social';
 export default function NewGroupPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
@@ -40,11 +41,11 @@ export default function NewGroupPage() {
       const page = await searchUsers(trimmed, { limit: 8 });
       setSearchResults(page.items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed.');
+      setError(err instanceof ApiError ? err.message : t('groupNew.errors.search'));
     } finally {
       setIsSearching(false);
     }
-  }, [query]);
+  }, [query, t]);
 
   function toggleMember(user: UserSearchResult): void {
     setSelected((current) => {
@@ -69,7 +70,7 @@ export default function NewGroupPage() {
       });
       router.push(`/messages/${conversation.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create group.');
+      setError(err instanceof ApiError ? err.message : t('groupNew.errors.create'));
       setIsSubmitting(false);
     }
   }
@@ -77,19 +78,17 @@ export default function NewGroupPage() {
   if (authLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('groupNew.loading')}</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
-        <h1>New group</h1>
+        <h1>{t('groupNew.title')}</h1>
         <Link href="/messages" className="btn btn-secondary">
-          Back
+          {t('groupNew.back')}
         </Link>
       </header>
 
@@ -97,27 +96,27 @@ export default function NewGroupPage() {
 
       <form className="card form-stack" onSubmit={(event) => void handleSubmit(event)}>
         <label className="form-field">
-          <span>Group name</span>
+          <span>{t('groupNew.labels.groupName')}</span>
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             maxLength={120}
             required
-            placeholder="Weekend crew"
+            placeholder={t('groupNew.placeholders.groupName')}
           />
         </label>
 
         <div className="form-field">
-          <span>Add members</span>
+          <span>{t('groupNew.labels.addMembers')}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by username"
+              placeholder={t('groupNew.placeholders.searchByUsername')}
               style={{ flex: 1 }}
             />
             <button type="button" className="btn btn-secondary" onClick={() => void runSearch()}>
-              {isSearching ? 'Searching…' : 'Search'}
+              {isSearching ? t('groupNew.actions.searching') : t('groupNew.actions.search')}
             </button>
           </div>
         </div>
@@ -137,7 +136,9 @@ export default function NewGroupPage() {
                     <span className="conversation-list-title">
                       {user.displayName} (@{user.username})
                     </span>
-                    <span className="text-muted">{isSelected ? 'Selected' : 'Add'}</span>
+                    <span className="text-muted">
+                      {isSelected ? t('groupNew.actions.selected') : t('groupNew.actions.add')}
+                    </span>
                   </button>
                 </li>
               );
@@ -147,7 +148,7 @@ export default function NewGroupPage() {
 
         {selected.length > 0 && (
           <p className="text-muted">
-            Selected: {selected.map((user) => user.displayName).join(', ')}
+            {t('groupNew.selectedPrefix')} {selected.map((user) => user.displayName).join(', ')}
           </p>
         )}
 
@@ -156,7 +157,7 @@ export default function NewGroupPage() {
           className="btn btn-primary"
           disabled={isSubmitting || title.trim().length === 0 || selected.length === 0}
         >
-          {isSubmitting ? 'Creating…' : 'Create group'}
+          {isSubmitting ? t('groupNew.actions.creating') : t('groupNew.actions.create')}
         </button>
       </form>
     </main>

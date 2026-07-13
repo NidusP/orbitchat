@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import type { GroupInvite, GroupMember, GroupMemberRole, UserSearchResult } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import {
   addGroupMembers,
@@ -22,14 +22,17 @@ import {
 } from '@/lib/api/conversations';
 import { searchUsers } from '@/lib/api/social';
 
-function roleLabel(role: GroupMemberRole): string {
+function roleLabel(
+  role: GroupMemberRole,
+  t: (key: 'groupSettings.roles.owner' | 'groupSettings.roles.admin' | 'groupSettings.roles.member') => string
+): string {
   if (role === 'owner') {
-    return 'Owner';
+    return t('groupSettings.roles.owner');
   }
   if (role === 'admin') {
-    return 'Admin';
+    return t('groupSettings.roles.admin');
   }
-  return 'Member';
+  return t('groupSettings.roles.member');
 }
 
 function canManageGroup(role: GroupMemberRole | null): boolean {
@@ -41,6 +44,7 @@ export default function GroupSettingsPage() {
   const conversationId = params.id;
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
 
   const [title, setTitle] = useState('');
   const [announcement, setAnnouncement] = useState('');
@@ -79,11 +83,11 @@ export default function GroupSettingsPage() {
       setMembers(memberList);
       setInvites(inviteList);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load group settings.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.load'));
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, router]);
+  }, [conversationId, router, t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -114,11 +118,11 @@ export default function GroupSettingsPage() {
       applyMetadata(updated);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'CONFLICT') {
-        setError('Group name was updated by another admin. Reloading latest settings…');
+        setError(t('groupSettings.errors.titleConflict'));
         await load();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Failed to update group name.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.titleUpdate'));
     } finally {
       setIsSavingTitle(false);
     }
@@ -147,11 +151,11 @@ export default function GroupSettingsPage() {
       applyMetadata(updated);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'CONFLICT') {
-        setError('Group announcement was updated by another admin. Reloading latest settings…');
+        setError(t('groupSettings.errors.announcementConflict'));
         await load();
         return;
       }
-      setError(err instanceof ApiError ? err.message : 'Failed to update announcement.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.announcementUpdate'));
     } finally {
       setIsSavingAnnouncement(false);
     }
@@ -171,7 +175,7 @@ export default function GroupSettingsPage() {
       const memberIds = new Set(members.map((member) => member.id));
       setSearchResults(page.items.filter((item) => !memberIds.has(item.id)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.search'));
     } finally {
       setIsSearching(false);
     }
@@ -185,7 +189,7 @@ export default function GroupSettingsPage() {
       setMembers(updated);
       setSearchResults((current) => current.filter((item) => item.id !== userId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to add member.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.addMember'));
     } finally {
       setIsAdding(false);
     }
@@ -197,7 +201,7 @@ export default function GroupSettingsPage() {
       await removeGroupMember(conversationId, targetUserId);
       setMembers((current) => current.filter((member) => member.id !== targetUserId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to remove member.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.removeMember'));
     }
   }
 
@@ -210,7 +214,7 @@ export default function GroupSettingsPage() {
       const updated = await updateGroupMemberRole(conversationId, targetUserId, { role });
       setMembers(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update role.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.updateRole'));
     }
   }
 
@@ -221,7 +225,7 @@ export default function GroupSettingsPage() {
       setMembers(updated);
       setViewerRole('admin');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to transfer ownership.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.transferOwnership'));
     }
   }
 
@@ -232,7 +236,7 @@ export default function GroupSettingsPage() {
       await leaveGroup(conversationId);
       router.replace('/messages');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to leave group.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.leave'));
       setIsLeaving(false);
     }
   }
@@ -244,7 +248,7 @@ export default function GroupSettingsPage() {
       const invite = await createGroupInvite(conversationId);
       setInvites((current) => [invite, ...current.filter((item) => item.id !== invite.id)]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create invite link.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.createInvite'));
     } finally {
       setIsCreatingInvite(false);
     }
@@ -256,15 +260,14 @@ export default function GroupSettingsPage() {
       const invite = await revokeGroupInvite(code);
       setInvites((current) => current.map((item) => (item.id === invite.id ? invite : item)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to revoke invite link.');
+      setError(err instanceof ApiError ? err.message : t('groupSettings.errors.revokeInvite'));
     }
   }
 
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('groupSettings.loading')}</p>
       </main>
     );
   }
@@ -274,18 +277,17 @@ export default function GroupSettingsPage() {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
-        <h1>Group settings</h1>
+        <h1>{t('groupSettings.title')}</h1>
         <Link href={`/messages/${conversationId}`} className="btn btn-secondary">
-          Back to chat
+          {t('groupSettings.backToChat')}
         </Link>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
 
       <section className="card form-stack" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Group name</h2>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.groupName')}</h2>
         {canManage ? (
           <form onSubmit={(event) => void handleSaveTitle(event)}>
             <label className="form-field">
@@ -297,7 +299,7 @@ export default function GroupSettingsPage() {
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={isSavingTitle}>
-              {isSavingTitle ? 'Saving…' : 'Save name'}
+              {isSavingTitle ? t('groupSettings.actions.saving') : t('groupSettings.actions.saveName')}
             </button>
           </form>
         ) : (
@@ -306,7 +308,7 @@ export default function GroupSettingsPage() {
       </section>
 
       <section className="card form-stack" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Announcement</h2>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.announcement')}</h2>
         {canManage ? (
           <form onSubmit={(event) => void handleSaveAnnouncement(event)}>
             <label className="form-field">
@@ -315,22 +317,26 @@ export default function GroupSettingsPage() {
                 onChange={(event) => setAnnouncement(event.target.value)}
                 maxLength={1000}
                 rows={4}
-                placeholder="Share an announcement with the group"
+                placeholder={t('groupSettings.placeholders.announcement')}
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={isSavingAnnouncement}>
-              {isSavingAnnouncement ? 'Saving…' : 'Save announcement'}
+              {isSavingAnnouncement
+                ? t('groupSettings.actions.saving')
+                : t('groupSettings.actions.saveAnnouncement')}
             </button>
           </form>
         ) : announcement ? (
           <p style={{ whiteSpace: 'pre-wrap' }}>{announcement}</p>
         ) : (
-          <p className="text-muted">No announcement yet.</p>
+          <p className="text-muted">{t('groupSettings.labels.noAnnouncement')}</p>
         )}
       </section>
 
       <section className="card form-stack" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Members ({members.length})</h2>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>
+          {t('groupSettings.sections.members', { count: members.length })}
+        </h2>
         <ul className="conversation-list">
           {members.map((member) => {
             const isSelf = member.id === user?.id;
@@ -345,9 +351,9 @@ export default function GroupSettingsPage() {
                 <div className="conversation-list-main">
                   <span className="conversation-list-title">
                     {member.displayName} (@{member.username})
-                    {isSelf ? ' (you)' : ''}
+                    {isSelf ? t('groupSettings.labels.youSuffix') : ''}
                   </span>
-                  <span className="text-muted">{roleLabel(member.role)}</span>
+                  <span className="text-muted">{roleLabel(member.role, t)}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   {isOwner && !isSelf && member.role !== 'owner' && (
@@ -358,7 +364,7 @@ export default function GroupSettingsPage() {
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleRoleChange(member.id, 'admin')}
                         >
-                          Make admin
+                          {t('groupSettings.actions.makeAdmin')}
                         </button>
                       ) : (
                         <button
@@ -366,7 +372,7 @@ export default function GroupSettingsPage() {
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleRoleChange(member.id, 'member')}
                         >
-                          Remove admin
+                          {t('groupSettings.actions.removeAdmin')}
                         </button>
                       )}
                       <button
@@ -374,7 +380,7 @@ export default function GroupSettingsPage() {
                         className="btn btn-secondary btn-sm"
                         onClick={() => void handleTransferOwner(member.id)}
                       >
-                        Transfer ownership
+                        {t('groupSettings.actions.transferOwnership')}
                       </button>
                     </>
                   )}
@@ -384,7 +390,7 @@ export default function GroupSettingsPage() {
                       className="btn btn-secondary btn-sm"
                       onClick={() => void handleRemoveMember(member.id)}
                     >
-                      Remove
+                      {t('groupSettings.actions.remove')}
                     </button>
                   )}
                 </div>
@@ -396,14 +402,16 @@ export default function GroupSettingsPage() {
 
       {canManage && (
         <section className="card form-stack" style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Invite links</h2>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.inviteLinks')}</h2>
           <button
             type="button"
             className="btn btn-secondary"
             disabled={isCreatingInvite}
             onClick={() => void handleCreateInvite()}
           >
-            {isCreatingInvite ? 'Generating…' : 'Generate invite link'}
+            {isCreatingInvite
+              ? t('groupSettings.actions.generating')
+              : t('groupSettings.actions.generateInviteLink')}
           </button>
           {invites.length > 0 && (
             <ul className="conversation-list">
@@ -411,13 +419,18 @@ export default function GroupSettingsPage() {
                 const origin = typeof window === 'undefined' ? '' : window.location.origin;
                 const inviteUrl = `${origin}/invites/${invite.code}`;
                 const isRevoked = invite.revokedAt !== null;
+                const maxUsesLabel = invite.maxUses ? `/${invite.maxUses}` : '';
+                const revokedLabel = isRevoked ? ` (${t('groupSettings.labels.inviteRevoked')})` : '';
                 return (
                   <li key={invite.id} className="conversation-list-item">
                     <div className="conversation-list-main">
                       <span className="conversation-list-title">{inviteUrl}</span>
                       <span className="text-muted">
-                        Uses: {invite.useCount}
-                        {invite.maxUses ? `/${invite.maxUses}` : ''} {isRevoked ? '• revoked' : ''}
+                        {t('groupSettings.labels.inviteUses', {
+                          used: invite.useCount,
+                          max: maxUsesLabel,
+                        })}
+                        {revokedLabel}
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
@@ -426,7 +439,7 @@ export default function GroupSettingsPage() {
                         className="btn btn-secondary btn-sm"
                         onClick={() => void navigator.clipboard.writeText(inviteUrl)}
                       >
-                        Copy
+                        {t('groupSettings.actions.copy')}
                       </button>
                       {!isRevoked && (
                         <button
@@ -434,7 +447,7 @@ export default function GroupSettingsPage() {
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleRevokeInvite(invite.code)}
                         >
-                          Revoke
+                          {t('groupSettings.actions.revoke')}
                         </button>
                       )}
                     </div>
@@ -448,16 +461,16 @@ export default function GroupSettingsPage() {
 
       {canManage && (
         <section className="card form-stack" style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Add members</h2>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.addMembers')}</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by username"
+              placeholder={t('groupSettings.placeholders.searchByUsername')}
               style={{ flex: 1 }}
             />
             <button type="button" className="btn btn-secondary" onClick={() => void runSearch()}>
-              {isSearching ? 'Searching…' : 'Search'}
+              {isSearching ? t('groupSettings.actions.searching') : t('groupSettings.actions.search')}
             </button>
           </div>
           {searchResults.length > 0 && (
@@ -474,7 +487,7 @@ export default function GroupSettingsPage() {
                     <span className="conversation-list-title">
                       {result.displayName} (@{result.username})
                     </span>
-                    <span className="text-muted">Add</span>
+                    <span className="text-muted">{t('groupSettings.actions.add')}</span>
                   </button>
                 </li>
               ))}
@@ -485,22 +498,22 @@ export default function GroupSettingsPage() {
 
       {viewerRole !== 'owner' && (
         <section className="card form-stack">
-          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Leave group</h2>
-          <p className="text-muted">You will no longer receive messages from this group.</p>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.leaveGroup')}</h2>
+          <p className="text-muted">{t('groupSettings.labels.leaveDescription')}</p>
           <button
             type="button"
             className="btn btn-secondary"
             disabled={isLeaving}
             onClick={() => void handleLeave()}
           >
-            {isLeaving ? 'Leaving…' : 'Leave group'}
+            {isLeaving ? t('groupSettings.actions.leaving') : t('groupSettings.actions.leaveGroup')}
           </button>
         </section>
       )}
 
       {isOwner && (
         <p className="text-muted" style={{ marginTop: 16 }}>
-          Transfer ownership to another member before you can leave the group.
+          {t('groupSettings.labels.ownerLeaveHint')}
         </p>
       )}
     </main>

@@ -12,9 +12,29 @@ export const postContentSchema = z
   .min(1, 'Content is required')
   .max(2000, 'Content must be at most 2000 characters');
 
-export const createPostSchema = z.object({
-  content: postContentSchema,
-});
+const optionalPostContentSchema = z
+  .string()
+  .trim()
+  .max(2000, 'Content must be at most 2000 characters')
+  .optional();
+
+const uploadIdsSchema = z
+  .array(z.string().uuid('Invalid upload id'))
+  .max(4, 'At most 4 uploads per post');
+
+export const createPostSchema = z
+  .object({
+    content: optionalPostContentSchema,
+    uploadIds: uploadIdsSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      const hasContent = data.content !== undefined && data.content.length > 0;
+      const hasUploads = data.uploadIds !== undefined && data.uploadIds.length > 0;
+      return hasContent || hasUploads;
+    },
+    { message: 'Content or uploadIds is required', path: ['content'] }
+  );
 
 export const updatePostSchema = z.object({
   content: postContentSchema,

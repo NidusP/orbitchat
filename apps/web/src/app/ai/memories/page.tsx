@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import {
   createAiMemory,
   deleteAiMemory,
@@ -15,17 +15,6 @@ import {
 import { ApiError } from '@/lib/api/errors';
 
 const MEMORY_KINDS: UserAgentMemoryKind[] = ['preference', 'fact', 'nickname'];
-
-function kindLabel(kind: UserAgentMemoryKind): string {
-  switch (kind) {
-    case 'preference':
-      return 'Preference';
-    case 'fact':
-      return 'Fact';
-    case 'nickname':
-      return 'Nickname';
-  }
-}
 
 function formatMemoryDate(iso: string): string {
   const date = new Date(iso);
@@ -48,6 +37,7 @@ function sortMemories(items: UserAgentMemory[]): UserAgentMemory[] {
 export default function AiMemoriesPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
   const [memories, setMemories] = useState<UserAgentMemory[]>([]);
   const [kind, setKind] = useState<UserAgentMemoryKind>('preference');
   const [content, setContent] = useState('');
@@ -55,6 +45,19 @@ export default function AiMemoriesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const kindLabel = useCallback(
+    (kind: UserAgentMemoryKind): string => {
+      switch (kind) {
+        case 'preference':
+          return t('memories.kinds.preference');
+        case 'fact':
+          return t('memories.kinds.fact');
+        case 'nickname':
+          return t('memories.kinds.nickname');
+      }
+    },
+    [t]
+  );
 
   const loadMemories = useCallback(async () => {
     setError(null);
@@ -63,11 +66,11 @@ export default function AiMemoriesPage() {
       const memories = await listAiMemories({ limit: 50 });
       setMemories(sortMemories(memories));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load AI memories.');
+      setError(err instanceof ApiError ? err.message : t('memories.errors.load'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -96,7 +99,7 @@ export default function AiMemoriesPage() {
       setMemories((current) => sortMemories([created, ...current]));
       setContent('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to add memory.');
+      setError(err instanceof ApiError ? err.message : t('memories.errors.add'));
     } finally {
       setIsCreating(false);
     }
@@ -113,7 +116,7 @@ export default function AiMemoriesPage() {
       await deleteAiMemory(id);
       setMemories((current) => current.filter((memory) => memory.id !== id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to delete memory.');
+      setError(err instanceof ApiError ? err.message : t('memories.errors.delete'));
     } finally {
       setDeletingId(null);
     }
@@ -122,22 +125,20 @@ export default function AiMemoriesPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('memories.loading')}</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
-          <h1>AI Memories</h1>
-          <p className="text-muted">Manage facts Orbit agents remember about you across chats.</p>
+          <h1>{t('memories.title')}</h1>
+          <p className="text-muted">{t('memories.subtitle')}</p>
         </div>
         <Link href="/ai" className="btn btn-secondary btn-sm">
-          Back to AI chat
+          {t('memories.backToAi')}
         </Link>
       </header>
 
@@ -148,10 +149,10 @@ export default function AiMemoriesPage() {
       )}
 
       <section className="card form-stack" style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Add memory</h2>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('memories.sections.add')}</h2>
         <form onSubmit={(event) => void handleCreate(event)}>
           <label className="form-field">
-            Kind
+            {t('memories.labels.kind')}
             <select
               className="chat-select"
               value={kind}
@@ -165,26 +166,28 @@ export default function AiMemoriesPage() {
             </select>
           </label>
           <label className="form-field">
-            Content
+            {t('memories.labels.content')}
             <textarea
               value={content}
               onChange={(event) => setContent(event.target.value)}
               rows={3}
               maxLength={500}
-              placeholder="e.g. Prefer short replies, or call me Orbit"
+              placeholder={t('memories.placeholder')}
               required
             />
           </label>
           <button type="submit" className="btn btn-primary" disabled={isCreating || !content.trim()}>
-            {isCreating ? 'Saving…' : 'Add memory'}
+            {isCreating ? t('memories.actions.saving') : t('memories.actions.add')}
           </button>
         </form>
       </section>
 
       <section className="card form-stack">
-        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>Your memories ({memories.length})</h2>
+        <h2 style={{ margin: 0, fontSize: '1.125rem' }}>
+          {t('memories.sections.list', { count: memories.length })}
+        </h2>
         {memories.length === 0 ? (
-          <p className="text-muted">No memories yet. Add one above or approve a memory from AI chat.</p>
+          <p className="text-muted">{t('memories.empty')}</p>
         ) : (
           <ul className="conversation-list">
             {memories.map((memory) => (
@@ -203,7 +206,7 @@ export default function AiMemoriesPage() {
                     disabled={deletingId === memory.id}
                     onClick={() => void handleDelete(memory.id)}
                   >
-                    {deletingId === memory.id ? 'Deleting…' : 'Delete'}
+                    {deletingId === memory.id ? t('memories.actions.deleting') : t('memories.actions.delete')}
                   </button>
                 </div>
               </li>

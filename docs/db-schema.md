@@ -162,6 +162,36 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 | notifications | 站内通知 |
 | tags / post_tags | 话题标签 |
 
+### uploads（Phase 4C）
+
+> [ADR 23](./decisions/23-object-storage-uploads.md)
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| owner_id | UUID FK → users | 上传者 |
+| purpose | VARCHAR | `avatar` \| `post` |
+| object_key | VARCHAR UNIQUE | S3 key |
+| mime_type | VARCHAR | |
+| size_bytes | INTEGER | |
+| status | VARCHAR | `pending` \| `committed` \| `deleted` |
+| created_at | TIMESTAMPTZ | |
+| expires_at | TIMESTAMPTZ | pending 过期时间 |
+
+**索引**：`(owner_id, status)`；`(expires_at)` WHERE `status = 'pending'`
+
+### post_media（Phase 4C）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| post_id | UUID FK → posts ON DELETE CASCADE | |
+| upload_id | UUID FK → uploads | |
+| sort_order | SMALLINT | 0–3 |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：`UNIQUE (post_id, upload_id)`；每帖最多 4 行（应用层 + 校验）
+
 ---
 
 ## Phase 3：聊天（3A 已定稿）
@@ -408,6 +438,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | source_id | VARCHAR(128) | 来源 ID（如 `post` UUID 或 doc 路径 slug） |
 | owner_user_id | UUID FK → users, nullable | `post` 为发帖用户；`doc` 为 `NULL`（公开） |
 | text | TEXT | 切块正文 |
+| content_hash | VARCHAR(64), nullable | 切块正文 SHA-256；用于跳过未变更内容的 re-embed |
 | embedding | vector(768) | pgvector 嵌入 |
 | created_at / updated_at | TIMESTAMPTZ | |
 
@@ -417,7 +448,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 - `(owner_user_id)` — 按用户过滤本人帖子
 - HNSW `(embedding vector_cosine_ops)` — 余弦相似度 ANN
 
-**原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。
+**原则**：v1 仅索引本人帖子与公开帮助文档；不含 DM / 私信。帖子写入时同步 re-index（MVP）。`content_hash` 未变时跳过 embedding（启动索引与 on-write 均适用）。
 
 ## Phase 4B+：橱窗 / 音视频（概要）
 

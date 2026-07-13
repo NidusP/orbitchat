@@ -28,6 +28,7 @@ const samplePost = {
   content: 'Hello social',
   likeCount: 0,
   commentCount: 0,
+  media: [],
   createdAt: '2026-06-30T10:00:00.000Z',
   updatedAt: '2026-06-30T10:00:00.000Z',
   author: {

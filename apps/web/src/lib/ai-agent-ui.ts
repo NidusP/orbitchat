@@ -1,5 +1,22 @@
-import type { AiMessage } from '@orbitchat/shared-types';
+import type { Agent, AiMessage } from '@orbitchat/shared-types';
 import { sortAiMessages } from '@/lib/api/ai';
+import type { I18nKey, MessageValues } from '@/lib/i18n';
+
+type TranslateFn = (key: I18nKey, values?: MessageValues) => string;
+
+const ORBIT_GUIDE_SLUG = 'orbit-guide';
+
+export function resolveAgentDisplayName(agent: Agent | undefined, t: TranslateFn): string {
+  if (!agent) {
+    return t('ai.defaultAgentName');
+  }
+
+  if (agent.slug === ORBIT_GUIDE_SLUG) {
+    return t('ai.defaultAgentName');
+  }
+
+  return agent.name;
+}
 
 export const CITATION_TOOL_NAMES = new Set([
   'search_my_posts',

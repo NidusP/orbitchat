@@ -35,4 +35,5 @@ export type { Follow, UserSearchResult } from './follow';
 export type { Post, PostAuthorSummary, PostWithAuthor } from './post';
 export type { Profile } from './profile';
 export type { UserSession } from './session';
+export type { UploadPurpose, UploadStatus, UploadSummary, PostMediaItem } from './upload';
 export type { User } from './user';

@@ -9,18 +9,22 @@ import {
   type DevTestUserFixture,
   isDevLoginShortcutsEnabled,
 } from '@/lib/dev-test-user';
+import { useI18n } from '@/contexts/i18n-context';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get('registered') === '1';
   const { login } = useAuth();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [trustDevice, setTrustDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const showDevLoginShortcuts =
+    process.env.NODE_ENV === 'development' && isDevLoginShortcutsEnabled();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,9 +45,13 @@ export default function LoginForm() {
       router.push('/profile');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        setError(
+          err.message
+            ? t('auth.loginFailedPrefix', { message: err.message })
+            : t('auth.loginFailedInvalid')
+        );
       } else {
-        setError('Login failed. Please try again.');
+        setError(t('auth.loginFailedRetry'));
       }
     } finally {
       setIsSubmitting(false);
@@ -62,7 +70,7 @@ export default function LoginForm() {
     <>
       {registered && (
         <div className="alert alert-success" style={{ marginBottom: 12 }}>
-          Account created. Please sign in.
+          {t('auth.registerSuccess')}
         </div>
       )}
 
@@ -70,7 +78,7 @@ export default function LoginForm() {
         {error && <div className="alert alert-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t('auth.email')}</label>
           <input
             id="email"
             type="email"
@@ -82,7 +90,7 @@ export default function LoginForm() {
         </div>
 
         <div className="field">
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">{t('auth.password')}</label>
           <input
             id="password"
             type="password"
@@ -99,7 +107,7 @@ export default function LoginForm() {
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
           />
-          Keep me signed in
+          {t('auth.rememberMe')}
         </label>
 
         <label className="field-checkbox">
@@ -108,18 +116,18 @@ export default function LoginForm() {
             checked={trustDevice}
             onChange={(event) => setTrustDevice(event.target.checked)}
           />
-          Trust this device
+          {t('auth.trustDevice')}
         </label>
 
         <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Signing in…' : 'Sign in'}
+          {isSubmitting ? t('auth.loggingIn') : t('auth.login')}
         </button>
       </form>
 
-      {isDevLoginShortcutsEnabled() && (
+      {showDevLoginShortcuts && (
         <div className="dev-login-shortcuts" data-testid="dev-login-shortcuts">
           <p className="text-muted" style={{ marginTop: 16, marginBottom: 8 }}>
-            Dev only — one-click login for messaging tests
+            {t('auth.devLoginShortcuts')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {DEV_TEST_USERS.map((fixture, index) => (
@@ -131,7 +139,10 @@ export default function LoginForm() {
                 disabled={isSubmitting}
                 onClick={() => void handleDevTestLogin(fixture)}
               >
-                Login as {fixture.username} ({fixture.email})
+                {t('auth.devLoginTemplate', {
+                  username: fixture.username,
+                  email: fixture.email,
+                })}
               </button>
             ))}
           </div>

@@ -1,9 +1,13 @@
+import type { PostMediaItem } from './upload';
+
 export interface Post {
   id: string;
   authorId: string;
   content: string;
   likeCount: number;
   commentCount: number;
+  /** Attached images; empty when the post has no media. */
+  media: PostMediaItem[];
   createdAt: string;
   updatedAt: string;
 }

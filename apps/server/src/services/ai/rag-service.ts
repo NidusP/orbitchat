@@ -5,6 +5,7 @@ import { db, type Database } from '../../db';
 import { knowledgeChunks } from '../../db/schema/knowledge-chunks';
 import { env } from '../../env';
 import { getPostgresErrorCode, isUndefinedTable } from '../../lib/postgres-errors';
+import { hashChunkContent } from '../../lib/rag/content-hash';
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -47,6 +48,7 @@ type StoredChunk = {
   sourceType: KnowledgeSourceType;
   sourceId: string;
   text: string;
+  contentHash: string;
   ownerUserId: string | null;
   embedding: number[] | null;
 };
@@ -58,6 +60,7 @@ type SearchRow = {
 };
 
 export interface RagChunkStore {
+  getContentHash(sourceType: KnowledgeSourceType, sourceId: string): Promise<string | null>;
   upsertChunk(chunk: StoredChunk): Promise<void>;
   deleteChunk(sourceType: KnowledgeSourceType, sourceId: string): Promise<void>;
   searchByVector(input: {
@@ -118,20 +121,37 @@ function cosineSimilarity(left: number[], right: number[]): number {
 
 function createPgChunkStore(database: Database): RagChunkStore {
   return {
+    async getContentHash(sourceType, sourceId) {
+      const rows = await database
+        .select({ contentHash: knowledgeChunks.contentHash })
+        .from(knowledgeChunks)
+        .where(
+          and(
+            eq(knowledgeChunks.sourceType, sourceType),
+            eq(knowledgeChunks.sourceId, sourceId)
+          )
+        )
+        .limit(1);
+
+      return rows[0]?.contentHash ?? null;
+    },
+
     async upsertChunk(chunk) {
       const embeddingLiteral = chunk.embedding ? toVectorLiteral(chunk.embedding) : null;
 
       await database.execute(sql`
-        INSERT INTO knowledge_chunks (source_type, source_id, text, owner_user_id, embedding)
+        INSERT INTO knowledge_chunks (source_type, source_id, text, content_hash, owner_user_id, embedding)
         VALUES (
           ${chunk.sourceType},
           ${chunk.sourceId},
           ${chunk.text},
+          ${chunk.contentHash},
           ${chunk.ownerUserId},
           ${embeddingLiteral}::vector
         )
         ON CONFLICT (source_type, source_id) DO UPDATE SET
           text = EXCLUDED.text,
+          content_hash = EXCLUDED.content_hash,
           owner_user_id = EXCLUDED.owner_user_id,
           embedding = EXCLUDED.embedding,
           updated_at = now()
@@ -199,6 +219,13 @@ export function createInMemoryChunkStore(): RagChunkStore & { chunks: StoredChun
 
   return {
     chunks,
+    async getContentHash(sourceType, sourceId) {
+      const existing = chunks.find(
+        (item) => item.sourceType === sourceType && item.sourceId === sourceId
+      );
+      return existing?.contentHash ?? null;
+    },
+
     async upsertChunk(chunk) {
       const existingIndex = chunks.findIndex(
         (item) => item.sourceType === chunk.sourceType && item.sourceId === chunk.sourceId
@@ -335,6 +362,33 @@ export function createRagService(deps: RagServiceDeps = {}) {
     }
   }
 
+  async function indexChunkIfChanged(input: {
+    sourceType: KnowledgeSourceType;
+    sourceId: string;
+    text: string;
+    ownerUserId: string | null;
+    logLabel: string;
+  }): Promise<void> {
+    const contentHash = hashChunkContent(input.text);
+    const existingHash = await chunkStore.getContentHash(input.sourceType, input.sourceId);
+
+    if (existingHash === contentHash) {
+      console.info(`[rag] skip unchanged ${input.logLabel}`);
+      return;
+    }
+
+    const embedding = await embeddingProvider.embed(input.text);
+
+    await chunkStore.upsertChunk({
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      text: input.text,
+      contentHash,
+      ownerUserId: input.ownerUserId,
+      embedding,
+    });
+  }
+
   async function indexPostChunk(postId: string, authorId: string, content: string): Promise<void> {
     if (!ragEnabled) {
       return;
@@ -343,13 +397,12 @@ export function createRagService(deps: RagServiceDeps = {}) {
     const text = truncateText(content, POST_CHUNK_MAX_CHARS);
 
     try {
-      const embedding = await embeddingProvider.embed(text);
-      await chunkStore.upsertChunk({
+      await indexChunkIfChanged({
         sourceType: 'post',
         sourceId: postId,
         text,
         ownerUserId: authorId,
-        embedding,
+        logLabel: `post:${postId}`,
       });
     } catch (error) {
       if (isUndefinedTable(error)) {
@@ -421,14 +474,13 @@ export function createRagService(deps: RagServiceDeps = {}) {
       try {
         const raw = await readFileFn(filePath);
         const text = truncateText(raw, DOC_CHUNK_MAX_CHARS);
-        const embedding = await embeddingProvider.embed(text);
 
-        await chunkStore.upsertChunk({
+        await indexChunkIfChanged({
           sourceType: 'doc',
           sourceId: filename,
           text,
           ownerUserId: null,
-          embedding,
+          logLabel: `doc:${filename}`,
         });
       } catch (error) {
         if (isUndefinedTable(error)) {

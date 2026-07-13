@@ -66,6 +66,12 @@ export type {
   UserPostsResponse,
 } from './posts';
 export type {
+  MarkNotificationsReadRequest,
+  MarkNotificationsReadResponse,
+  NotificationListResponse,
+  NotificationUnreadCountResponse,
+} from './notifications';
+export type {
   FollowersListResponse,
   FollowingListResponse,
   FollowUserResponse,
@@ -81,3 +87,8 @@ export type {
   UpdateUserResponse,
   UserWithProfile,
 } from './users';
+export type {
+  CreateUploadRequest,
+  CreateUploadResponse,
+  GetMediaParams,
+} from './uploads';

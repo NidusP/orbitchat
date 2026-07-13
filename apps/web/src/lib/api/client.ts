@@ -24,7 +24,7 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
-function buildDefaultHeaders(): Record<string, string> {
+export function buildDefaultHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'X-Client-Platform': 'web',

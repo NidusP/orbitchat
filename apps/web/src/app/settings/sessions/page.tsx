@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { UserSession } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { listSessions, logoutAll, revokeSession, trustSession } from '@/lib/api/auth';
 import { clearAccessToken } from '@/lib/api/client';
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString();
+function formatWhen(iso: string, locale: 'zh' | 'en'): string {
+  return new Date(iso).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US');
 }
 
 function sessionLabel(item: UserSession): string {
@@ -25,6 +25,7 @@ function sessionLabel(item: UserSession): string {
 export default function SessionsPage() {
   const router = useRouter();
   const { user, session, isAuthenticated, isLoading, setSessionState, logout: clearAuthState } = useAuth();
+  const { t, locale } = useI18n();
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -56,11 +57,15 @@ export default function SessionsPage() {
       setSessions(data.sessions);
       setCurrentSessionId(data.currentSessionId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load sessions.');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.loadWithMessage', { message: err.message })
+          : t('sessions.errors.load')
+      );
     } finally {
       setPageLoading(false);
     }
-  }, [isTrusted, session?.id]);
+  }, [isTrusted, session?.id, t]);
 
   useEffect(() => {
     if (!session || !isAuthenticated) {
@@ -78,10 +83,14 @@ export default function SessionsPage() {
     try {
       const data = await trustSession({ trust });
       setSessionState(data.session);
-      setSuccess(trust ? 'This device is now trusted.' : 'Trust removed from this device.');
+      setSuccess(trust ? t('sessions.success.trusted') : t('sessions.success.untrusted'));
       await loadSessions();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update trust.');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.trustWithMessage', { message: err.message })
+          : t('sessions.errors.trust')
+      );
     } finally {
       setActionId(null);
     }
@@ -102,10 +111,14 @@ export default function SessionsPage() {
         return;
       }
 
-      setSuccess('Session revoked.');
+      setSuccess(t('sessions.success.revoked'));
       await loadSessions();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to revoke session.');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.revokeWithMessage', { message: err.message })
+          : t('sessions.errors.revoke')
+      );
     } finally {
       setActionId(null);
     }
@@ -118,10 +131,14 @@ export default function SessionsPage() {
 
     try {
       const data = await logoutAll();
-      setSuccess(`Signed out ${data.revokedCount} other device(s).`);
+      setSuccess(t('sessions.success.logoutOthers', { count: data.revokedCount }));
       await loadSessions();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to sign out other devices.');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.logoutAllWithMessage', { message: err.message })
+          : t('sessions.errors.logoutAll')
+      );
     } finally {
       setActionId(null);
     }
@@ -130,34 +147,32 @@ export default function SessionsPage() {
   if (isLoading || !user || !session) {
     return (
       <main>
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('sessions.loading')}</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header">
-        <h1>Sessions</h1>
-        <p>Manage devices signed in to your account.</p>
+        <h1>{t('sessions.title')}</h1>
+        <p>{t('sessions.description')}</p>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       <div className="card">
-        <h2 className="section-title">This device</h2>
+        <h2 className="section-title">{t('sessions.sections.currentDevice')}</h2>
         <dl className="session-meta">
-          <dt>Platform</dt>
+          <dt>{t('sessions.fields.platform')}</dt>
           <dd>{session.platform}</dd>
-          <dt>Device</dt>
+          <dt>{t('sessions.fields.device')}</dt>
           <dd>{sessionLabel(session)}</dd>
-          <dt>Trusted</dt>
-          <dd>{session.isTrusted ? 'Yes' : 'No'}</dd>
-          <dt>Last active</dt>
-          <dd>{formatWhen(session.lastActiveAt)}</dd>
+          <dt>{t('sessions.fields.trusted')}</dt>
+          <dd>{session.isTrusted ? t('sessions.trustedYes') : t('sessions.trustedNo')}</dd>
+          <dt>{t('sessions.fields.lastActive')}</dt>
+          <dd>{formatWhen(session.lastActiveAt, locale)}</dd>
         </dl>
 
         <div className="stack" style={{ marginTop: 16 }}>
@@ -170,7 +185,7 @@ export default function SessionsPage() {
                 void handleTrustDevice(true);
               }}
             >
-              {actionId === 'trust' ? 'Updating…' : 'Trust this device'}
+              {actionId === 'trust' ? t('sessions.actions.updating') : t('sessions.actions.trustDevice')}
             </button>
           ) : (
             <button
@@ -181,7 +196,7 @@ export default function SessionsPage() {
                 void handleTrustDevice(false);
               }}
             >
-              {actionId === 'trust' ? 'Updating…' : 'Remove trust from this device'}
+              {actionId === 'trust' ? t('sessions.actions.updating') : t('sessions.actions.untrustDevice')}
             </button>
           )}
 
@@ -193,7 +208,7 @@ export default function SessionsPage() {
               void handleRevoke(session.id);
             }}
           >
-            {actionId === session.id ? 'Signing out…' : 'Sign out this device'}
+            {actionId === session.id ? t('sessions.actions.loggingOut') : t('sessions.actions.logoutCurrent')}
           </button>
         </div>
       </div>
@@ -201,8 +216,7 @@ export default function SessionsPage() {
       {!isTrusted && (
         <div className="card" style={{ marginTop: 16 }}>
           <p className="text-muted">
-            Trust this device to view all active sessions and sign out other devices. You can also
-            enable trust when signing in.
+            {t('sessions.hints.trustToViewAll')}
           </p>
         </div>
       )}
@@ -210,7 +224,7 @@ export default function SessionsPage() {
       {isTrusted && (
         <div className="card" style={{ marginTop: 16 }}>
           <div className="section-header">
-            <h2 className="section-title">All sessions</h2>
+            <h2 className="section-title">{t('sessions.sections.allSessions')}</h2>
             <button
               type="button"
               className="btn btn-secondary"
@@ -219,14 +233,14 @@ export default function SessionsPage() {
                 void handleLogoutAll();
               }}
             >
-              {actionId === 'logout-all' ? 'Signing out…' : 'Sign out all other devices'}
+              {actionId === 'logout-all' ? t('sessions.actions.loggingOut') : t('sessions.actions.logoutOthers')}
             </button>
           </div>
 
           {pageLoading ? (
-            <p className="text-muted">Loading sessions…</p>
+            <p className="text-muted">{t('sessions.states.loadingList')}</p>
           ) : sessions.length === 0 ? (
-            <p className="text-muted">No active sessions.</p>
+            <p className="text-muted">{t('sessions.states.empty')}</p>
           ) : (
             <ul className="session-list">
               {sessions.map((item) => {
@@ -237,10 +251,13 @@ export default function SessionsPage() {
                     <div>
                       <strong>{sessionLabel(item)}</strong>
                       <span className="text-muted"> · {item.platform}</span>
-                      {isCurrent && <span className="badge badge-current">This device</span>}
-                      {item.isTrusted && <span className="badge badge-trusted">Trusted</span>}
+                      {isCurrent && <span className="badge badge-current">{t('sessions.badges.current')}</span>}
+                      {item.isTrusted && <span className="badge badge-trusted">{t('sessions.badges.trusted')}</span>}
                       <p className="text-muted session-item-meta">
-                        Last active {formatWhen(item.lastActiveAt)} · Expires {formatWhen(item.expiresAt)}
+                        {t('sessions.itemMeta', {
+                          lastActive: formatWhen(item.lastActiveAt, locale),
+                          expiresAt: formatWhen(item.expiresAt, locale),
+                        })}
                       </p>
                     </div>
                     {!isCurrent && (
@@ -252,7 +269,7 @@ export default function SessionsPage() {
                           void handleRevoke(item.id);
                         }}
                       >
-                        {actionId === item.id ? 'Revoking…' : 'Revoke'}
+                        {actionId === item.id ? t('sessions.actions.revoking') : t('sessions.actions.revoke')}
                       </button>
                     )}
                   </li>
@@ -264,7 +281,9 @@ export default function SessionsPage() {
       )}
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/profile">Back to profile</Link>
+        <Link href="/settings">{t('sessions.links.backSettings')}</Link>
+        {' · '}
+        <Link href="/profile">{t('sessions.links.backProfile')}</Link>
       </p>
     </main>
   );

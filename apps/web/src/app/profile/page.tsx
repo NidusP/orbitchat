@@ -2,19 +2,27 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
-import { SiteNav } from '@/components/site-nav';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
+import { uploadFile } from '@/lib/api/uploads';
 import { getProfile, updateProfile, updateUser } from '@/lib/api/users';
+
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
+  const { user, isAuthenticated, isLoading, refreshUser, logout } = useAuth();
+  const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountSuccess, setAccountSuccess] = useState<string | null>(null);
@@ -22,6 +30,17 @@ export default function ProfilePage() {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [isAccountSubmitting, setIsAccountSubmitting] = useState(false);
   const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -46,10 +65,15 @@ export default function ProfilePage() {
         if (!cancelled) {
           setDisplayName(profile.displayName);
           setBio(profile.bio ?? '');
+          setAvatarUrl(profile.avatarUrl);
         }
       } catch (err) {
         if (!cancelled) {
-          setProfileError(err instanceof ApiError ? err.message : 'Failed to load profile.');
+          setProfileError(
+            err instanceof ApiError
+              ? t('profile.errors.loadProfileWithMessage', { message: err.message })
+              : t('profile.errors.loadProfile')
+          );
         }
       } finally {
         if (!cancelled) {
@@ -68,7 +92,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, t]);
 
   async function handleAccountSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -86,11 +110,62 @@ export default function ProfilePage() {
         email: email.trim(),
       });
       await refreshUser();
-      setAccountSuccess('Account updated.');
+      setAccountSuccess(t('profile.success.accountUpdated'));
     } catch (err) {
-      setAccountError(err instanceof ApiError ? err.message : 'Failed to update account.');
+      setAccountError(
+        err instanceof ApiError
+          ? t('profile.errors.updateAccountWithMessage', { message: err.message })
+          : t('profile.errors.updateAccount')
+      );
     } finally {
       setIsAccountSubmitting(false);
+    }
+  }
+
+  async function handleAvatarSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || !user) {
+      return;
+    }
+
+    setAvatarError(null);
+    setIsAvatarUploading(true);
+
+    const localPreview = URL.createObjectURL(file);
+    setAvatarPreviewUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return localPreview;
+    });
+
+    try {
+      const uploaded = await uploadFile(file, 'avatar');
+      const updated = await updateProfile(user.id, { avatarUploadId: uploaded.id });
+      setAvatarUrl(updated.avatarUrl);
+      setAvatarPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return null;
+      });
+      setProfileSuccess(t('profile.success.avatarUpdated'));
+    } catch (err) {
+      setAvatarPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return null;
+      });
+      setAvatarError(
+        err instanceof ApiError
+          ? t('profile.errors.avatarUploadWithMessage', { message: err.message })
+          : t('profile.errors.avatarUpload')
+      );
+    } finally {
+      setIsAvatarUploading(false);
     }
   }
 
@@ -109,39 +184,61 @@ export default function ProfilePage() {
         displayName,
         bio: bio.trim() === '' ? null : bio,
       });
-      setProfileSuccess('Profile updated.');
+      setProfileSuccess(t('profile.success.profileUpdated'));
     } catch (err) {
-      setProfileError(err instanceof ApiError ? err.message : 'Failed to update profile.');
+      setProfileError(
+        err instanceof ApiError
+          ? t('profile.errors.updateProfileWithMessage', { message: err.message })
+          : t('profile.errors.updateProfile')
+      );
     } finally {
       setIsProfileSubmitting(false);
+    }
+  }
+
+  async function handleLogout(): Promise<void> {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/login');
+    } finally {
+      setIsLoggingOut(false);
     }
   }
 
   if (isLoading || !user) {
     return (
       <main>
-        <SiteNav />
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('profile.loading')}</p>
       </main>
     );
   }
 
   return (
     <main>
-      <SiteNav />
-      <header className="page-header">
-        <h1>Profile</h1>
-        <p>View and edit your public profile.</p>
+      <header className="page-header section-header">
+        <div>
+          <h1>{t('profile.title')}</h1>
+          <p>{t('profile.subtitle')}</p>
+        </div>
+        <div className="profile-header-actions">
+          <Link href="/notifications" className="btn btn-secondary">
+            {t('profile.notifications')}
+          </Link>
+          <Link href="/settings" className="btn btn-secondary">
+            {t('profile.settings')}
+          </Link>
+        </div>
       </header>
 
       <div className="card">
-        <h2 className="section-title">Account</h2>
+        <h2 className="section-title">{t('profile.account.title')}</h2>
         <form className="form" onSubmit={handleAccountSubmit}>
           {accountError && <div className="alert alert-error">{accountError}</div>}
           {accountSuccess && <div className="alert alert-success">{accountSuccess}</div>}
 
           <div className="field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('profile.account.username')}</label>
             <input
               id="username"
               type="text"
@@ -156,7 +253,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('profile.account.email')}</label>
             <input
               id="email"
               type="email"
@@ -168,22 +265,59 @@ export default function ProfilePage() {
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={isAccountSubmitting}>
-            {isAccountSubmitting ? 'Saving…' : 'Save account'}
+            {isAccountSubmitting ? t('profile.account.saving') : t('profile.account.save')}
           </button>
         </form>
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <h2 className="section-title">Public profile</h2>
+        <h2 className="section-title">{t('profile.public.title')}</h2>
         {profileLoading ? (
-          <p className="text-muted">Loading profile…</p>
+          <p className="text-muted">{t('profile.public.loading')}</p>
         ) : (
           <form className="form" onSubmit={handleProfileSubmit}>
             {profileError && <div className="alert alert-error">{profileError}</div>}
             {profileSuccess && <div className="alert alert-success">{profileSuccess}</div>}
+            {avatarError && <div className="alert alert-error">{avatarError}</div>}
+
+            <div className="field profile-avatar-field">
+              <span className="field-label">{t('profile.public.avatar')}</span>
+              <div className="profile-avatar-row">
+                <UserAvatar
+                  displayName={displayName || user.username}
+                  userId={user.id}
+                  avatarUrl={avatarPreviewUrl ?? avatarUrl}
+                  size="lg"
+                />
+                <div className="profile-avatar-actions">
+                  <input
+                    ref={avatarInputRef}
+                    id="avatar-upload"
+                    type="file"
+                    accept={ACCEPTED_IMAGE_TYPES}
+                    hidden
+                    data-testid="profile-avatar-input"
+                    onChange={(event) => {
+                      void handleAvatarSelected(event);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    data-testid="profile-avatar-change"
+                    disabled={isAvatarUploading}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    {isAvatarUploading
+                      ? t('profile.public.uploadingAvatar')
+                      : t('profile.public.changeAvatar')}
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <div className="field">
-              <label htmlFor="displayName">Display name</label>
+              <label htmlFor="displayName">{t('profile.public.displayName')}</label>
               <input
                 id="displayName"
                 type="text"
@@ -195,7 +329,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="field">
-              <label htmlFor="bio">Bio</label>
+              <label htmlFor="bio">{t('profile.public.bio')}</label>
               <textarea
                 id="bio"
                 maxLength={500}
@@ -205,17 +339,31 @@ export default function ProfilePage() {
             </div>
 
             <button type="submit" className="btn btn-primary" disabled={isProfileSubmitting}>
-              {isProfileSubmitting ? 'Saving…' : 'Save profile'}
+              {isProfileSubmitting ? t('profile.public.saving') : t('profile.public.save')}
             </button>
           </form>
         )}
       </div>
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/settings/sessions">Manage sessions</Link>
+        <Link href="/settings/sessions">{t('profile.links.sessions')}</Link>
         {' · '}
-        <Link href="/">Back to home</Link>
+        <Link href="/">{t('profile.links.home')}</Link>
       </p>
+
+      <div style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          data-testid="profile-logout"
+          disabled={isLoggingOut}
+          onClick={() => {
+            void handleLogout();
+          }}
+        >
+          {isLoggingOut ? t('profile.loggingOut') : t('profile.logout')}
+        </button>
+      </div>
     </main>
   );
 }

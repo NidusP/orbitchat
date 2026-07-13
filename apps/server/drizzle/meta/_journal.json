@@ -120,6 +120,27 @@
       "when": 1783505000000,
       "tag": "0016_knowledge_chunks",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783510000000,
+      "tag": "0017_knowledge_chunks_content_hash",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783515000000,
+      "tag": "0018_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783520000000,
+      "tag": "0019_uploads_post_media",
+      "breakpoints": true
     }
   ]
 }
