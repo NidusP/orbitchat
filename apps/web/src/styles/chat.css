@@ -356,6 +356,28 @@
   font-size: 0.875rem;
 }
 
+[data-color-scheme='dark'] .chat-conversation-header {
+  border-color: var(--warm-border);
+  background: color-mix(in srgb, var(--warm-bg-surface) 92%, black 8%);
+}
+
+[data-color-scheme='dark'] .chat-connection-status {
+  border-color: #7f5f36;
+  background: #3b3023;
+  color: #f7d9a8;
+}
+
+[data-color-scheme='dark'] .chat-connection-status-online {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.28);
+}
+
+[data-color-scheme='dark'] .chat-send-error {
+  border-top-color: #6a3e3e;
+  background: #3a2424;
+  color: #f8c7c7;
+}
+
 .chat-typing-indicator {
   margin: 0;
   padding: 0 16px 8px;

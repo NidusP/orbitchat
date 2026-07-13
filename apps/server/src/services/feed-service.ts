@@ -10,7 +10,7 @@ import {
   trimToPage,
   type TimelineCursor,
 } from '../lib/cursor';
-import { loadAuthorSummaries, loadLikedPostIds } from '../lib/social-loaders';
+import { loadAuthorSummaries, loadLikedPostIds, loadPostMediaByPostIds } from '../lib/social-loaders';
 import { toPostWithAuthor } from '../lib/social-mappers';
 import { assertPublicUser } from './user-service';
 
@@ -26,9 +26,10 @@ function timelineBefore(cursor: TimelineCursor | undefined) {
 async function enrichPosts(viewerId: string, rows: typeof posts.$inferSelect[]): Promise<PostWithAuthor[]> {
   const authorIds = rows.map((row) => row.authorId);
   const postIds = rows.map((row) => row.id);
-  const [authors, likedIds] = await Promise.all([
+  const [authors, likedIds, mediaByPost] = await Promise.all([
     loadAuthorSummaries(authorIds),
     loadLikedPostIds(viewerId, postIds),
+    loadPostMediaByPostIds(postIds),
   ]);
 
   return rows.map((row) => {
@@ -36,7 +37,7 @@ async function enrichPosts(viewerId: string, rows: typeof posts.$inferSelect[]):
     if (!author) {
       throw new Error(`Author not found for post ${row.id}`);
     }
-    return toPostWithAuthor(row, author, likedIds.has(row.id));
+    return toPostWithAuthor(row, author, likedIds.has(row.id), mediaByPost.get(row.id) ?? []);
   });
 }
 

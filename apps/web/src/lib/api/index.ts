@@ -1,5 +1,6 @@
 export {
   apiRequest,
+  buildDefaultHeaders,
   clearAccessToken,
   getAccessToken,
   setAccessToken,
@@ -16,3 +17,5 @@ export * from './posts';
 export * from './social';
 export * from './users';
 export * from './conversations';
+export * from './notifications';
+export * from './uploads';

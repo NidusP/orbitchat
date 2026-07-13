@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { prepareEnglishLocale } from './locale';
+
+test.beforeEach(async ({ page }) => {
+  await prepareEnglishLocale(page);
+});
 
 function createUniqueIdentity(): {
   username: string;
@@ -35,7 +40,7 @@ async function registerAndLandOnProfile(
   await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page).toHaveURL('/profile');
-  await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Me', exact: true })).toBeVisible();
 }
 
 test('user can register, auto-login, edit profile, and logout', async ({ page }) => {
@@ -48,15 +53,15 @@ test('user can register, auto-login, edit profile, and logout', async ({ page })
 
   await page.getByLabel('Display name').fill(identity.updatedDisplayName);
   await page.getByLabel('Bio').fill(identity.bio);
-  await page.getByRole('button', { name: 'Save profile' }).click();
+  await page.getByRole('button', { name: 'Save public profile' }).click();
 
   await expect(page.getByText('Profile updated.')).toBeVisible();
   await expect(page.getByLabel('Display name')).toHaveValue(identity.updatedDisplayName);
   await expect(page.getByLabel('Bio')).toHaveValue(identity.bio);
 
-  await page.getByRole('button', { name: 'Logout' }).click();
+  await page.getByTestId('profile-logout').click();
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 
   await page.goto('/profile');
   await expect(page).toHaveURL(/\/login$/);
@@ -66,14 +71,14 @@ test('unauthenticated users are redirected to login from profile', async ({ page
   await page.goto('/profile');
 
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 });
 
 test('unauthenticated users are redirected to login from sessions', async ({ page }) => {
   await page.goto('/settings/sessions');
 
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole('heading', { name: 'Login' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 });
 
 test('login shows an error for invalid credentials', async ({ page }) => {
@@ -81,7 +86,7 @@ test('login shows an error for invalid credentials', async ({ page }) => {
 
   await page.getByLabel('Email').fill('missing-user@example.com');
   await page.getByLabel('Password').fill('WrongPassword123!');
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('button', { name: 'Log in' }).click();
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByText('Invalid credentials')).toBeVisible();
@@ -108,9 +113,9 @@ test('user can edit account fields on profile', async ({ page }) => {
   await registerAndLandOnProfile(page, identity);
 
   await page.getByLabel('Username').fill(identity.updatedUsername);
-  await page.getByRole('button', { name: 'Save account' }).click();
+  await page.getByRole('button', { name: 'Save account info' }).click();
 
-  await expect(page.getByText('Account updated.')).toBeVisible();
+  await expect(page.getByText('Account information updated.')).toBeVisible();
   await expect(page.getByLabel('Username')).toHaveValue(identity.updatedUsername);
 
   await page.reload();
@@ -123,10 +128,10 @@ test('trusted user can view sessions and sign out this device', async ({ page })
   await registerAndLandOnProfile(page, identity);
 
   await page.goto('/settings/sessions');
-  await expect(page.getByRole('heading', { name: 'Sessions', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'This device' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Session management', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Current device' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'All sessions' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sign out this device' }).click();
+  await page.getByRole('button', { name: 'Sign out current device' }).click();
   await expect(page).toHaveURL(/\/login$/);
 });

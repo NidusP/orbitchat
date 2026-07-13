@@ -9,6 +9,7 @@ import { ConversationListSkeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
+import { useI18n } from '@/contexts/i18n-context';
 import {
   getConversationDisplayName,
   getOtherParticipant,
@@ -20,7 +21,7 @@ function previewContent(content: string, max = 72): string {
   return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
 }
 
-function formatListTime(iso: string | null): string {
+function formatListTime(iso: string | null, locale: 'zh' | 'en'): string {
   if (!iso) {
     return '';
   }
@@ -30,9 +31,10 @@ function formatListTime(iso: string | null): string {
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
+  const localeTag = locale === 'zh' ? 'zh-CN' : 'en-US';
   return sameDay
-    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : date.toLocaleDateString();
+    ? date.toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString(localeTag);
 }
 
 function sortConversations(items: Conversation[]): Conversation[] {
@@ -61,6 +63,7 @@ export default function MessagesPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { subscribe } = useChatWs();
+  const { locale, t } = useI18n();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,11 +75,11 @@ export default function MessagesPage() {
       const page = await listConversations({ limit: 50 });
       setConversations(sortConversations(page.items));
     } catch {
-      setError('加载会话失败，请稍后重试。');
+      setError(t('messagesList.loadFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -127,7 +130,7 @@ export default function MessagesPage() {
     return (
       <main className="main-wide">
         <header className="page-header section-header">
-          <h1>消息</h1>
+          <h1>{t('messagesList.title')}</h1>
         </header>
         <ConversationListSkeleton count={4} />
       </main>
@@ -137,9 +140,9 @@ export default function MessagesPage() {
   return (
     <main className="main-wide">
       <header className="page-header section-header">
-        <h1>消息</h1>
+        <h1>{t('messagesList.title')}</h1>
         <Link href="/messages/new-group" className="btn btn-primary">
-          创建群聊
+          {t('messagesList.createGroup')}
         </Link>
       </header>
 
@@ -147,13 +150,13 @@ export default function MessagesPage() {
 
       {conversations.length === 0 ? (
         <EmptyState
-          title="还没有会话"
-          description="去搜索页发起私聊，或者创建群聊开始互动。"
-          actionLabel="发起私聊"
+          title={t('messagesList.emptyTitle')}
+          description={t('messagesList.emptyDescription')}
+          actionLabel={t('messagesList.startDm')}
           href="/search"
         >
           <Link href="/messages/new-group" className="btn btn-secondary">
-            创建群聊
+            {t('messagesList.createGroup')}
           </Link>
         </EmptyState>
       ) : (
@@ -161,11 +164,11 @@ export default function MessagesPage() {
           {conversations.map((conversation) => {
             const title = user
               ? getConversationDisplayName(conversation, user.id)
-              : '会话';
+              : t('messagesList.fallbackTitle');
             const otherParticipant = user ? getOtherParticipant(conversation, user.id) : null;
             const avatarDisplayName =
               conversation.type === 'group'
-                ? conversation.title?.trim() || '群'
+                ? conversation.title?.trim() || t('messagesList.fallbackGroupName')
                 : otherParticipant?.displayName ?? title;
             const avatarUserId =
               conversation.type === 'group'
@@ -175,10 +178,10 @@ export default function MessagesPage() {
               conversation.type === 'group'
                 ? null
                 : otherParticipant?.avatarUrl ?? null;
-            const preview = conversation.lastMessage?.content ?? '还没有消息';
+            const preview = conversation.lastMessage?.content ?? t('messagesList.noMessagesYet');
             const memberHint =
               conversation.type === 'group'
-                ? `${conversation.participants.length} 位成员`
+                ? t('messagesList.members', { count: conversation.participants.length })
                 : null;
 
             return (
@@ -197,7 +200,7 @@ export default function MessagesPage() {
                     <div className="conversation-list-main">
                       <span className="conversation-list-title">{title}</span>
                       <span className="conversation-list-time">
-                        {formatListTime(conversation.lastMessageAt)}
+                        {formatListTime(conversation.lastMessageAt, locale)}
                       </span>
                     </div>
                     <div className="conversation-list-preview-row">

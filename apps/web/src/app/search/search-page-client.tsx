@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import type { UserSearchResult } from '@orbitchat/shared-types';
-import { SiteNav } from '@/components/site-nav';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { followUser, searchUsers, unfollowUser } from '@/lib/api/social';
 
@@ -15,6 +15,7 @@ export function SearchPageClient() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { t } = useI18n();
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<UserSearchResult[]>([]);
@@ -43,11 +44,15 @@ export function SearchPageClient() {
       setResults((current) => (cursor ? [...current, ...page.items] : page.items));
       setNextCursor(page.nextCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? `搜索失败：${err.message}` : '搜索失败，请稍后重试。');
+      setError(
+        err instanceof ApiError
+          ? t('search.errors.searchWithMessage', { message: err.message })
+          : t('search.errors.search')
+      );
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (initialQuery.trim() !== '') {
@@ -87,7 +92,11 @@ export function SearchPageClient() {
         setFollowingIds((current) => new Set(current).add(target.id));
       }
     } catch (err) {
-      setError(err instanceof ApiError ? `更新关注失败：${err.message}` : '更新关注失败。');
+      setError(
+        err instanceof ApiError
+          ? t('search.errors.followWithMessage', { message: err.message })
+          : t('search.errors.follow')
+      );
     } finally {
       setPendingId(null);
     }
@@ -96,31 +105,29 @@ export function SearchPageClient() {
   if (isLoading || !isAuthenticated || !user) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">加载中…</p>
+        <p className="text-muted">{t('search.loading')}</p>
       </main>
     );
   }
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header">
-        <h1>搜索用户</h1>
-        <p className="text-muted">通过用户名或显示名称发现值得关注的人。</p>
+        <h1>{t('search.title')}</h1>
+        <p className="text-muted">{t('search.subtitle')}</p>
       </header>
 
       <div className="card">
         <form className="form" onSubmit={handleSubmit}>
           <div className="field">
-            <label htmlFor="search-q">关键词</label>
+            <label htmlFor="search-q">{t('search.keyword')}</label>
             <input
               id="search-q"
               type="search"
               data-testid="search-input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="输入用户名或显示名称"
+              placeholder={t('search.placeholder')}
               maxLength={64}
             />
           </div>
@@ -130,7 +137,7 @@ export function SearchPageClient() {
             data-testid="search-submit"
             disabled={isSearching || query.trim() === ''}
           >
-            {isSearching ? '搜索中…' : '搜索'}
+            {isSearching ? t('search.actions.searching') : t('search.actions.search')}
           </button>
         </form>
       </div>
@@ -171,7 +178,7 @@ export function SearchPageClient() {
                     disabled={pendingId === result.id}
                     onClick={() => void handleToggleFollow(result)}
                   >
-                    {isFollowing ? '已关注' : '关注'}
+                    {isFollowing ? t('search.actions.following') : t('search.actions.follow')}
                   </button>
                 )}
               </li>
@@ -188,7 +195,7 @@ export function SearchPageClient() {
             disabled={isSearching}
             onClick={() => void runSearch(query, nextCursor)}
           >
-            加载更多
+            {t('search.actions.loadMore')}
           </button>
         </div>
       )}

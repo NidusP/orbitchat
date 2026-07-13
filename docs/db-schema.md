@@ -162,6 +162,36 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 | notifications | 站内通知 |
 | tags / post_tags | 话题标签 |
 
+### uploads（Phase 4C）
+
+> [ADR 23](./decisions/23-object-storage-uploads.md)
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| owner_id | UUID FK → users | 上传者 |
+| purpose | VARCHAR | `avatar` \| `post` |
+| object_key | VARCHAR UNIQUE | S3 key |
+| mime_type | VARCHAR | |
+| size_bytes | INTEGER | |
+| status | VARCHAR | `pending` \| `committed` \| `deleted` |
+| created_at | TIMESTAMPTZ | |
+| expires_at | TIMESTAMPTZ | pending 过期时间 |
+
+**索引**：`(owner_id, status)`；`(expires_at)` WHERE `status = 'pending'`
+
+### post_media（Phase 4C）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| post_id | UUID FK → posts ON DELETE CASCADE | |
+| upload_id | UUID FK → uploads | |
+| sort_order | SMALLINT | 0–3 |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：`UNIQUE (post_id, upload_id)`；每帖最多 4 行（应用层 + 校验）
+
 ---
 
 ## Phase 3：聊天（3A 已定稿）

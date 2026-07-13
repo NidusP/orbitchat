@@ -1,4 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { prepareEnglishLocale, createEnglishContext } from './locale';
+
+test.beforeEach(async ({ page }) => {
+  await prepareEnglishLocale(page);
+});
 
 interface E2EIdentity {
   username: string;
@@ -17,6 +22,7 @@ function createUniqueIdentity(): E2EIdentity {
 }
 
 async function registerAndLandOnProfile(page: Page, identity: E2EIdentity): Promise<void> {
+  await prepareEnglishLocale(page);
   await page.goto('/register');
   await page.getByLabel('Username').fill(identity.username);
   await page.getByLabel('Display name').fill(identity.displayName);
@@ -29,7 +35,7 @@ async function registerAndLandOnProfile(page: Page, identity: E2EIdentity): Prom
 
 async function publishPost(page: Page, content: string): Promise<void> {
   await page.goto('/feed');
-  await expect(page.getByRole('heading', { name: 'Home feed' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Feed' })).toBeVisible();
   await page.getByTestId('post-composer-content').fill(content);
   await page.getByTestId('post-composer-submit').click();
   await expect(page.getByText(content)).toBeVisible();
@@ -66,8 +72,8 @@ test('followed user post appears on follower feed', async ({ browser }) => {
   const identityB = createUniqueIdentity();
   const postContent = `E2E follow feed ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -173,8 +179,8 @@ test('post owner can delete another user comment', async ({ browser }) => {
   const postContent = `E2E owner delete comment ${Date.now()}`;
   const commentText = `Comment to remove ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -226,8 +232,8 @@ test('follower appears on followee followers page', async ({ browser }) => {
   const identityA = createUniqueIdentity();
   const identityB = createUniqueIdentity();
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -253,6 +259,44 @@ test('follower appears on followee followers page', async ({ browser }) => {
 
     await pageA.goto(`${profileHref}/followers`);
     await expect(pageA.getByTestId('user-followers-list')).toContainText(identityA.displayName);
+  } finally {
+    await contextA.close();
+    await contextB.close();
+  }
+});
+
+test('liked post creates interaction notification for post author', async ({ browser }) => {
+  const identityA = createUniqueIdentity();
+  const identityB = createUniqueIdentity();
+  const postContent = `E2E notification like ${Date.now()}`;
+
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
+  const pageA = await contextA.newPage();
+  const pageB = await contextB.newPage();
+
+  try {
+    await registerAndLandOnProfile(pageA, identityA);
+    await publishPost(pageA, postContent);
+
+    await registerAndLandOnProfile(pageB, identityB);
+    await pageB.goto('/search');
+    await pageB.getByTestId('search-input').fill(identityA.username);
+    await pageB.getByTestId('search-submit').click();
+    await expect(pageB.getByText(identityA.displayName)).toBeVisible();
+
+    const authorRow = pageB.locator('.user-result-item').filter({ hasText: identityA.username });
+    await authorRow.getByRole('button', { name: 'Follow' }).click();
+    await expect(authorRow.getByRole('button', { name: 'Following' })).toBeVisible();
+
+    await pageB.goto('/feed');
+    const post = pageB.locator('[data-testid^="feed-post-"]').filter({ hasText: postContent }).first();
+    await expect(post).toBeVisible({ timeout: 15_000 });
+    await post.getByTestId(/^post-like-/).click();
+
+    await pageA.goto('/notifications');
+    await expect(pageA.getByTestId('interaction-notification-list')).toBeVisible({ timeout: 15_000 });
+    await expect(pageA.getByText(`${identityB.displayName} liked your post`)).toBeVisible();
   } finally {
     await contextA.close();
     await contextB.close();

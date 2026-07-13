@@ -18,6 +18,7 @@
     "db:reset-dev-user": "bun scripts/reset-dev-test-user.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
     "@hono/zod-validator": "^0.7.0",
     "@orbitchat/shared-types": "workspace:*",
     "@orbitchat/shared-utils": "workspace:*",
@@ -28,10 +29,10 @@
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "drizzle-kit": "^0.31.0",
     "@types/node": "^20.18.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "drizzle-kit": "^0.31.0",
     "eslint": "^9.0.0",
     "typescript": "^5.7.0"
   }

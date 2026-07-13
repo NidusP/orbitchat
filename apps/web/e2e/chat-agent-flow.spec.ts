@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { prepareEnglishLocale, createEnglishContext } from './locale';
 
 interface E2EIdentity {
   username: string;
@@ -16,7 +17,12 @@ function createUniqueIdentity(prefix: string): E2EIdentity {
   };
 }
 
+test.beforeEach(async ({ page }) => {
+  await prepareEnglishLocale(page);
+});
+
 async function registerAndLandOnProfile(page: Page, identity: E2EIdentity): Promise<void> {
+  await prepareEnglishLocale(page);
   await page.goto('/register');
   await page.getByLabel('Username').fill(identity.username);
   await page.getByLabel('Display name').fill(identity.displayName);
@@ -84,8 +90,8 @@ test('two users can start a direct chat and receive messages', async ({ browser 
   const identityB = createUniqueIdentity('chat_b');
   const message = `E2E private hello ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -96,7 +102,7 @@ test('two users can start a direct chat and receive messages', async ({ browser 
     await startDirectChat(pageA, pageB, identityA, identityB);
     await expect(pageA.getByRole('heading', { name: identityB.displayName })).toBeVisible();
 
-    await pageA.getByPlaceholder('Write a message…').fill(message);
+    await pageA.getByPlaceholder('Type a message, Enter to send').fill(message);
     await pageA.getByRole('button', { name: 'Send' }).click();
 
     await expect(pageB.getByText(message)).toBeVisible({ timeout: 15_000 });
@@ -112,8 +118,8 @@ test('direct chat shows typing indicator for the other participant', async ({ br
   const identityA = createUniqueIdentity('typing_a');
   const identityB = createUniqueIdentity('typing_b');
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -126,7 +132,7 @@ test('direct chat shows typing indicator for the other participant', async ({ br
     await expect(pageA.getByTestId('chat-ws-connected')).toHaveText('yes', { timeout: 15_000 });
     await expect(pageB.getByTestId('chat-ws-connected')).toHaveText('yes', { timeout: 15_000 });
 
-    const composerA = pageA.getByPlaceholder('Write a message…');
+    const composerA = pageA.getByPlaceholder('Type a message, Enter to send');
     await composerA.fill('still typing…');
     await expect(pageB.getByTestId('chat-typing-indicator')).toContainText(identityA.displayName, {
       timeout: 15_000,
@@ -144,9 +150,9 @@ test('group owner can rename the group and add a new member from settings', asyn
   const groupTitle = `E2E Settings Group ${Date.now()}`;
   const renamedTitle = `Renamed ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const contextC = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
+  const contextC = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
   const pageC = await contextC.newPage();
@@ -158,7 +164,7 @@ test('group owner can rename the group and add a new member from settings', asyn
 
     await createGroupChat(pageA, identityB, groupTitle);
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageA.getByRole('heading', { name: 'Group settings' })).toBeVisible();
 
     const nameSection = pageA.locator('section').filter({ hasText: 'Group name' });
@@ -190,8 +196,8 @@ test('group owner cannot leave until ownership is transferred', async ({ browser
   const identityB = createUniqueIdentity('grp_owner_b');
   const groupTitle = `E2E Owner Leave ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -200,7 +206,7 @@ test('group owner cannot leave until ownership is transferred', async ({ browser
     await registerAndLandOnProfile(pageB, identityB);
     await createGroupChat(pageA, identityB, groupTitle);
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageA.getByRole('heading', { name: 'Group settings' })).toBeVisible();
     await expect(pageA.getByRole('button', { name: 'Leave group' })).not.toBeVisible();
     await expect(
@@ -217,8 +223,8 @@ test('group owner can remove a member from settings', async ({ browser }) => {
   const identityB = createUniqueIdentity('grp_kick_b');
   const groupTitle = `E2E Kick Group ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -227,7 +233,7 @@ test('group owner can remove a member from settings', async ({ browser }) => {
     await registerAndLandOnProfile(pageB, identityB);
     await createGroupChat(pageA, identityB, groupTitle);
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     const memberRow = pageA.locator('.conversation-list-item').filter({
       hasText: identityB.displayName,
     });
@@ -248,8 +254,8 @@ test('group owner can transfer ownership and then leave the group', async ({ bro
   const identityB = createUniqueIdentity('grp_xfer_b');
   const groupTitle = `E2E Transfer Group ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -258,7 +264,7 @@ test('group owner can transfer ownership and then leave the group', async ({ bro
     await registerAndLandOnProfile(pageB, identityB);
     await createGroupChat(pageA, identityB, groupTitle);
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     const memberRow = pageA.locator('.conversation-list-item').filter({
       hasText: identityB.displayName,
     });
@@ -278,7 +284,7 @@ test('group owner can transfer ownership and then leave the group', async ({ bro
 
     await pageB.goto('/messages');
     await pageB.getByText(groupTitle).click();
-    await pageB.getByRole('link', { name: 'Settings' }).click();
+    await pageB.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageB.getByText(`Members (1)`)).toBeVisible({ timeout: 15_000 });
     await expect(pageB.getByRole('button', { name: 'Leave group' })).not.toBeVisible();
   } finally {
@@ -292,8 +298,8 @@ test('group member can leave from settings', async ({ browser }) => {
   const identityB = createUniqueIdentity('grp_leave_b');
   const groupTitle = `E2E Leave Group ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -304,13 +310,13 @@ test('group member can leave from settings', async ({ browser }) => {
 
     await pageB.goto('/messages');
     await pageB.getByText(groupTitle).click();
-    await pageB.getByRole('link', { name: 'Settings' }).click();
+    await pageB.getByRole('link', { name: 'Group settings' }).click();
     await pageB.getByRole('button', { name: 'Leave group' }).click();
 
     await expect(pageB).toHaveURL('/messages', { timeout: 15_000 });
     await expect(pageB.getByText(groupTitle)).not.toBeVisible();
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageA.getByText(`Members (1)`)).toBeVisible({ timeout: 15_000 });
     await expect(pageA.getByText(identityB.displayName)).not.toBeVisible();
   } finally {
@@ -324,9 +330,9 @@ test('user can start tic-tac-toe and play a move via agent tools', async ({ page
 
   await registerAndLandOnProfile(page, identity);
   await page.goto('/ai');
-  await page.getByRole('button', { name: 'New chat' }).click();
+  await page.getByRole('button', { name: 'New conversation' }).click();
 
-  const composer = page.getByPlaceholder('Ask 小轨 something…');
+  const composer = page.getByPlaceholder('What would you like to ask Orbit?');
   await composer.fill('[e2e:tictactoe]');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.tic-tac-toe-board')).toBeVisible({ timeout: 15_000 });
@@ -348,18 +354,18 @@ test('user can open AI chat and create a conversation without running a model', 
   await registerAndLandOnProfile(page, identity);
   await page.goto('/ai');
 
-  await expect(page.getByRole('heading', { name: 'AI Chat' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Orbit' })).toBeVisible();
   const agentSelect = page.getByRole('combobox');
   await expect(agentSelect).toBeVisible();
-  await expect(agentSelect.locator('option', { hasText: '小轨' })).toHaveCount(1);
-  await expect(page.locator('.ai-agent-summary strong')).toHaveText('小轨');
+  await expect(agentSelect.locator('option', { hasText: 'Orbit' })).toHaveCount(1);
+  await expect(page.locator('.ai-agent-summary strong')).toHaveText('Orbit');
 
-  const newChatButton = page.getByRole('button', { name: 'New chat' });
+  const newChatButton = page.getByRole('button', { name: 'New conversation' });
   await expect(newChatButton).toBeEnabled({ timeout: 10_000 });
   await newChatButton.click();
 
-  await expect(page.locator('.ai-conversation-button').filter({ hasText: '小轨 chat' })).toBeVisible();
-  await expect(page.getByPlaceholder('Ask 小轨 something…')).toBeVisible();
+  await expect(page.locator('.ai-conversation-button').filter({ hasText: 'Orbit conversation' })).toBeVisible();
+  await expect(page.getByPlaceholder('What would you like to ask Orbit?')).toBeVisible();
 });
 
 test('user can join a group via invite link', async ({ browser }) => {
@@ -368,9 +374,9 @@ test('user can join a group via invite link', async ({ browser }) => {
   const identityC = createUniqueIdentity('invite_c');
   const groupTitle = `E2E Invite Group ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const contextC = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
+  const contextC = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
   const pageC = await contextC.newPage();
@@ -382,7 +388,7 @@ test('user can join a group via invite link', async ({ browser }) => {
 
     await createGroupChat(pageA, identityB, groupTitle);
 
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageA.getByRole('heading', { name: 'Group settings' })).toBeVisible();
     await pageA.getByRole('button', { name: 'Generate invite link' }).click();
 
@@ -401,7 +407,7 @@ test('user can join a group via invite link', async ({ browser }) => {
     await expect(pageC.getByRole('heading', { name: groupTitle })).toBeVisible();
 
     await pageA.getByRole('link', { name: 'Back to chat' }).click();
-    await pageA.getByRole('link', { name: 'Settings' }).click();
+    await pageA.getByRole('link', { name: 'Group settings' }).click();
     await expect(pageA.getByText(`Members (3)`)).toBeVisible({ timeout: 15_000 });
     await expect(pageA.getByText(identityC.displayName)).toBeVisible();
   } finally {
@@ -417,8 +423,8 @@ test('two users can create a group chat and exchange messages', async ({ browser
   const groupTitle = `E2E Group ${Date.now()}`;
   const message = `E2E group hello ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -433,7 +439,7 @@ test('two users can create a group chat and exchange messages', async ({ browser
     await pageB.getByText(groupTitle).click();
     await expect(pageB.getByRole('heading', { name: groupTitle })).toBeVisible();
 
-    await pageA.getByPlaceholder('Write a message…').fill(message);
+    await pageA.getByPlaceholder('Type a message, Enter to send').fill(message);
     await pageA.getByRole('button', { name: 'Send' }).click();
 
     await expect(pageB.getByText(message)).toBeVisible({ timeout: 15_000 });
@@ -448,8 +454,8 @@ test('user can approve AI create_post tool call and see the post on feed', async
   const identityB = createUniqueIdentity('agent_post_b');
   const postContent = `E2E AI post ${Date.now()}`;
 
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await createEnglishContext(browser);
+  const contextB = await createEnglishContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
 
@@ -458,16 +464,16 @@ test('user can approve AI create_post tool call and see the post on feed', async
     await registerAndLandOnProfile(pageB, identityB);
 
     await pageA.goto('/ai');
-    await pageA.getByRole('button', { name: 'New chat' }).click();
-    await expect(pageA.getByPlaceholder('Ask 小轨 something…')).toBeVisible();
+    await pageA.getByRole('button', { name: 'New conversation' }).click();
+    await expect(pageA.getByPlaceholder('What would you like to ask Orbit?')).toBeVisible();
 
     await pageA
-      .getByPlaceholder('Ask 小轨 something…')
+      .getByPlaceholder('What would you like to ask Orbit?')
       .fill(`[e2e:create_post] ${postContent}`);
     await pageA.getByRole('button', { name: 'Send' }).click();
 
     const pendingCard = pageA.locator('.ai-tool-call-card').filter({
-      hasText: `Create post: ${postContent}`,
+      hasText: `Post content: ${postContent}`,
     });
     await expect(pendingCard).toBeVisible({ timeout: 15_000 });
     await pendingCard.getByRole('button', { name: 'Approve' }).click();
@@ -501,8 +507,8 @@ async function getUserIdFromProfile(page: Page, username: string): Promise<strin
 
 async function openNewAiChat(page: Page): Promise<void> {
   await page.goto('/ai');
-  await page.getByRole('button', { name: 'New chat' }).click();
-  await expect(page.getByPlaceholder('Ask 小轨 something…')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'New conversation' }).click();
+  await expect(page.getByPlaceholder('What would you like to ask Orbit?')).toBeVisible({ timeout: 15_000 });
 }
 
 test('user can approve remember_fact and see memory on memories page', async ({ page }) => {
@@ -512,7 +518,7 @@ test('user can approve remember_fact and see memory on memories page', async ({ 
   await registerAndLandOnProfile(page, identity);
   await openNewAiChat(page);
 
-  const composer = page.getByPlaceholder('Ask 小轨 something…');
+  const composer = page.getByPlaceholder('What would you like to ask Orbit?');
   await composer.fill(`[e2e:remember_fact] nickname:${memoryContent}`);
   await page.getByRole('button', { name: 'Send' }).click();
 
@@ -520,12 +526,12 @@ test('user can approve remember_fact and see memory on memories page', async ({ 
     hasText: `Remember nickname: ${memoryContent}`,
   });
   await expect(pendingCard).toBeVisible({ timeout: 15_000 });
-  await expect(pendingCard.getByText('确认后小轨会在之后的对话中记住这条信息')).toBeVisible();
+  await expect(pendingCard.getByText('After approval, Orbit will remember this in future conversations.')).toBeVisible();
   await pendingCard.getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText('Memory saved successfully.')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Preference remembered.')).toBeVisible({ timeout: 15_000 });
 
   await page.goto('/ai/memories');
-  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Orbit memories' })).toBeVisible();
   await expect(page.getByText(memoryContent)).toBeVisible({ timeout: 15_000 });
 });
 
@@ -535,9 +541,9 @@ test('user can add and delete a memory on memories page', async ({ page }) => {
 
   await registerAndLandOnProfile(page, identity);
   await page.goto('/ai/memories');
-  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Orbit memories' })).toBeVisible();
 
-  await page.getByPlaceholder('e.g. Prefer short replies, or call me Orbit').fill(memoryContent);
+  await page.getByRole('textbox', { name: 'Content' }).fill(memoryContent);
   await page.getByRole('button', { name: 'Add memory' }).click();
   await expect(page.getByText(memoryContent)).toBeVisible({ timeout: 15_000 });
 
@@ -554,18 +560,18 @@ test('user can list recent posts via agent tool prefix', async ({ page }) => {
   await openNewAiChat(page);
 
   await page
-    .getByPlaceholder('Ask 小轨 something…')
+    .getByPlaceholder('What would you like to ask Orbit?')
     .fill(`[e2e:create_post] ${postContent}`);
   await page.getByRole('button', { name: 'Send' }).click();
 
   const createCard = page.locator('.ai-tool-call-card').filter({
-    hasText: `Create post: ${postContent}`,
+    hasText: `Post content: ${postContent}`,
   });
   await expect(createCard).toBeVisible({ timeout: 15_000 });
   await createCard.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText('Post published successfully.')).toBeVisible({ timeout: 15_000 });
 
-  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:my_posts]');
+  await page.getByPlaceholder('What would you like to ask Orbit?').fill('[e2e:my_posts]');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.chat-bubble-tool').filter({ hasText: /最近帖子/ })).toBeVisible({
     timeout: 15_000,
@@ -578,7 +584,7 @@ test('user can run semantic post search tool via agent prefix', async ({ page })
   await registerAndLandOnProfile(page, identity);
   await openNewAiChat(page);
 
-  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:search_posts] travel');
+  await page.getByPlaceholder('What would you like to ask Orbit?').fill('[e2e:search_posts] travel');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.chat-bubble-tool').filter({ hasText: /搜索你的帖子/ })).toBeVisible({
     timeout: 15_000,
@@ -591,7 +597,7 @@ test('user can run help docs search tool via agent prefix', async ({ page }) => 
   await registerAndLandOnProfile(page, identity);
   await openNewAiChat(page);
 
-  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:search_help] api');
+  await page.getByPlaceholder('What would you like to ask Orbit?').fill('[e2e:search_help] api');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.locator('.chat-bubble-tool').filter({ hasText: /搜索帮助文档/ })).toBeVisible({
     timeout: 15_000,
@@ -604,7 +610,7 @@ test('user can load profile via agent tool prefix', async ({ page }) => {
   await registerAndLandOnProfile(page, identity);
   await openNewAiChat(page);
 
-  await page.getByPlaceholder('Ask 小轨 something…').fill('[e2e:my_profile]');
+  await page.getByPlaceholder('What would you like to ask Orbit?').fill('[e2e:my_profile]');
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(
     page.locator('.chat-bubble-tool').filter({ hasText: identity.username })
@@ -619,7 +625,7 @@ test('user can reject remember_fact pending tool call', async ({ page }) => {
   await openNewAiChat(page);
 
   await page
-    .getByPlaceholder('Ask 小轨 something…')
+    .getByPlaceholder('What would you like to ask Orbit?')
     .fill(`[e2e:remember_fact] nickname:${memoryContent}`);
   await page.getByRole('button', { name: 'Send' }).click();
 
@@ -639,7 +645,7 @@ test('AI chat page links to memories management', async ({ page }) => {
 
   await registerAndLandOnProfile(page, identity);
   await page.goto('/ai');
-  await page.getByRole('link', { name: '记忆管理' }).click();
+  await page.getByRole('link', { name: 'Manage Orbit memories' }).click();
   await expect(page).toHaveURL('/ai/memories');
-  await expect(page.getByRole('heading', { name: 'AI Memories' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Orbit memories' })).toBeVisible();
 });

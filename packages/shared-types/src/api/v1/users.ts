@@ -19,6 +19,8 @@ export interface UpdateProfileRequest {
   displayName?: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  /** Commits a pending avatar upload; mutually exclusive with avatarUrl (uploadId wins). */
+  avatarUploadId?: string;
 }
 
 export type UpdateProfileResponse = Profile;

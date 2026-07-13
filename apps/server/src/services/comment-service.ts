@@ -14,6 +14,7 @@ import {
 import { loadAuthorSummaries } from '../lib/social-loaders';
 import { toCommentWithAuthor } from '../lib/social-mappers';
 import type { CreateCommentInput } from '../schemas/posts';
+import { createPostCommentedNotification } from './notification-service';
 
 function timelineBefore(cursor: TimelineCursor | undefined) {
   if (!cursor) {
@@ -104,6 +105,12 @@ export async function createComment(
   const author = authors.get(authorId);
   if (!author) {
     throw new AppError('NOT_FOUND', 'Author not found', 404);
+  }
+
+  if (authorId !== post.authorId) {
+    void createPostCommentedNotification(postId, created.id, authorId, post.authorId).catch(
+      console.error
+    );
   }
 
   return toCommentWithAuthor(created, author);

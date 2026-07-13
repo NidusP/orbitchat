@@ -69,8 +69,12 @@ export type {
   LikePostResponse,
   MarkConversationReadRequest,
   MarkConversationReadResponse,
+  MarkNotificationsReadRequest,
+  MarkNotificationsReadResponse,
   MessageListResponse,
   MessageEditListResponse,
+  NotificationListResponse,
+  NotificationUnreadCountResponse,
   UpdateMessageRequest,
   UpdateMessageResponse,
   AddGroupMembersRequest,
@@ -89,6 +93,11 @@ export type {
   UserAgentMemoryListResponse,
   UnfollowUserResponse,
 } from './api/v1';
+export type {
+  CreateUploadRequest,
+  CreateUploadResponse,
+  GetMediaParams,
+} from './api/v1/uploads';
 export type {
   GetProfileResponse,
   GetUserResponse,
@@ -144,7 +153,19 @@ export type {
   WsMessage,
 } from './domain/conversation';
 export type { Follow, UserSearchResult } from './domain/follow';
+export type {
+  InteractionNotification,
+  InteractionNotificationCommentPreview,
+  InteractionNotificationPostPreview,
+  InteractionNotificationType,
+} from './domain/notification';
 export type { Post, PostAuthorSummary, PostWithAuthor } from './domain/post';
+export type {
+  UploadPurpose,
+  UploadStatus,
+  UploadSummary,
+  PostMediaItem,
+} from './domain/upload';
 export type { ClientPlatform } from './domain/client';
 export { CLIENT_PLATFORMS, isClientPlatform } from './domain/client';
 export type { Profile } from './domain/profile';

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { UserSearchResult } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { followUser, getFollowers, getFollowing, unfollowUser } from '@/lib/api/social';
 import { getProfile, getUser } from '@/lib/api/users';
@@ -16,15 +17,16 @@ interface UserConnectionListProps {
   mode: ConnectionMode;
 }
 
-const MODE_COPY: Record<ConnectionMode, { title: string; empty: string }> = {
-  followers: { title: 'Followers', empty: 'No followers yet.' },
-  following: { title: 'Following', empty: 'Not following anyone yet.' },
-};
-
 export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading, user: viewer } = useAuth();
-  const copy = MODE_COPY[mode];
+  const { t } = useI18n();
+  const title =
+    mode === 'followers' ? t('userConnections.followersTitle') : t('userConnections.followingTitle');
+  const emptyCopy =
+    mode === 'followers'
+      ? t('userConnections.emptyFollowers')
+      : t('userConnections.emptyFollowing');
 
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
@@ -74,7 +76,11 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
         setNextCursor(page.nextCursor);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'Failed to load list.');
+          setError(
+            err instanceof ApiError
+              ? t('userConnections.errors.loadWithMessage', { message: err.message })
+              : t('userConnections.errors.load')
+          );
         }
       } finally {
         if (!cancelled) {
@@ -90,7 +96,7 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
     return () => {
       cancelled = true;
     };
-  }, [userId, fetchPage, isAuthenticated]);
+  }, [userId, fetchPage, isAuthenticated, t]);
 
   async function handleLoadMore() {
     if (!nextCursor) {
@@ -105,7 +111,11 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
       setItems((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load more.');
+      setError(
+        err instanceof ApiError
+          ? t('userConnections.errors.loadMoreWithMessage', { message: err.message })
+          : t('userConnections.errors.loadMore')
+      );
     } finally {
       setIsLoadingMore(false);
     }
@@ -132,7 +142,11 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
         setFollowingIds((current) => new Set(current).add(target.id));
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to update follow.');
+      setError(
+        err instanceof ApiError
+          ? t('userConnections.errors.followWithMessage', { message: err.message })
+          : t('userConnections.errors.follow')
+      );
     } finally {
       setPendingId(null);
     }
@@ -141,7 +155,7 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
   if (isLoading || isLoadingPage || !viewer) {
     return (
       <main className="main-wide">
-        <p className="text-muted">Loading…</p>
+        <p className="text-muted">{t('userConnections.loading')}</p>
       </main>
     );
   }
@@ -157,7 +171,7 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
   return (
     <main className="main-wide">
       <header className="page-header">
-        <h1>{copy.title}</h1>
+        <h1>{title}</h1>
         {displayName && username && (
           <p className="text-muted">
             {displayName} (@{username})
@@ -166,11 +180,11 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
       </header>
 
       <p className="text-muted" style={{ marginBottom: 16 }}>
-        <Link href={`/users/${userId}`}>Back to profile</Link>
+        <Link href={`/users/${userId}`}>{t('userConnections.backToProfile')}</Link>
         {' · '}
-        <Link href={`/users/${userId}/followers`}>Followers</Link>
+        <Link href={`/users/${userId}/followers`}>{t('userConnections.followersLink')}</Link>
         {' · '}
-        <Link href={`/users/${userId}/following`}>Following</Link>
+        <Link href={`/users/${userId}/following`}>{t('userConnections.followingLink')}</Link>
       </p>
 
       {error && (
@@ -181,7 +195,7 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
 
       {items.length === 0 ? (
         <div className="card empty-state">
-          <p className="text-muted">{copy.empty}</p>
+          <p className="text-muted">{emptyCopy}</p>
         </div>
       ) : (
         <ul className="user-result-list" data-testid={`user-${mode}-list`}>
@@ -205,7 +219,9 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
                     disabled={pendingId === item.id}
                     onClick={() => void handleToggleFollow(item)}
                   >
-                    {isFollowing ? 'Following' : 'Follow'}
+                    {isFollowing
+                      ? t('userConnections.actions.following')
+                      : t('userConnections.actions.follow')}
                   </button>
                 )}
               </li>
@@ -223,7 +239,7 @@ export function UserConnectionList({ userId, mode }: UserConnectionListProps) {
             disabled={isLoadingMore}
             onClick={() => void handleLoadMore()}
           >
-            {isLoadingMore ? 'Loading…' : 'Load more'}
+            {isLoadingMore ? t('common.loading') : t('userConnections.actions.loadMore')}
           </button>
         </div>
       )}

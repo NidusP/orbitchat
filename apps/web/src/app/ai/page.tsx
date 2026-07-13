@@ -6,6 +6,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Agent, AiConversation, AiMessage, AiSseEvent, AiToolCall } from '@orbitchat/shared-types';
 import { parseTicTacToeToolContent, TicTacToeBoard } from '@/components/tic-tac-toe-board';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import {
   createAiConversation,
   approveAiToolCall,
@@ -18,19 +19,23 @@ import {
   sortAiMessages,
 } from '@/lib/api/ai';
 import { ApiError } from '@/lib/api/errors';
+import type { I18nKey, MessageValues } from '@/lib/i18n';
 import {
   buildCitationsByAssistantMessage,
   countToolOutputItems,
   formatAiError,
   formatToolMessageContent,
+  resolveAgentDisplayName,
 } from '@/lib/ai-agent-ui';
 
-const AI_SUGGESTION_CHIPS = [
-  '帮我记一下我喜欢喝燕麦拿铁',
-  '我最近发了什么帖子？',
-  '帮我写一条动态，主题是周末放松',
-  '我们来玩井字棋',
-] as const;
+const AI_SUGGESTION_KEYS = [
+  'ai.suggestion.memoryLatte',
+  'ai.suggestion.recentPosts',
+  'ai.suggestion.weekendPost',
+  'ai.suggestion.ticTacToe',
+] as const satisfies readonly I18nKey[];
+
+type TranslateFn = (key: I18nKey, values?: MessageValues) => string;
 
 function createLocalMessage(input: {
   conversationId: string;
@@ -56,10 +61,6 @@ function mergeAiMessages(current: AiMessage[], incoming: AiMessage[]): AiMessage
   return sortAiMessages([...map.values()]);
 }
 
-function getConversationTitle(conversation: AiConversation, agent: Agent | undefined): string {
-  return conversation.title ?? `${agent?.name ?? '小轨'} 对话`;
-}
-
 function isAiToolCall(value: unknown): value is AiToolCall {
   return (
     typeof value === 'object' &&
@@ -82,14 +83,14 @@ function extractToolCall(output: unknown): AiToolCall | null {
   return isAiToolCall(toolCall) ? toolCall : null;
 }
 
-function formatCaughtAiError(err: unknown): string {
+function formatCaughtAiError(err: unknown, t: TranslateFn): string {
   if (err instanceof ApiError) {
     return formatAiError(err.code, err.message);
   }
-  return '发送失败，请稍后重试。';
+  return t('ai.errors.sendFailed');
 }
 
-function describeToolCall(toolCall: AiToolCall): string {
+function describeToolCall(toolCall: AiToolCall, t: TranslateFn): string {
   const input =
     typeof toolCall.input === 'object' && toolCall.input !== null ? toolCall.input : {};
 
@@ -98,109 +99,126 @@ function describeToolCall(toolCall: AiToolCall): string {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : '未知用户';
+          : t('ai.toolCall.describe.unknownUser');
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `发送给 @${targetUsername}${content ? `：${content}` : ''}`;
+      return t('ai.toolCall.describe.sendDm', {
+        targetUsername,
+        contentSuffix: content ? `: ${content}` : '',
+      });
     }
     case 'create_post': {
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return content ? `动态内容：${content}` : '将发布一条新动态';
+      return content
+        ? t('ai.toolCall.describe.createPost', { content })
+        : t('ai.toolCall.describe.createPostNoContent');
     }
     case 'follow_user':
     case 'unfollow_user': {
       const targetUsername =
         'targetUsername' in input && typeof input.targetUsername === 'string'
           ? input.targetUsername
-          : '未知用户';
-      const action = toolCall.toolName === 'follow_user' ? '关注' : '取消关注';
-      return `${action} @${targetUsername}`;
+          : t('ai.toolCall.describe.unknownUser');
+      if (toolCall.toolName === 'follow_user') {
+        return t('ai.toolCall.describe.follow', { targetUsername });
+      }
+      return t('ai.toolCall.describe.unfollow', { targetUsername });
     }
     case 'remember_fact': {
-      const kind = 'kind' in input && typeof input.kind === 'string' ? input.kind : '偏好';
+      const kind =
+        'kind' in input && typeof input.kind === 'string'
+          ? input.kind
+          : t('ai.toolCall.describe.rememberKindDefault');
       const content = 'content' in input && typeof input.content === 'string' ? input.content : '';
-      return `记住${kind}：${content}`;
+      return t('ai.toolCall.describe.rememberFact', { kind, content });
     }
     default:
-      return `操作：${toolCall.toolName}`;
+      return t('ai.toolCall.describe.default', { toolName: toolCall.toolName });
   }
 }
 
-function getToolCallApprovalTitle(toolCall: AiToolCall): string {
+function getToolCallApprovalTitle(toolCall: AiToolCall, t: TranslateFn): string {
   switch (toolCall.toolName) {
     case 'send_dm':
-      return '小轨想帮你发送私信，是否同意？';
+      return t('ai.toolCall.approval.send_dm');
     case 'create_post':
-      return '小轨想帮你发布动态，是否同意？';
+      return t('ai.toolCall.approval.create_post');
     case 'follow_user':
-      return '小轨想帮你关注用户，是否同意？';
+      return t('ai.toolCall.approval.follow_user');
     case 'unfollow_user':
-      return '小轨想帮你取消关注，是否同意？';
+      return t('ai.toolCall.approval.unfollow_user');
     case 'remember_fact':
-      return '小轨想记住这条偏好，是否同意？';
+      return t('ai.toolCall.approval.remember_fact');
     default:
-      return '小轨想帮你执行一个站内操作，是否同意？';
+      return t('ai.toolCall.approval.default');
   }
 }
 
-function describeRunningTool(toolName: string): string {
+function describeRunningTool(toolName: string, t: TranslateFn): string {
   switch (toolName) {
     case 'search_contact':
-      return '小轨正在查找联系人…';
+      return t('ai.toolCall.running.search_contact');
     case 'get_my_profile':
-      return '小轨正在读取你的资料…';
+      return t('ai.toolCall.running.get_my_profile');
     case 'list_my_recent_posts':
-      return '小轨正在读取你最近的动态…';
+      return t('ai.toolCall.running.list_my_recent_posts');
     case 'search_my_posts':
-      return '小轨正在搜索你的动态…';
+      return t('ai.toolCall.running.search_my_posts');
     case 'search_help_docs':
-      return '小轨正在查询帮助资料…';
+      return t('ai.toolCall.running.search_help_docs');
     case 'get_user_profile':
-      return '小轨正在读取对方资料…';
+      return t('ai.toolCall.running.get_user_profile');
     case 'list_user_recent_posts':
-      return '小轨正在读取对方动态…';
+      return t('ai.toolCall.running.list_user_recent_posts');
     case 'play_tictactoe':
-      return '小轨正在更新井字棋棋局…';
+      return t('ai.toolCall.running.play_tictactoe');
     case 'send_dm':
-      return '小轨正在准备私信…';
+      return t('ai.toolCall.running.send_dm');
     case 'create_post':
-      return '小轨正在准备动态…';
+      return t('ai.toolCall.running.create_post');
     case 'follow_user':
-      return '小轨正在准备关注操作…';
+      return t('ai.toolCall.running.follow_user');
     case 'unfollow_user':
-      return '小轨正在准备取消关注…';
+      return t('ai.toolCall.running.unfollow_user');
     case 'remember_fact':
-      return '小轨正在准备记忆…';
+      return t('ai.toolCall.running.remember_fact');
     default:
-      return `小轨正在执行 ${toolName}…`;
+      return t('ai.toolCall.running.default', { toolName });
   }
 }
 
-function executedToolMessage(toolCall: AiToolCall): string {
+function executedToolMessage(toolCall: AiToolCall, t: TranslateFn): string {
   switch (toolCall.toolName) {
     case 'send_dm':
-      return '私信发送成功。';
+      return t('ai.toolCall.executed.send_dm');
     case 'create_post':
-      return '动态发布成功。';
+      return t('ai.toolCall.executed.create_post');
     case 'follow_user':
-      return '已完成关注。';
+      return t('ai.toolCall.executed.follow_user');
     case 'unfollow_user':
-      return '已取消关注。';
+      return t('ai.toolCall.executed.unfollow_user');
     case 'remember_fact':
-      return '偏好已记住。';
+      return t('ai.toolCall.executed.remember_fact');
     case 'search_my_posts':
-      return `搜索你的帖子：找到 ${countToolOutputItems(toolCall.output)} 条结果`;
+      return t('ai.toolCall.executed.search_my_posts', {
+        count: countToolOutputItems(toolCall.output),
+      });
     case 'search_help_docs':
-      return `搜索帮助文档：找到 ${countToolOutputItems(toolCall.output)} 条结果`;
+      return t('ai.toolCall.executed.search_help_docs', {
+        count: countToolOutputItems(toolCall.output),
+      });
     case 'list_my_recent_posts':
-      return `最近帖子：共 ${countToolOutputItems(toolCall.output)} 条`;
+      return t('ai.toolCall.executed.list_my_recent_posts', {
+        count: countToolOutputItems(toolCall.output),
+      });
     default:
-      return '操作已执行完成。';
+      return t('ai.toolCall.executed.default');
   }
 }
 
 export default function AiPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [conversations, setConversations] = useState<AiConversation[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
@@ -228,6 +246,8 @@ export default function AiPage() {
     [messages]
   );
 
+  const suggestionChips = useMemo(() => AI_SUGGESTION_KEYS.map((key) => t(key)), [t]);
+
   const loadInitial = useCallback(async () => {
     setIsLoadingPage(true);
     setError(null);
@@ -241,11 +261,11 @@ export default function AiPage() {
       setConversations(conversationPage.items);
       setSelectedConversationId(conversationPage.items[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '加载小轨页面失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('ai.errors.pageLoadFailed'));
     } finally {
       setIsLoadingPage(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -282,7 +302,7 @@ export default function AiPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : '加载对话失败，请稍后重试。');
+          setError(err instanceof ApiError ? err.message : t('ai.errors.conversationLoadFailed'));
         }
       }
     }
@@ -292,7 +312,7 @@ export default function AiPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId]);
+  }, [selectedConversationId, t]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -312,7 +332,7 @@ export default function AiPage() {
       setMessages([]);
       setToolCalls([]);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '创建对话失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('ai.errors.createConversationFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -323,7 +343,7 @@ export default function AiPage() {
       return selectedConversationId;
     }
     if (!selectedAgentId) {
-      setError('请先选择一个助手。');
+      setError(t('ai.errors.selectAssistantFirst'));
       return null;
     }
     const conversation = await createAiConversation({ agentId: selectedAgentId });
@@ -340,7 +360,7 @@ export default function AiPage() {
 
     if (event.type === 'tool.started') {
       setIsThinking(false);
-      setToolRunningStatus(describeRunningTool(event.payload.toolName));
+      setToolRunningStatus(describeRunningTool(event.payload.toolName, t));
       return;
     }
 
@@ -423,13 +443,17 @@ export default function AiPage() {
               conversationId: updated.conversationId,
               role: 'tool',
               toolName: updated.toolName,
-              content: executedToolMessage(updated),
+              content: executedToolMessage(updated, t),
             }),
           ])
         );
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `操作失败：${action === 'approve' ? '同意' : '拒绝'}请求未完成。`);
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : t(action === 'approve' ? 'ai.errors.approveFailed' : 'ai.errors.rejectFailed')
+      );
     }
   }
 
@@ -480,7 +504,7 @@ export default function AiPage() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
-      setError(formatCaughtAiError(err));
+      setError(formatCaughtAiError(err, t));
     } finally {
       if (streamAbortRef.current === abortController) {
         streamAbortRef.current = null;
@@ -494,7 +518,7 @@ export default function AiPage() {
   if (authLoading || isLoadingPage) {
     return (
       <main className="main-wide">
-        <p className="text-muted">加载中…</p>
+        <p className="text-muted">{t('messages.loading')}</p>
       </main>
     );
   }
@@ -503,12 +527,10 @@ export default function AiPage() {
     <main className="main-wide chat-page">
       <header className="page-header section-header">
         <div>
-          <h1>小轨</h1>
-          <p className="text-muted">
-            你的站内助手 · 能聊天、查资料、记偏好、帮你发帖和发私信
-          </p>
+          <h1>{t('ai.title')}</h1>
+          <p className="text-muted">{t('ai.description')}</p>
           <p style={{ margin: '4px 0 0', fontSize: '0.875rem' }}>
-            <Link href="/ai/memories">管理小轨记忆</Link>
+            <Link href="/ai/memories">{t('ai.manageMemories')}</Link>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -520,7 +542,7 @@ export default function AiPage() {
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
-                {agent.name}
+                {resolveAgentDisplayName(agent, t)}
               </option>
             ))}
           </select>
@@ -530,7 +552,7 @@ export default function AiPage() {
             disabled={!selectedAgentId || isCreating}
             onClick={() => void handleNewChat()}
           >
-            {isCreating ? '创建中…' : '新建对话'}
+            {isCreating ? t('ai.creatingConversation') : t('ai.newConversation')}
           </button>
         </div>
       </header>
@@ -543,9 +565,9 @@ export default function AiPage() {
 
       <div className="ai-layout">
         <aside className="ai-sidebar card">
-          <h2 className="section-title">对话记录</h2>
+          <h2 className="section-title">{t('ai.section.conversations')}</h2>
           {conversations.length === 0 ? (
-            <p className="text-muted">还没有对话，来和小轨聊聊吧。</p>
+            <p className="text-muted">{t('ai.emptyConversations')}</p>
           ) : (
             <div className="ai-conversation-list">
               {conversations.map((conversation) => {
@@ -559,8 +581,13 @@ export default function AiPage() {
                     }`}
                     onClick={() => setSelectedConversationId(conversation.id)}
                   >
-                    <span>{getConversationTitle(conversation, agent)}</span>
-                    <small>{agent?.name ?? '小轨'}</small>
+                    <span>
+                      {conversation.title ??
+                        t('ai.conversationTitleFallback', {
+                          agentName: resolveAgentDisplayName(agent, t),
+                        })}
+                    </span>
+                    <small>{resolveAgentDisplayName(agent, t)}</small>
                   </button>
                 );
               })}
@@ -587,11 +614,11 @@ export default function AiPage() {
                   border: '1px solid #fdba74',
                 }}
               >
-                轨
+                {t('ai.avatarInitial')}
               </div>
               <div style={{ display: 'grid', gap: 2 }}>
-                <strong>小轨</strong>
-                <span>你的站内助手 · 能聊天、查资料、记偏好、帮你发帖和发私信</span>
+                <strong>{t('ai.title')}</strong>
+                <span>{t('ai.description')}</span>
               </div>
             </div>
           </div>
@@ -604,12 +631,12 @@ export default function AiPage() {
                   .map((toolCall) => (
                     <div key={toolCall.id} className="ai-tool-call-card">
                       <div>
-                        <strong>{getToolCallApprovalTitle(toolCall)}</strong>
-                        <p>{describeToolCall(toolCall)}</p>
+                        <strong>{getToolCallApprovalTitle(toolCall, t)}</strong>
+                        <p>{describeToolCall(toolCall, t)}</p>
                         {toolCall.toolName === 'remember_fact' && (
                           <p className="ai-tool-call-helper">
-                            确认后小轨会在之后的对话中记住这条信息。{' '}
-                            <Link href="/ai/memories">管理小轨记忆</Link>
+                            {t('ai.rememberFactHelper')}{' '}
+                            <Link href="/ai/memories">{t('ai.manageMemories')}</Link>
                           </p>
                         )}
                       </div>
@@ -619,14 +646,14 @@ export default function AiPage() {
                           className="btn btn-primary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'approve')}
                         >
-                          同意
+                          {t('ai.actions.approve')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
                           onClick={() => void handleToolCallAction(toolCall.id, 'reject')}
                         >
-                          拒绝
+                          {t('ai.actions.reject')}
                         </button>
                       </div>
                     </div>
@@ -635,9 +662,9 @@ export default function AiPage() {
             )}
             {messages.length === 0 ? (
               <div className="chat-empty">
-                <p>你好，我是小轨 👋 想先从哪件事开始？</p>
+                <p>{t('ai.emptyGreeting')}</p>
                 <p className="text-muted" style={{ marginBottom: 12 }}>
-                  点一下这些建议会自动填入输入框。
+                  {t('ai.emptyHint')}
                 </p>
                 <div
                   style={{
@@ -649,7 +676,7 @@ export default function AiPage() {
                     margin: '0 auto',
                   }}
                 >
-                  {AI_SUGGESTION_CHIPS.map((suggestion) => (
+                  {suggestionChips.map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
@@ -664,7 +691,7 @@ export default function AiPage() {
                   ))}
                 </div>
                 <p className="text-muted" style={{ marginTop: 12 }}>
-                  也可以输入 <code>[e2e:tictactoe]</code> 触发测试棋局。
+                  {t('ai.emptyE2EHint')}
                 </p>
               </div>
             ) : (
@@ -678,7 +705,7 @@ export default function AiPage() {
                     ? parseTicTacToeToolContent(message.content)
                     : null;
                 const toolMessageContent = isTool
-                  ? `小轨执行结果\n${formatToolMessageContent(message.toolName, message.content)}`
+                  ? `${t('ai.toolResultPrefix')}\n${formatToolMessageContent(message.toolName, message.content)}`
                   : message.content;
                 return (
                   <div
@@ -699,7 +726,7 @@ export default function AiPage() {
                       >
                         {ticTacToe ? (
                           <div className="tic-tac-toe-tool">
-                            <p className="chat-bubble-content">井字棋棋盘</p>
+                            <p className="chat-bubble-content">{t('ai.tictactoeBoard')}</p>
                             <TicTacToeBoard board={ticTacToe.board} />
                             <pre className="tic-tac-toe-visual">{ticTacToe.boardVisual}</pre>
                           </div>
@@ -710,7 +737,7 @@ export default function AiPage() {
                         )}
                       </div>
                       {citations.length > 0 && (
-                        <div className="ai-citations" aria-label="引用来源">
+                        <div className="ai-citations" aria-label={t('ai.citationsAriaLabel')}>
                           {citations.map((citation) => (
                             <span
                               key={citation.id}
@@ -729,7 +756,7 @@ export default function AiPage() {
             )}
             {isThinking && (
               <p className="text-muted ai-thinking-indicator" aria-live="polite">
-                小轨正在思考…
+                {t('ai.thinking')}
               </p>
             )}
             {toolRunningStatus && (
@@ -746,7 +773,7 @@ export default function AiPage() {
               className="chat-input"
               rows={2}
               value={draft}
-              placeholder="想和小轨聊点什么？"
+              placeholder={t('ai.inputPlaceholder')}
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -756,7 +783,7 @@ export default function AiPage() {
               }}
             />
             <button type="submit" className="btn btn-primary" disabled={isSending || !draft.trim()}>
-              {isSending ? '发送中…' : '发送'}
+              {isSending ? t('ai.actions.sending') : t('ai.actions.send')}
             </button>
           </form>
         </section>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useI18n } from '@/contexts/i18n-context';
 import {
   applyChatTheme,
   CHAT_THEMES,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/chat-theme';
 
 export function ChatThemePicker() {
+  const { t } = useI18n();
   const [selectedTheme, setSelectedTheme] = useState<ChatThemeId>(DEFAULT_CHAT_THEME);
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -33,7 +35,7 @@ export function ChatThemePicker() {
     setSelectedTheme(themeId);
     applyChatTheme(themeId);
     setStoredChatTheme(themeId);
-    setSaveFeedback('已保存');
+    setSaveFeedback(t('chatTheme.saved'));
 
     if (feedbackTimerRef.current !== null) {
       window.clearTimeout(feedbackTimerRef.current);
@@ -47,21 +49,29 @@ export function ChatThemePicker() {
 
   return (
     <section>
-      <h2 className="section-title">聊天主题</h2>
-      <p className="text-muted">切换后会立即生效，无需刷新页面。</p>
+      <h2 className="section-title">{t('chatTheme.title')}</h2>
+      <p className="text-muted">{t('chatTheme.description')}</p>
 
       <fieldset style={{ border: 0, padding: 0, margin: '12px 0 0 0' }}>
         <legend className="text-muted" style={{ marginBottom: 8 }}>
-          选择聊天背景风格
+          {t('chatTheme.legend')}
         </legend>
 
         <div style={{ display: 'grid', gap: 10 }}>
-          {CHAT_THEMES.map((theme) => {
-            const isActive = selectedTheme === theme.id;
+          {CHAT_THEMES.map((themeId) => {
+            const isActive = selectedTheme === themeId;
+            const label =
+              themeId === 'solid-warm'
+                ? t('chatTheme.options.solidWarm.label')
+                : t('chatTheme.options.fauxFurLight.label');
+            const description =
+              themeId === 'solid-warm'
+                ? t('chatTheme.options.solidWarm.description')
+                : t('chatTheme.options.fauxFurLight.description');
 
             return (
               <label
-                key={theme.id}
+                key={themeId}
                 style={{
                   display: 'flex',
                   gap: 12,
@@ -76,15 +86,15 @@ export function ChatThemePicker() {
                 <input
                   type="radio"
                   name="chat-theme"
-                  value={theme.id}
+                  value={themeId}
                   checked={isActive}
-                  onChange={() => handleThemeChange(theme.id)}
+                  onChange={() => handleThemeChange(themeId)}
                   style={{ marginTop: 3 }}
                 />
                 <span>
-                  <strong>{theme.label}</strong>
+                  <strong>{label}</strong>
                   <span className="text-muted" style={{ display: 'block', marginTop: 2 }}>
-                    {theme.description}
+                    {description}
                   </span>
                 </span>
               </label>

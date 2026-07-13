@@ -47,6 +47,8 @@ export const knowledgeChunkSourceTypeEnum = pgEnum('knowledge_chunk_source_type'
   'doc',
 ]);
 
+export const notificationTypeEnum = pgEnum('notification_type', ['post_liked', 'post_commented']);
+
 export type DbClientPlatform = (typeof clientPlatformEnum.enumValues)[number];
 export type DbConversationMemberRole = (typeof conversationMemberRoleEnum.enumValues)[number];
 export type DbConversationType = (typeof conversationTypeEnum.enumValues)[number];
@@ -55,3 +57,4 @@ export type DbAiToolCallStatus = (typeof aiToolCallStatusEnum.enumValues)[number
 export type DbUserAgentMemoryKind = (typeof userAgentMemoryKindEnum.enumValues)[number];
 export type DbUserAgentMemorySource = (typeof userAgentMemorySourceEnum.enumValues)[number];
 export type DbKnowledgeChunkSourceType = (typeof knowledgeChunkSourceTypeEnum.enumValues)[number];
+export type DbNotificationType = (typeof notificationTypeEnum.enumValues)[number];

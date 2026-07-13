@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { GroupInvitePreview } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { acceptGroupInvite, getGroupInvitePreview } from '@/lib/api/conversations';
 
@@ -12,6 +13,7 @@ export default function InviteJoinPage() {
   const code = params.code;
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
   const [preview, setPreview] = useState<GroupInvitePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,13 +36,13 @@ export default function InviteJoinPage() {
         const result = await getGroupInvitePreview(code);
         setPreview(result);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Failed to load invite.');
+        setError(err instanceof ApiError ? err.message : t('invites.errors.load'));
       } finally {
         setIsLoading(false);
       }
     }
     void load();
-  }, [code, isAuthenticated]);
+  }, [code, isAuthenticated, t]);
 
   async function handleJoin(): Promise<void> {
     setIsJoining(true);
@@ -53,7 +55,7 @@ export default function InviteJoinPage() {
         router.replace('/messages');
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to join group.');
+      setError(err instanceof ApiError ? err.message : t('invites.errors.join'));
       setIsJoining(false);
     }
   }
@@ -61,7 +63,7 @@ export default function InviteJoinPage() {
   if (authLoading || isLoading) {
     return (
       <main className="main-wide">
-        <p className="text-muted">Loading...</p>
+        <p className="text-muted">{t('invites.loading')}</p>
       </main>
     );
   }
@@ -69,21 +71,21 @@ export default function InviteJoinPage() {
   return (
     <main className="main-wide">
       <header className="page-header section-header">
-        <h1>Group invite</h1>
+        <h1>{t('invites.title')}</h1>
       </header>
       {error && <div className="alert alert-error">{error}</div>}
       {preview && (
         <section className="card form-stack">
           <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{preview.groupTitle}</h2>
-          <p className="text-muted">Members: {preview.memberCount}</p>
-          {!preview.isActive && <p className="text-muted">This invite is expired or revoked.</p>}
+          <p className="text-muted">{t('invites.members', { count: preview.memberCount })}</p>
+          {!preview.isActive && <p className="text-muted">{t('invites.inactive')}</p>}
           <button
             type="button"
             className="btn btn-primary"
             disabled={!preview.isActive || isJoining}
             onClick={() => void handleJoin()}
           >
-            {isJoining ? 'Joining...' : 'Join group'}
+            {isJoining ? t('invites.actions.joining') : t('invites.actions.join')}
           </button>
         </section>
       )}

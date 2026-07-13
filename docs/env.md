@@ -26,6 +26,12 @@
 | `EMBEDDING_MODEL` | server | 否 | RAG embedding 模型名，默认 `nomic-embed-text` |
 | `EMBEDDING_DIMENSIONS` | server | 否 | 向量维度，默认 `768`（须与 `knowledge_chunks.embedding` 一致） |
 | `RAG_ENABLED` | server | 否 | 是否启用 RAG 索引/检索，默认 `true` |
+| `STORAGE_ENABLED` | server | 否 | 对象存储开关，默认 `false`（E2E/单测）；`true` 启用上传 |
+| `S3_ENDPOINT` | server | STORAGE 时 | S3 API 端点，MinIO 例 `http://localhost:9000` |
+| `S3_REGION` | server | 否 | 默认 `us-east-1` |
+| `S3_ACCESS_KEY` | server | STORAGE 时 | |
+| `S3_SECRET_KEY` | server | STORAGE 时 | |
+| `S3_BUCKET` | server | 否 | 默认 `orbitchat` |
 | `NEXT_PUBLIC_API_URL` | web | 是 | Hono API 基址 |
 | `NEXT_PUBLIC_APP_VERSION` | web | 否 | 客户端 semver，Header 用 |
 
@@ -197,6 +203,23 @@ cd apps/server && pnpm db:migrate
 ```
 
 配置文件：根目录 [`docker-compose.yml`](../docker-compose.yml)。
+
+### 对象存储（Phase 4C，可选）
+
+本地开发上传功能需 MinIO + `STORAGE_ENABLED=true`：
+
+```bash
+STORAGE_ENABLED=true
+S3_ENDPOINT=http://localhost:9000
+S3_REGION=us-east-1
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET=orbitchat
+```
+
+MinIO 随 `pnpm docker:up` 启动（见根目录 `docker-compose.yml`）。控制台：http://localhost:9001
+
+E2E / 默认单测环境保持 `STORAGE_ENABLED=false`（或未设置），上传路由返回 `503 SERVICE_UNAVAILABLE`。
 
 ### 端口冲突
 

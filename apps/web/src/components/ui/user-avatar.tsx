@@ -1,7 +1,8 @@
 'use client';
 
-import { type CSSProperties, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { getAvatarColors, getAvatarInitials } from '@/lib/avatar-utils';
+import { resolveMediaUrl } from '@/lib/media-url';
 
 type UserAvatarSize = 'sm' | 'md' | 'lg';
 
@@ -21,7 +22,15 @@ export function UserAvatar({
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const initials = useMemo(() => getAvatarInitials(displayName), [displayName]);
   const colors = useMemo(() => getAvatarColors(userId), [userId]);
-  const shouldShowImage = Boolean(avatarUrl) && !imageLoadFailed;
+  const resolvedAvatarUrl = useMemo(
+    () => (avatarUrl ? resolveMediaUrl(avatarUrl) : null),
+    [avatarUrl]
+  );
+  const shouldShowImage = Boolean(resolvedAvatarUrl) && !imageLoadFailed;
+
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [resolvedAvatarUrl]);
 
   return (
     <span
@@ -36,7 +45,11 @@ export function UserAvatar({
       title={displayName}
     >
       {shouldShowImage ? (
-        <img src={avatarUrl ?? ''} alt={displayName} onError={() => setImageLoadFailed(true)} />
+        <img
+          src={resolvedAvatarUrl ?? ''}
+          alt={displayName}
+          onError={() => setImageLoadFailed(true)}
+        />
       ) : (
         <span className="user-avatar-initials">{initials}</span>
       )}

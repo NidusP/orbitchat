@@ -64,3 +64,52 @@
   );
   --chat-composer-bg: rgba(255, 253, 251, 0.94);
 }
+
+[data-color-scheme='dark'] {
+  /* App-wide warm palette (cozy dark) */
+  --warm-bg-app: #1a1816;
+  --warm-bg-surface: #2a2724;
+  --warm-bg-muted: #35312d;
+  --warm-text-primary: #f1ebe4;
+  --warm-text-secondary: #c8bfb5;
+  --warm-text-muted: #a29589;
+  --warm-accent: #aab4ff;
+  --warm-accent-hover: #c0c8ff;
+  --warm-accent-soft: #323955;
+  --warm-border: #4a443e;
+  --warm-border-soft: #3e3934;
+  --warm-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.35);
+  --warm-shadow-bubble-theirs: 0 4px 14px rgba(0, 0, 0, 0.3);
+  --warm-shadow-bubble-mine: 0 4px 14px rgba(79, 90, 189, 0.45);
+
+  /* Chat bubbles */
+  --bubble-theirs-bg: #2f2b27;
+  --bubble-theirs-text: #f4eee7;
+  --bubble-theirs-shadow: var(--warm-shadow-bubble-theirs);
+  --bubble-mine-bg: #6f7ff0;
+  --bubble-mine-text: #ffffff;
+  --bubble-mine-shadow: var(--warm-shadow-bubble-mine);
+
+  /* Chat background remains warm, but darkened globally */
+  --chat-bg-color: #1f1c19;
+  --chat-bg-image: linear-gradient(
+    165deg,
+    #26221f 0%,
+    #1f1c19 45%,
+    #191714 100%
+  );
+  --chat-composer-bg: rgba(42, 39, 36, 0.92);
+  --chat-panel-border: #3d3833;
+}
+
+[data-color-scheme='dark'][data-chat-theme='faux-fur-light'] {
+  --chat-bg-color: #1e1b18;
+  --chat-bg-image: linear-gradient(
+    176deg,
+    #2c2622 0%,
+    #241f1b 48%,
+    #1b1815 100%
+  );
+  --chat-composer-bg: rgba(46, 41, 37, 0.94);
+  --chat-panel-border: #4a433d;
+}

@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { UserSession } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { listSessions, logoutAll, revokeSession, trustSession } from '@/lib/api/auth';
 import { clearAccessToken } from '@/lib/api/client';
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString();
+function formatWhen(iso: string, locale: 'zh' | 'en'): string {
+  return new Date(iso).toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US');
 }
 
 function sessionLabel(item: UserSession): string {
@@ -24,6 +25,7 @@ function sessionLabel(item: UserSession): string {
 export default function SessionsPage() {
   const router = useRouter();
   const { user, session, isAuthenticated, isLoading, setSessionState, logout: clearAuthState } = useAuth();
+  const { t, locale } = useI18n();
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
@@ -55,11 +57,15 @@ export default function SessionsPage() {
       setSessions(data.sessions);
       setCurrentSessionId(data.currentSessionId);
     } catch (err) {
-      setError(err instanceof ApiError ? `加载会话失败：${err.message}` : '加载会话失败。');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.loadWithMessage', { message: err.message })
+          : t('sessions.errors.load')
+      );
     } finally {
       setPageLoading(false);
     }
-  }, [isTrusted, session?.id]);
+  }, [isTrusted, session?.id, t]);
 
   useEffect(() => {
     if (!session || !isAuthenticated) {
@@ -77,10 +83,14 @@ export default function SessionsPage() {
     try {
       const data = await trustSession({ trust });
       setSessionState(data.session);
-      setSuccess(trust ? '当前设备已设为受信任。' : '已取消当前设备的信任。');
+      setSuccess(trust ? t('sessions.success.trusted') : t('sessions.success.untrusted'));
       await loadSessions();
     } catch (err) {
-      setError(err instanceof ApiError ? `更新信任状态失败：${err.message}` : '更新信任状态失败。');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.trustWithMessage', { message: err.message })
+          : t('sessions.errors.trust')
+      );
     } finally {
       setActionId(null);
     }
@@ -101,10 +111,14 @@ export default function SessionsPage() {
         return;
       }
 
-      setSuccess('会话已撤销。');
+      setSuccess(t('sessions.success.revoked'));
       await loadSessions();
     } catch (err) {
-      setError(err instanceof ApiError ? `撤销会话失败：${err.message}` : '撤销会话失败。');
+      setError(
+        err instanceof ApiError
+          ? t('sessions.errors.revokeWithMessage', { message: err.message })
+          : t('sessions.errors.revoke')
+      );
     } finally {
       setActionId(null);
     }
@@ -117,11 +131,13 @@ export default function SessionsPage() {
 
     try {
       const data = await logoutAll();
-      setSuccess(`已登出其他 ${data.revokedCount} 台设备。`);
+      setSuccess(t('sessions.success.logoutOthers', { count: data.revokedCount }));
       await loadSessions();
     } catch (err) {
       setError(
-        err instanceof ApiError ? `登出其他设备失败：${err.message}` : '登出其他设备失败。'
+        err instanceof ApiError
+          ? t('sessions.errors.logoutAllWithMessage', { message: err.message })
+          : t('sessions.errors.logoutAll')
       );
     } finally {
       setActionId(null);
@@ -131,7 +147,7 @@ export default function SessionsPage() {
   if (isLoading || !user || !session) {
     return (
       <main>
-        <p className="text-muted">加载中…</p>
+        <p className="text-muted">{t('sessions.loading')}</p>
       </main>
     );
   }
@@ -139,24 +155,24 @@ export default function SessionsPage() {
   return (
     <main className="main-wide">
       <header className="page-header">
-        <h1>会话管理</h1>
-        <p>管理已登录你账号的设备。</p>
+        <h1>{t('sessions.title')}</h1>
+        <p>{t('sessions.description')}</p>
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
       <div className="card">
-        <h2 className="section-title">当前设备</h2>
+        <h2 className="section-title">{t('sessions.sections.currentDevice')}</h2>
         <dl className="session-meta">
-          <dt>平台</dt>
+          <dt>{t('sessions.fields.platform')}</dt>
           <dd>{session.platform}</dd>
-          <dt>设备</dt>
+          <dt>{t('sessions.fields.device')}</dt>
           <dd>{sessionLabel(session)}</dd>
-          <dt>受信任</dt>
-          <dd>{session.isTrusted ? '是' : '否'}</dd>
-          <dt>最近活跃</dt>
-          <dd>{formatWhen(session.lastActiveAt)}</dd>
+          <dt>{t('sessions.fields.trusted')}</dt>
+          <dd>{session.isTrusted ? t('sessions.trustedYes') : t('sessions.trustedNo')}</dd>
+          <dt>{t('sessions.fields.lastActive')}</dt>
+          <dd>{formatWhen(session.lastActiveAt, locale)}</dd>
         </dl>
 
         <div className="stack" style={{ marginTop: 16 }}>
@@ -169,7 +185,7 @@ export default function SessionsPage() {
                 void handleTrustDevice(true);
               }}
             >
-              {actionId === 'trust' ? '更新中…' : '信任此设备'}
+              {actionId === 'trust' ? t('sessions.actions.updating') : t('sessions.actions.trustDevice')}
             </button>
           ) : (
             <button
@@ -180,7 +196,7 @@ export default function SessionsPage() {
                 void handleTrustDevice(false);
               }}
             >
-              {actionId === 'trust' ? '更新中…' : '取消信任此设备'}
+              {actionId === 'trust' ? t('sessions.actions.updating') : t('sessions.actions.untrustDevice')}
             </button>
           )}
 
@@ -192,7 +208,7 @@ export default function SessionsPage() {
               void handleRevoke(session.id);
             }}
           >
-            {actionId === session.id ? '登出中…' : '登出当前设备'}
+            {actionId === session.id ? t('sessions.actions.loggingOut') : t('sessions.actions.logoutCurrent')}
           </button>
         </div>
       </div>
@@ -200,7 +216,7 @@ export default function SessionsPage() {
       {!isTrusted && (
         <div className="card" style={{ marginTop: 16 }}>
           <p className="text-muted">
-            将当前设备设为受信任后，可查看全部活跃会话并登出其他设备。你也可以在登录时开启该选项。
+            {t('sessions.hints.trustToViewAll')}
           </p>
         </div>
       )}
@@ -208,7 +224,7 @@ export default function SessionsPage() {
       {isTrusted && (
         <div className="card" style={{ marginTop: 16 }}>
           <div className="section-header">
-            <h2 className="section-title">全部会话</h2>
+            <h2 className="section-title">{t('sessions.sections.allSessions')}</h2>
             <button
               type="button"
               className="btn btn-secondary"
@@ -217,14 +233,14 @@ export default function SessionsPage() {
                 void handleLogoutAll();
               }}
             >
-              {actionId === 'logout-all' ? '登出中…' : '登出其他全部设备'}
+              {actionId === 'logout-all' ? t('sessions.actions.loggingOut') : t('sessions.actions.logoutOthers')}
             </button>
           </div>
 
           {pageLoading ? (
-            <p className="text-muted">会话加载中…</p>
+            <p className="text-muted">{t('sessions.states.loadingList')}</p>
           ) : sessions.length === 0 ? (
-            <p className="text-muted">暂无活跃会话。</p>
+            <p className="text-muted">{t('sessions.states.empty')}</p>
           ) : (
             <ul className="session-list">
               {sessions.map((item) => {
@@ -235,10 +251,13 @@ export default function SessionsPage() {
                     <div>
                       <strong>{sessionLabel(item)}</strong>
                       <span className="text-muted"> · {item.platform}</span>
-                      {isCurrent && <span className="badge badge-current">当前设备</span>}
-                      {item.isTrusted && <span className="badge badge-trusted">受信任</span>}
+                      {isCurrent && <span className="badge badge-current">{t('sessions.badges.current')}</span>}
+                      {item.isTrusted && <span className="badge badge-trusted">{t('sessions.badges.trusted')}</span>}
                       <p className="text-muted session-item-meta">
-                        最近活跃 {formatWhen(item.lastActiveAt)} · 过期时间 {formatWhen(item.expiresAt)}
+                        {t('sessions.itemMeta', {
+                          lastActive: formatWhen(item.lastActiveAt, locale),
+                          expiresAt: formatWhen(item.expiresAt, locale),
+                        })}
                       </p>
                     </div>
                     {!isCurrent && (
@@ -250,7 +269,7 @@ export default function SessionsPage() {
                           void handleRevoke(item.id);
                         }}
                       >
-                        {actionId === item.id ? '撤销中…' : '撤销'}
+                        {actionId === item.id ? t('sessions.actions.revoking') : t('sessions.actions.revoke')}
                       </button>
                     )}
                   </li>
@@ -262,9 +281,9 @@ export default function SessionsPage() {
       )}
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/settings">返回设置</Link>
+        <Link href="/settings">{t('sessions.links.backSettings')}</Link>
         {' · '}
-        <Link href="/profile">返回我的</Link>
+        <Link href="/profile">{t('sessions.links.backProfile')}</Link>
       </p>
     </main>
   );

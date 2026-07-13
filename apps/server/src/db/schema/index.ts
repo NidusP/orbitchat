@@ -5,6 +5,7 @@ export {
   clientPlatformEnum,
   conversationTypeEnum,
   knowledgeChunkSourceTypeEnum,
+  notificationTypeEnum,
   userAgentMemoryKindEnum,
   userAgentMemorySourceEnum,
   type DbAiMessageRole,
@@ -12,6 +13,7 @@ export {
   type DbClientPlatform,
   type DbConversationType,
   type DbKnowledgeChunkSourceType,
+  type DbNotificationType,
   type DbUserAgentMemoryKind,
   type DbUserAgentMemorySource,
 } from './enums';
@@ -47,10 +49,13 @@ export {
 } from './knowledge-chunks';
 export { likes, type Like, type NewLike } from './likes';
 export { messages, type Message, type NewMessage } from './messages';
+export { notifications, type Notification, type NewNotification } from './notifications';
 export { messageEdits, type MessageEdit, type NewMessageEdit } from './message-edits';
 export { messageRecalls, type MessageRecall, type NewMessageRecall } from './message-recalls';
+export { postMedia, type NewPostMedia, type PostMedia } from './post-media';
 export { posts, type NewPost, type Post } from './posts';
 export { profiles, type NewProfile, type Profile } from './profiles';
+export { uploads, type NewUpload, type Upload } from './uploads';
 export { userSessions, type NewUserSession, type UserSession } from './user-sessions';
 export {
   userAgentMemories,

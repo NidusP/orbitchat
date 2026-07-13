@@ -3,7 +3,10 @@ import type { CommentWithAuthor } from '../../domain/comment';
 import type { PostWithAuthor } from '../../domain/post';
 
 export interface CreatePostRequest {
-  content: string;
+  /** Optional text; required when uploadIds is omitted or empty. */
+  content?: string;
+  /** Up to 4 pending post uploads owned by the caller. */
+  uploadIds?: string[];
 }
 
 export interface UpdatePostRequest {

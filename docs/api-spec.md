@@ -261,6 +261,38 @@ GET    /api/v1/users/:id/following       # cursor 分页
 GET    /api/v1/users/search              # ?q=&cursor=&limit=
 ```
 
+### Uploads & Media（Phase 4C MVP）
+
+> 设计依据：[ADR 23](./decisions/23-object-storage-uploads.md)
+
+```
+POST   /api/v1/uploads                   # multipart: file + purpose (avatar|post)
+GET    /api/v1/media/:uploadId           # 代理读取已 committed 对象；无需登录
+```
+
+**`POST /api/v1/uploads`**（需登录）
+
+- `Content-Type: multipart/form-data`
+- 字段：`file`（二进制）；`purpose`：`avatar` | `post`
+- 限制：`avatar` ≤ 5MB；`post` ≤ 10MB；MIME `image/jpeg` | `image/png` | `image/webp`
+- 响应 `data`：`{ id, url, mimeType, sizeBytes, purpose }`（`url` 为 `/api/v1/media/{id}` 相对路径）
+
+**`GET /api/v1/media/:uploadId`**
+
+- 仅 `status = committed` 可读；`Cache-Control: public, max-age=31536000, immutable`
+- 失败：`NOT_FOUND` 404
+
+**`POST /api/v1/posts`** 扩展 body：
+
+```json
+{ "content": "可选文字", "uploadIds": ["uuid", "..."] }
+```
+
+- `content` 与 `uploadIds` 至少其一非空；`uploadIds` 最多 4 个，须为本人 `pending` + `purpose=post`
+- 响应 `PostWithAuthor` 含 `media: PostMediaItem[]`
+
+**`PATCH /api/v1/users/me/profile`** 扩展：`avatarUploadId?: string`（提交后 `avatarUrl` 设为 `/api/v1/media/{id}`）
+
 **分页**：`cursor` + `limit`（默认 20，最大 50）；响应 `data.items` + `data.nextCursor`（具体信封以实现时 `shared-types` 为准）。
 
 - **`DELETE /posts/:id`**、**`DELETE /posts/:id/comments/:commentId`**：已软删资源再次删除 → `VALIDATION_ERROR` 400。

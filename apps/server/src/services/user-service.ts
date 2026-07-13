@@ -7,6 +7,7 @@ import { hashPassword } from '../lib/crypto';
 import { toProfileDto, toUserDto } from '../lib/mappers';
 import type { RegisterInput } from '../schemas/auth';
 import type { UpdateProfileInput, UpdateUserInput } from '../schemas/users';
+import { setAvatarFromUpload } from './upload-service';
 
 export async function findUserByEmail(email: string) {
   return db.query.users.findFirst({
@@ -115,8 +116,14 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
   const bioUnchanged = input.bio === undefined || input.bio === current.bio;
   const avatarUrlUnchanged =
     input.avatarUrl === undefined || input.avatarUrl === current.avatarUrl;
-  if (displayNameUnchanged && bioUnchanged && avatarUrlUnchanged) {
+  const avatarUploadUnchanged = input.avatarUploadId === undefined;
+  if (displayNameUnchanged && bioUnchanged && avatarUrlUnchanged && avatarUploadUnchanged) {
     throw new AppError('VALIDATION_ERROR', 'No changes provided', 400);
+  }
+
+  let avatarUrl = input.avatarUrl;
+  if (input.avatarUploadId !== undefined) {
+    avatarUrl = await setAvatarFromUpload(userId, input.avatarUploadId);
   }
 
   const [updated] = await db
@@ -124,7 +131,7 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
     .set({
       ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
       ...(input.bio !== undefined ? { bio: input.bio } : {}),
-      ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+      ...(avatarUrl !== undefined ? { avatarUrl } : {}),
       updatedAt: new Date(),
     })
     .where(eq(profiles.userId, userId))

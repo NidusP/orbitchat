@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useI18n } from '@/contexts/i18n-context';
 import { useUnreadMessages } from '@/contexts/unread-messages-context';
 
 interface TabItem {
@@ -10,20 +11,14 @@ interface TabItem {
   testId: string;
 }
 
-const TAB_ITEMS: TabItem[] = [
-  { label: '动态', href: '/feed', testId: 'tab-feed' },
-  { label: '消息', href: '/messages', testId: 'tab-messages' },
-  { label: '小轨', href: '/ai', testId: 'tab-ai' },
-  { label: '我的', href: '/profile', testId: 'tab-profile' },
-];
-
 function isActive(pathname: string, href: string): boolean {
   if (href === '/feed') {
     return (
       pathname === '/feed' ||
       pathname.startsWith('/feed/') ||
       pathname.startsWith('/search') ||
-      pathname.startsWith('/users/')
+      pathname.startsWith('/users/') ||
+      pathname.startsWith('/posts/')
     );
   }
 
@@ -31,7 +26,9 @@ function isActive(pathname: string, href: string): boolean {
     return (
       pathname === '/profile' ||
       pathname.startsWith('/profile/') ||
-      pathname.startsWith('/settings/')
+      pathname.startsWith('/settings/') ||
+      pathname === '/notifications' ||
+      pathname.startsWith('/notifications/')
     );
   }
 
@@ -40,13 +37,20 @@ function isActive(pathname: string, href: string): boolean {
 
 export function BottomTabNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
   const { totalUnread } = useUnreadMessages();
   const unreadBadgeText = totalUnread > 99 ? '99+' : String(totalUnread);
+  const tabItems: TabItem[] = [
+    { label: t('tabs.feed'), href: '/feed', testId: 'tab-feed' },
+    { label: t('tabs.messages'), href: '/messages', testId: 'tab-messages' },
+    { label: t('tabs.ai'), href: '/ai', testId: 'tab-ai' },
+    { label: t('tabs.profile'), href: '/profile', testId: 'tab-profile' },
+  ];
 
   return (
-    <nav className="bottom-tab-nav" aria-label="主导航">
+    <nav className="bottom-tab-nav" aria-label={t('navigation.mainAria')}>
       <div className="bottom-tab-nav-inner">
-        {TAB_ITEMS.map((item) => {
+        {tabItems.map((item) => {
           const active = isActive(pathname, item.href);
           const isMessagesTab = item.href === '/messages';
           const shouldShowUnreadBadge = isMessagesTab && totalUnread > 0;

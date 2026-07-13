@@ -184,6 +184,7 @@ describe('executeAgentTool', () => {
           content: 'First post',
           likeCount: 0,
           commentCount: 0,
+          media: [],
           createdAt: '2026-07-06T10:00:00.000Z',
           updatedAt: '2026-07-06T10:00:00.000Z',
           author: {
@@ -298,6 +299,7 @@ describe('executeAgentTool', () => {
           content: 'Luna post',
           likeCount: 0,
           commentCount: 0,
+          media: [],
           createdAt: '2026-07-06T10:00:00.000Z',
           updatedAt: '2026-07-06T10:00:00.000Z',
           author: {

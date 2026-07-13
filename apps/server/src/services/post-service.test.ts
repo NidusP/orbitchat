@@ -30,6 +30,13 @@ function mockAuthorLoaders(): void {
     async () => new Map([[AUTHOR_ID, authorSummary]])
   );
   spyOn(socialLoaders, 'loadLikedPostIds').mockImplementation(async () => new Set());
+  spyOn(socialLoaders, 'loadPostMediaByPostIds').mockImplementation(async (postIds) => {
+    const map = new Map<string, never[]>();
+    for (const postId of postIds) {
+      map.set(postId, []);
+    }
+    return map;
+  });
 }
 
 const dbModule = await import('../db');
@@ -54,6 +61,7 @@ describe('post-service robustness', () => {
   });
 
   test('updatePost rejects unchanged content', async () => {
+    mockAuthorLoaders();
     spyOn(dbModule.db.query.posts, 'findFirst').mockImplementation(
       () => Promise.resolve(samplePost()) as never
     );
@@ -167,5 +175,37 @@ describe('post-service RAG hooks', () => {
 
     expect(removeSpy).toHaveBeenCalledWith(POST_ID);
     expect(updateWhere).toHaveBeenCalled();
+  });
+
+  test('createPost links uploadIds and returns media', async () => {
+    const uploadService = await import('./upload-service');
+    const uploadId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const media = [
+      {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        uploadId,
+        url: `/api/v1/media/${uploadId}`,
+        mimeType: 'image/png',
+        sizeBytes: 128,
+        sortOrder: 0,
+      },
+    ];
+
+    spyOn(uploadService, 'linkPostMedia').mockImplementation(async () => media);
+    spyOn(ragModule, 'indexPostChunk').mockImplementation(() => Promise.resolve());
+
+    spyOn(dbModule.db, 'insert').mockImplementation(
+      () =>
+        ({
+          values: () => ({
+            returning: () => Promise.resolve([samplePost({ content: '' })]),
+          }),
+        }) as never
+    );
+
+    const post = await createPost(AUTHOR_ID, { content: '', uploadIds: [uploadId] });
+
+    expect(post.media).toEqual(media);
+    expect(post.content).toBe('');
   });
 });

@@ -9,12 +9,14 @@ import {
   type DevTestUserFixture,
   isDevLoginShortcutsEnabled,
 } from '@/lib/dev-test-user';
+import { useI18n } from '@/contexts/i18n-context';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registered = searchParams.get('registered') === '1';
   const { login } = useAuth();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -43,9 +45,13 @@ export default function LoginForm() {
       router.push('/profile');
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message ? `登录失败：${err.message}` : '登录失败，请检查邮箱和密码。');
+        setError(
+          err.message
+            ? t('auth.loginFailedPrefix', { message: err.message })
+            : t('auth.loginFailedInvalid')
+        );
       } else {
-        setError('登录失败，请稍后重试。');
+        setError(t('auth.loginFailedRetry'));
       }
     } finally {
       setIsSubmitting(false);
@@ -64,7 +70,7 @@ export default function LoginForm() {
     <>
       {registered && (
         <div className="alert alert-success" style={{ marginBottom: 12 }}>
-          账号创建成功，请登录。
+          {t('auth.registerSuccess')}
         </div>
       )}
 
@@ -72,7 +78,7 @@ export default function LoginForm() {
         {error && <div className="alert alert-error">{error}</div>}
 
         <div className="field">
-          <label htmlFor="email">邮箱</label>
+          <label htmlFor="email">{t('auth.email')}</label>
           <input
             id="email"
             type="email"
@@ -84,7 +90,7 @@ export default function LoginForm() {
         </div>
 
         <div className="field">
-          <label htmlFor="password">密码</label>
+          <label htmlFor="password">{t('auth.password')}</label>
           <input
             id="password"
             type="password"
@@ -101,7 +107,7 @@ export default function LoginForm() {
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
           />
-          保持登录状态
+          {t('auth.rememberMe')}
         </label>
 
         <label className="field-checkbox">
@@ -110,18 +116,18 @@ export default function LoginForm() {
             checked={trustDevice}
             onChange={(event) => setTrustDevice(event.target.checked)}
           />
-          信任此设备
+          {t('auth.trustDevice')}
         </label>
 
         <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? '登录中…' : '登录'}
+          {isSubmitting ? t('auth.loggingIn') : t('auth.login')}
         </button>
       </form>
 
       {showDevLoginShortcuts && (
         <div className="dev-login-shortcuts" data-testid="dev-login-shortcuts">
           <p className="text-muted" style={{ marginTop: 16, marginBottom: 8 }}>
-            仅开发环境：一键登录测试账号
+            {t('auth.devLoginShortcuts')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {DEV_TEST_USERS.map((fixture, index) => (
@@ -133,7 +139,10 @@ export default function LoginForm() {
                 disabled={isSubmitting}
                 onClick={() => void handleDevTestLogin(fixture)}
               >
-                使用 {fixture.username} 登录（{fixture.email}）
+                {t('auth.devLoginTemplate', {
+                  username: fixture.username,
+                  email: fixture.email,
+                })}
               </button>
             ))}
           </div>

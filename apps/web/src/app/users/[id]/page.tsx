@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { PostWithAuthor, Profile, User } from '@orbitchat/shared-types';
 import { PostCard } from '@/components/post-card';
-import { SiteNav } from '@/components/site-nav';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import { likePost, unlikePost, getUserPosts } from '@/lib/api/posts';
 import {
@@ -26,6 +26,7 @@ export default function UserProfilePage() {
   const userId = params.id;
   const router = useRouter();
   const { user: viewer, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { t } = useI18n();
 
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -81,7 +82,11 @@ export default function UserProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof ApiError ? `加载用户失败：${err.message}` : '加载用户失败。');
+          setError(
+            err instanceof ApiError
+              ? t('userProfile.errors.loadWithMessage', { message: err.message })
+              : t('userProfile.errors.load')
+          );
         }
       } finally {
         if (!cancelled) {
@@ -95,7 +100,7 @@ export default function UserProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [userId, viewer, loadPosts]);
+  }, [userId, viewer, loadPosts, t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -121,7 +126,11 @@ export default function UserProfilePage() {
       }
       setFollowKnown(true);
     } catch (err) {
-      setError(err instanceof ApiError ? `更新关注失败：${err.message}` : '更新关注失败。');
+      setError(
+        err instanceof ApiError
+          ? t('userProfile.errors.followWithMessage', { message: err.message })
+          : t('userProfile.errors.follow')
+      );
     } finally {
       setFollowPending(false);
     }
@@ -136,7 +145,11 @@ export default function UserProfilePage() {
     try {
       await loadPosts(nextCursor);
     } catch (err) {
-      setError(err instanceof ApiError ? `加载更多动态失败：${err.message}` : '加载更多动态失败。');
+      setError(
+        err instanceof ApiError
+          ? t('userProfile.errors.loadMoreWithMessage', { message: err.message })
+          : t('userProfile.errors.loadMore')
+      );
     } finally {
       setIsLoadingMore(false);
     }
@@ -170,7 +183,11 @@ export default function UserProfilePage() {
       const conversation = await createConversation({ participantUserId: userId });
       router.push(`/messages/${conversation.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? `发起私聊失败：${err.message}` : '发起私聊失败。');
+      setError(
+        err instanceof ApiError
+          ? t('userProfile.errors.messageWithMessage', { message: err.message })
+          : t('userProfile.errors.message')
+      );
     } finally {
       setMessagePending(false);
     }
@@ -185,7 +202,11 @@ export default function UserProfilePage() {
       setPosts((current) => applyLikeResult(current, postId, result.liked, result.likeCount));
     } catch (err) {
       setPosts((current) => applyLikeOptimistic(current, postId, currentlyLiked));
-      setError(err instanceof ApiError ? `更新点赞失败：${err.message}` : '更新点赞失败。');
+      setError(
+        err instanceof ApiError
+          ? t('userProfile.errors.likeWithMessage', { message: err.message })
+          : t('userProfile.errors.like')
+      );
     } finally {
       setLikePendingId(null);
     }
@@ -194,8 +215,7 @@ export default function UserProfilePage() {
   if (authLoading || isLoadingPage) {
     return (
       <main className="main-wide">
-        <SiteNav />
-        <p className="text-muted">正在加载...</p>
+        <p className="text-muted">{t('userProfile.loading')}</p>
       </main>
     );
   }
@@ -203,7 +223,6 @@ export default function UserProfilePage() {
   if (error && !profileUser) {
     return (
       <main className="main-wide">
-        <SiteNav />
         <div className="alert alert-error">{error}</div>
       </main>
     );
@@ -215,7 +234,6 @@ export default function UserProfilePage() {
 
   return (
     <main className="main-wide">
-      <SiteNav />
       <header className="page-header section-header">
         <div>
           <h1>{profile.displayName}</h1>
@@ -223,11 +241,11 @@ export default function UserProfilePage() {
           {profile.bio && <p>{profile.bio}</p>}
           <p className="text-muted" style={{ marginTop: 8 }}>
             <Link href={`/users/${userId}/followers`} data-testid="profile-followers-link">
-              粉丝
+              {t('userProfile.followers')}
             </Link>
             {' · '}
             <Link href={`/users/${userId}/following`} data-testid="profile-following-link">
-              关注
+              {t('userProfile.following')}
             </Link>
           </p>
         </div>
@@ -239,7 +257,7 @@ export default function UserProfilePage() {
               disabled={messagePending}
               onClick={() => void handleMessage()}
             >
-              {messagePending ? '打开中…' : '发消息'}
+              {messagePending ? t('userProfile.actions.opening') : t('userProfile.actions.message')}
             </button>
             <button
               type="button"
@@ -247,7 +265,7 @@ export default function UserProfilePage() {
               disabled={followPending}
               onClick={() => void handleToggleFollow()}
             >
-              {isFollowing ? '已关注' : '关注'}
+              {isFollowing ? t('userProfile.actions.following') : t('userProfile.actions.follow')}
             </button>
           </div>
         )}
@@ -259,10 +277,10 @@ export default function UserProfilePage() {
         </div>
       )}
 
-      <h2 className="section-title">动态</h2>
+      <h2 className="section-title">{t('userProfile.postsTitle')}</h2>
       {posts.length === 0 ? (
         <div className="card empty-state">
-          <p className="text-muted">还没有动态。</p>
+          <p className="text-muted">{t('userProfile.emptyPosts')}</p>
         </div>
       ) : (
         <div className="post-list">
@@ -289,13 +307,13 @@ export default function UserProfilePage() {
             disabled={isLoadingMore}
             onClick={() => void handleLoadMore()}
           >
-            {isLoadingMore ? '加载中…' : '加载更多'}
+            {isLoadingMore ? t('messages.loading') : t('userProfile.actions.loadMore')}
           </button>
         </div>
       )}
 
       <p className="text-muted" style={{ marginTop: 16 }}>
-        <Link href="/feed">返回动态广场</Link>
+        <Link href="/feed">{t('userProfile.actions.backToFeed')}</Link>
       </p>
     </main>
   );

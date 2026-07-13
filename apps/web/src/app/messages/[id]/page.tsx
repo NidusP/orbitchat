@@ -6,6 +6,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Message, MessageEditRecord, MessageRecall } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
 import {
   deleteMessage,
@@ -79,6 +80,7 @@ export default function ConversationPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { subscribe, sendTyping, isConnected } = useChatWs();
+  const { t } = useI18n();
 
   const [conversation, setConversation] = useState<Awaited<ReturnType<typeof getConversation>> | null>(
     null
@@ -111,10 +113,10 @@ export default function ConversationPage() {
 
   const headerTitle = useMemo(() => {
     if (!conversation || !user) {
-      return '聊天';
+      return t('messages.conversation.headerFallback');
     }
     return getConversationDisplayName(conversation, user.id);
-  }, [conversation, user]);
+  }, [conversation, t, user]);
 
   const otherParticipant = useMemo(() => {
     if (!conversation || conversation.type !== 'direct') {
@@ -128,8 +130,8 @@ export default function ConversationPage() {
 
   const connectionStatusLabel = !isConnected
     ? hasConnectedOnce
-      ? '已断开，正在重连…'
-      : '连接中…'
+      ? t('messages.connection.disconnectedReconnecting')
+      : t('messages.connection.connecting')
     : null;
 
   const timeline = useMemo(() => buildTimeline(messages, recalls), [messages, recalls]);
@@ -148,11 +150,11 @@ export default function ConversationPage() {
       setNextCursor(messagePage.nextCursor);
       await markConversationRead(conversationId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '会话加载失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadConversation'));
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, t]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -293,7 +295,7 @@ export default function ConversationPage() {
         }
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '更早消息加载失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadOlder'));
     } finally {
       setIsLoadingMore(false);
     }
@@ -316,7 +318,7 @@ export default function ConversationPage() {
       setDraft('');
       setLastFailedContent(null);
     } catch {
-      setSendError('消息发送失败，请重试。');
+      setSendError(t('messages.errors.send'));
       setLastFailedContent(content);
     } finally {
       setIsSending(false);
@@ -341,7 +343,7 @@ export default function ConversationPage() {
       );
       setLastFailedContent(null);
     } catch {
-      setSendError('消息发送失败，请重试。');
+      setSendError(t('messages.errors.send'));
     } finally {
       setIsRetryingSend(false);
     }
@@ -352,7 +354,7 @@ export default function ConversationPage() {
       return;
     }
 
-    if (!window.confirm('确认撤回这条消息吗？')) {
+    if (!window.confirm(t('messages.confirm.recall'))) {
       return;
     }
 
@@ -361,7 +363,7 @@ export default function ConversationPage() {
     try {
       await deleteMessage(conversationId, messageId);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '撤回失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.recall'));
     } finally {
       setActionMessageId(null);
     }
@@ -373,7 +375,7 @@ export default function ConversationPage() {
       return;
     }
     if (content === originalContent) {
-      setError('消息内容未变更。');
+      setError(t('messages.errors.editUnchanged'));
       return;
     }
 
@@ -385,7 +387,7 @@ export default function ConversationPage() {
       setEditingMessageId(null);
       setEditDraft('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '编辑失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.edit'));
     } finally {
       setActionMessageId(null);
     }
@@ -399,7 +401,7 @@ export default function ConversationPage() {
       const history = await listMessageEdits(conversationId, messageId);
       setEditHistory(history);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : '编辑历史加载失败，请稍后重试。');
+      setError(err instanceof ApiError ? err.message : t('messages.errors.loadEditHistory'));
       setHistoryMessageId(null);
     } finally {
       setIsLoadingHistory(false);
@@ -410,7 +412,7 @@ export default function ConversationPage() {
     return (
       <main className="main-wide">
         <div className="chat-loading-state">
-          <p className="text-muted">加载中…</p>
+          <p className="text-muted">{t('messages.loading')}</p>
           <div className="chat-loading-skeleton" aria-hidden="true" />
         </div>
       </main>
@@ -420,9 +422,9 @@ export default function ConversationPage() {
   if (!conversation) {
     return (
       <main className="main-wide">
-        <div className="alert alert-error">{error ?? '会话不存在或已被删除。'}</div>
+        <div className="alert alert-error">{error ?? t('messages.notFound')}</div>
         <p style={{ marginTop: 16 }}>
-          <Link href="/messages">返回消息列表</Link>
+          <Link href="/messages">{t('messages.backToList')}</Link>
         </p>
       </main>
     );
@@ -435,12 +437,12 @@ export default function ConversationPage() {
       </span>
       <header className="chat-conversation-header">
         <Link href="/messages" className="chat-conversation-back">
-          ← 消息
+          {t('messages.backLabel')}
         </Link>
         <div className="chat-conversation-title-block">
           <h1>{headerTitle}</h1>
           {conversation.type === 'group' ? (
-            <p className="text-muted">{memberCount} 位成员</p>
+            <p className="text-muted">{t('messages.memberCount', { count: memberCount ?? 0 })}</p>
           ) : otherParticipant ? (
             <p className="text-muted">@{otherParticipant.username}</p>
           ) : null}
@@ -449,15 +451,18 @@ export default function ConversationPage() {
           {connectionStatusLabel ? (
             <span className="chat-connection-status">{connectionStatusLabel}</span>
           ) : (
-            <span className="chat-connection-status chat-connection-status-online" title="连接正常" />
+            <span
+              className="chat-connection-status chat-connection-status-online"
+              title={t('messages.connection.okTitle')}
+            />
           )}
           {conversation.type === 'group' ? (
             <Link href={`/messages/${conversationId}/settings`} className="btn btn-secondary btn-sm">
-              群设置
+              {t('messages.groupSettings')}
             </Link>
           ) : otherParticipant ? (
             <Link href={`/users/${otherParticipant.id}`} className="btn btn-secondary btn-sm">
-              主页
+              {t('messages.profile')}
             </Link>
           ) : null}
         </div>
@@ -478,20 +483,20 @@ export default function ConversationPage() {
               disabled={isLoadingMore}
               onClick={() => void handleLoadMore()}
             >
-              {isLoadingMore ? '加载中…' : '加载更早消息'}
+              {isLoadingMore ? t('messages.loading') : t('messages.loadMore')}
             </button>
           </div>
         )}
 
         <div className="chat-messages" ref={listRef}>
           {timeline.length === 0 ? (
-            <p className="text-muted chat-empty">发条消息开始聊天吧。</p>
+            <p className="text-muted chat-empty">{t('messages.empty')}</p>
           ) : (
             timeline.map((item) => {
               if (item.kind === 'recall') {
                 return (
                   <p key={`recall-${item.recall.id}`} className="chat-system-notice">
-                    {item.recall.recalledBy.displayName} 撤回了一条消息
+                    {t('messages.systemRecalled', { name: item.recall.recalledBy.displayName })}
                   </p>
                 );
               }
@@ -526,7 +531,7 @@ export default function ConversationPage() {
                             }
                             onClick={() => void handleSaveEdit(message.id, message.content)}
                           >
-                            保存
+                            {t('messages.actions.save')}
                           </button>
                           <button
                             type="button"
@@ -536,7 +541,7 @@ export default function ConversationPage() {
                               setEditDraft('');
                             }}
                           >
-                            取消
+                            {t('messages.actions.cancel')}
                           </button>
                         </div>
                       </div>
@@ -553,7 +558,7 @@ export default function ConversationPage() {
                               className="chat-edited-label"
                               onClick={() => void handleShowEditHistory(message.id)}
                             >
-                              已编辑
+                              {t('messages.edited')}
                             </button>
                           )}
                         </div>
@@ -571,7 +576,7 @@ export default function ConversationPage() {
                               setEditDraft(message.content);
                             }}
                           >
-                            编辑
+                            {t('messages.actions.edit')}
                           </button>
                         )}
                         {showRecall && (
@@ -581,7 +586,7 @@ export default function ConversationPage() {
                             disabled={actionMessageId === message.id}
                             onClick={() => void handleRecall(message.id)}
                           >
-                            撤回
+                            {t('messages.actions.recall')}
                           </button>
                         )}
                       </div>
@@ -596,7 +601,7 @@ export default function ConversationPage() {
 
         {typingLabel && (
           <p className="chat-typing-indicator" data-testid="chat-typing-indicator" aria-live="polite">
-            {typingLabel} 正在输入…
+            {t('messages.typing', { name: typingLabel })}
           </p>
         )}
 
@@ -609,7 +614,7 @@ export default function ConversationPage() {
               disabled={!lastFailedContent || isRetryingSend || isSending}
               onClick={() => void handleRetrySend()}
             >
-              {isRetryingSend ? '重试中…' : '重试'}
+              {isRetryingSend ? t('messages.actions.retrying') : t('messages.actions.retry')}
             </button>
           </div>
         )}
@@ -619,7 +624,7 @@ export default function ConversationPage() {
             className="chat-input"
             rows={2}
             value={draft}
-            placeholder="输入消息，Enter 发送"
+            placeholder={t('messages.inputPlaceholder')}
             onChange={(event) => {
               setDraft(event.target.value);
               notifyTyping();
@@ -637,7 +642,7 @@ export default function ConversationPage() {
             className="btn btn-primary"
             disabled={isSending || isRetryingSend || !draft.trim()}
           >
-            {isSending ? '发送中…' : '发送'}
+            {isSending ? t('messages.actions.sending') : t('messages.actions.send')}
           </button>
         </form>
       </div>
@@ -646,7 +651,7 @@ export default function ConversationPage() {
         <div className="chat-history-overlay" role="dialog" aria-modal="true">
           <div className="card chat-history-panel">
             <header className="section-header">
-              <h2 style={{ margin: 0, fontSize: '1.125rem' }}>编辑历史</h2>
+              <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('messages.editHistory.title')}</h2>
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -655,13 +660,13 @@ export default function ConversationPage() {
                   setEditHistory([]);
                 }}
               >
-                关闭
+                {t('messages.actions.close')}
               </button>
             </header>
             {isLoadingHistory ? (
-              <p className="text-muted">加载中…</p>
+              <p className="text-muted">{t('messages.historyLoading')}</p>
             ) : editHistory.length === 0 ? (
-              <p className="text-muted">暂无编辑记录。</p>
+              <p className="text-muted">{t('messages.editHistory.empty')}</p>
             ) : (
               <ul className="chat-history-list">
                 {editHistory.map((entry) => (

@@ -1,25 +1,8 @@
 export type ChatThemeId = 'solid-warm' | 'faux-fur-light';
 
-export interface ChatThemeOption {
-  id: ChatThemeId;
-  label: string;
-  description: string;
-}
-
 export const CHAT_THEME_STORAGE_KEY = 'orbitchat-chat-theme';
 
-export const CHAT_THEMES: ChatThemeOption[] = [
-  {
-    id: 'solid-warm',
-    label: '暖色渐变',
-    description: '默认温暖风格',
-  },
-  {
-    id: 'faux-fur-light',
-    label: '柔和米白',
-    description: '更浅的聊天背景',
-  },
-];
+export const CHAT_THEMES: ChatThemeId[] = ['solid-warm', 'faux-fur-light'];
 
 export const DEFAULT_CHAT_THEME: ChatThemeId = 'solid-warm';
 
