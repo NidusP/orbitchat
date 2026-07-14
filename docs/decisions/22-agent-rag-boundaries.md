@@ -8,7 +8,7 @@
 
 Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`）。Wave 3 需要让 Agent 能基于**用户有权访问的站内内容**做语义检索（RAG），回答「我有没有发过关于旅行的帖」类问题。
 
-需在引入向量索引前明确：**哪些 collection 可索引、权限如何隔离、embedding 从哪来、何时重建**。详见 [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md) § Wave 3 与 [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md) § M2。
+需在引入向量索引前明确：**哪些 collection 可索引、权限如何隔离、embedding 从哪来、何时重建**。详见 [archive/agent-capability-plans.md](../archive/agent-capability-plans.md)（Wave 3 ≡ M2）。
 
 ## 选项
 
@@ -29,7 +29,7 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 
 ## 决策
 
-选择 **选项 2**（collection 边界）+ **Postgres pgvector**（存储，见 [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md) § 7.1）。
+选择 **选项 2**（collection 边界）+ **Postgres pgvector**（存储，见 [archive/phase-4-orbit-guide-plan.md](../archive/phase-4-orbit-guide-plan.md) § 7.1）。
 
 ### Collection 边界（v1）
 
@@ -89,8 +89,8 @@ Orbit Guide Wave 2（M1）已交付跨会话显式记忆（`user_agent_memories`
 
 ## 相关
 
-- [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md)
-- [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md)
+- [archive/agent-capability-plans.md](../archive/agent-capability-plans.md)
+- [archive/phase-4-agent-memory-rag-plan.md](../archive/phase-4-agent-memory-rag-plan.md)
 - [ADR 21 — Agent 长期记忆](./21-agent-memory-model.md)
 - [ADR 17 — AI Agent 架构](./17-ai-agent-architecture.md)
 - [db-schema.md](../db-schema.md) — `knowledge_chunks`

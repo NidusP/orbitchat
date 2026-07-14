@@ -99,10 +99,9 @@ AI_MAX_CONCURRENT_RUNS=2
 ## 相关文档
 
 - [20-ai-sse-streaming.md](./20-ai-sse-streaming.md) — AI SSE 流式优化（`run.started`、真 token 流、`tool.started`、错误路径）
-- [phase-4a-plan.md](../phase-4a-plan.md)
-- [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md) — 小轨完善路线（Wave 0–5）
-- [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md) — Memory / RAG / Fine-tuning 规划（M1+）
-- [phase-3-plan.md](../phase-3-plan.md)
+- [archive/phase-4a-plan.md](../archive/phase-4a-plan.md)
+- [archive/agent-capability-plans.md](../archive/agent-capability-plans.md) — Wave 0–5 / M1–M3
+- [archive/phase-3-plan.md](../archive/phase-3-plan.md)
 - [api-spec.md](../api-spec.md)
 - [db-schema.md](../db-schema.md)
 - [realtime-spec.md](../realtime-spec.md)

@@ -249,7 +249,7 @@ app.onError((err, c) => {
 | `docs/sql-learning.md` | SQL / 索引学习与实战对照 | 写查询、Feed、调性能时 |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
 | `docs/orbit-guide-agent-implementation.md` | **小轨 Agent 实现学习指南**（架构、链路、Tool、Wave 1–5） |
-| `docs/phase-4-orbit-guide-plan.md` | 小轨能力演进路线图与验收 |
+| `docs/archive/agent-capability-plans.md` | 小轨能力演进（Wave 0–5 / M1–M3，归档） |
 | `docs/decisions/` | 架构决策记录（ADR 01–22） |
 
 ---
@@ -405,6 +405,7 @@ app.onError((err, c) => {
 | P1（上传清理 / 聊天发图 / 通知单测） | ✅ 代码 + 单测 |
 | P2（群头像 / 消息通知 / 邮箱验证） | ✅ 代码 + 单测 |
 | 文档定位同步 | ✅ |
+| 过程文档归档（Phase/Wave 分节） | ✅ `docs/archive/` |
 | CI | ⏸ 后续 |
 
 **本地开发速查**

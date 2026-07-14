@@ -49,12 +49,10 @@
 | [realtime-spec.md](./realtime-spec.md) | WebSocket 规范（Phase 3+ 活文档） | 聊天/信令开发时 |
 | [db-schema.md](./db-schema.md) | 数据库设计（分阶段迭代） | 数据库设计时 |
 | [sql-learning.md](./sql-learning.md) | SQL / 索引学习与项目实战 | 写查询、调性能时 |
-| [phase-2-closeout.md](./phase-2-closeout.md) | Phase 2 收尾清单与验收 | Phase 2 关闭时 |
-| [phase-3-kickoff.md](./phase-3-kickoff.md) | Phase 3 启动评审（3A/3B 拆分） | Phase 3 开工前 |
-| [phase-3-plan.md](./phase-3-plan.md) | Phase 3 实施计划（并行轨道） | Phase 3 排期与分工 |
 | [roadmap.md](./roadmap.md) | 项目路线图和里程碑 | 了解长期计划时 |
-| [orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) | 小轨 Agent 实现学习指南（架构、链路、Tool、Wave 1–5） | 开发/调试 AI 助手时 |
-| [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) | 小轨完善路线图（Wave 0–5） | 规划 AI 能力迭代时 |
+| [phase-indie-product-plan.md](./phase-indie-product-plan.md) | **当前迭代** P1/P2 产品就绪计划 | 排期与验收时 |
+| [orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) | 小轨 Agent 实现学习指南 | 开发/调试 AI 助手时 |
+| [archive/](./archive/) | 已完成阶段过程文档（按 Phase / Wave 归档） | 查历史交付与计划时 |
 | [decisions/](./decisions/) | 架构决策记录（ADR） | 理解技术选型时 |
 
 ---
@@ -91,7 +89,11 @@
 
 ### 我要理解小轨（Orbit Guide）Agent 实现
 
-👉 阅读：[orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) + [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) + [decisions/17-ai-agent-architecture.md](./decisions/17-ai-agent-architecture.md)
+👉 阅读：[orbit-guide-agent-implementation.md](./orbit-guide-agent-implementation.md) + [archive/agent-capability-plans.md](./archive/agent-capability-plans.md) + [decisions/17-ai-agent-architecture.md](./decisions/17-ai-agent-architecture.md)
+
+### 我要查 Phase 3–4 历史交付
+
+👉 阅读：[archive/phase-3-4-delivery.md](./archive/phase-3-4-delivery.md)（按 3A / 4A / 3B / 4B 分节）
 
 ---
 
@@ -111,16 +113,9 @@ docs/
 ├── db-schema.md           # 数据库设计
 ├── sql-learning.md        # SQL / 索引学习（与项目对照）
 ├── roadmap.md             # 项目路线图
+├── phase-indie-product-plan.md  # 当前产品迭代
+├── archive/               # 过程文档归档（见 archive/README.md）
 └── decisions/             # 架构决策记录（ADR）
-    ├── README.md
-    ├── 01-monorepo-strategy.md
-    ├── 02-backend-framework.md
-    ├── 03-frontend-framework.md
-    ├── 04-shared-packages.md
-    ├── 05-doc-first.md
-    ├── 06-database-choice.md
-    ├── 07-orm-selection.md
-    └── 08-auth-strategy.md
 ```
 
 ---
