@@ -1,9 +1,12 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import type { ConversationParticipant, GroupMember, GroupMemberRole } from '@orbitchat/shared-types';
+import type { ConversationParticipant, GroupMember, GroupMemberRole, PostMediaItem } from '@orbitchat/shared-types';
 import { db } from '../db';
 import { conversationMembers } from '../db/schema/conversation-members';
+import { messageMedia } from '../db/schema/message-media';
 import { profiles } from '../db/schema/profiles';
+import { uploads } from '../db/schema/uploads';
 import { users } from '../db/schema/users';
+import { resolveMediaUrl } from '../services/upload-service';
 import { toConversationParticipant, toGroupMember } from './conversation-mappers';
 
 export async function loadParticipantSummaries(
@@ -30,6 +33,44 @@ export async function loadParticipantSummaries(
     map.set(row.userId, toConversationParticipant(row));
   }
   return map;
+}
+
+export async function loadMessageMediaByMessageIds(
+  messageIds: string[]
+): Promise<Map<string, PostMediaItem[]>> {
+  const result = new Map<string, PostMediaItem[]>();
+  if (messageIds.length === 0) {
+    return result;
+  }
+
+  const rows = await db
+    .select({
+      messageId: messageMedia.messageId,
+      id: messageMedia.id,
+      uploadId: messageMedia.uploadId,
+      sortOrder: messageMedia.sortOrder,
+      mimeType: uploads.mimeType,
+      sizeBytes: uploads.sizeBytes,
+    })
+    .from(messageMedia)
+    .innerJoin(uploads, eq(uploads.id, messageMedia.uploadId))
+    .where(inArray(messageMedia.messageId, messageIds))
+    .orderBy(messageMedia.sortOrder);
+
+  for (const row of rows) {
+    const items = result.get(row.messageId) ?? [];
+    items.push({
+      id: row.id,
+      uploadId: row.uploadId,
+      url: resolveMediaUrl(row.uploadId),
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      sortOrder: row.sortOrder,
+    });
+    result.set(row.messageId, items);
+  }
+
+  return result;
 }
 
 export async function loadParticipantsByConversation(

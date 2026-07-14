@@ -8,6 +8,7 @@ import { v1Router } from './routes/v1';
 import { ensureBuiltinAgents } from './services/ai/conversation-service';
 import { ensureHelpDocsIndexed } from './services/ai/rag-service';
 import { ensureBucketOnStartup } from './services/storage-service';
+import { startExpiredPendingUploadCleanup } from './services/upload-service';
 
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -62,6 +63,7 @@ void (async () => {
   try {
     await ensureBuiltinAgents();
     await ensureBucketOnStartup();
+    startExpiredPendingUploadCleanup();
     if (env.RAG_ENABLED) {
       await ensureHelpDocsIndexed();
     }

@@ -1,12 +1,12 @@
 import { and, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm';
-import type { Message, MessageEditRecord, MessageListResponse, MessageRecall } from '@orbitchat/shared-types';
+import type { Message, MessageEditRecord, MessageListResponse, MessageRecall, PostMediaItem } from '@orbitchat/shared-types';
 import { db } from '../db';
 import { conversationMembers } from '../db/schema/conversation-members';
 import { conversations } from '../db/schema/conversations';
 import { messageEdits } from '../db/schema/message-edits';
 import { messageRecalls } from '../db/schema/message-recalls';
 import { messages } from '../db/schema/messages';
-import { loadParticipantSummaries } from '../lib/conversation-loaders';
+import { loadParticipantSummaries, loadMessageMediaByMessageIds } from '../lib/conversation-loaders';
 import { toMessage } from '../lib/conversation-mappers';
 import {
   buildNextCursor,
@@ -29,6 +29,8 @@ import type {
 } from '../schemas/conversations';
 import { clampMessageLimit } from '../schemas/conversations';
 import { assertConversationMember } from './conversation-service';
+import { createMessageReceivedNotification } from './notification-service';
+import { linkMessageMedia } from './upload-service';
 
 function messageTimelineBefore(cursor: TimelineCursor | undefined) {
   if (!cursor) {
@@ -50,13 +52,16 @@ function assertWithinActionWindow(createdAt: Date, windowMs: number, action: 're
   }
 }
 
-async function toMessageDto(row: typeof messages.$inferSelect): Promise<Message> {
+async function toMessageDto(
+  row: typeof messages.$inferSelect,
+  media: PostMediaItem[] = []
+): Promise<Message> {
   const senders = await loadParticipantSummaries([row.senderId]);
   const sender = senders.get(row.senderId);
   if (!sender) {
     throw new AppError('NOT_FOUND', 'Sender not found', 404);
   }
-  return toMessage(row, sender);
+  return toMessage(row, sender, media);
 }
 
 async function toRecallDto(row: typeof messageRecalls.$inferSelect): Promise<MessageRecall> {
@@ -150,14 +155,17 @@ export async function listMessages(
 
   const pageRows = trimToPage(rows, limit);
   const senderIds = pageRows.map((row) => row.senderId);
-  const senders = await loadParticipantSummaries(senderIds);
+  const [senders, mediaMap] = await Promise.all([
+    loadParticipantSummaries(senderIds),
+    loadMessageMediaByMessageIds(pageRows.map((row) => row.id)),
+  ]);
 
   const items = pageRows.map((row) => {
     const sender = senders.get(row.senderId);
     if (!sender) {
       throw new AppError('NOT_FOUND', 'Sender not found', 404);
     }
-    return toMessage(row, sender);
+    return toMessage(row, sender, mediaMap.get(row.id) ?? []);
   });
 
   const recalls = await loadRecallsForMessageWindow(conversationId, pageRows);
@@ -217,7 +225,7 @@ export async function createMessage(
       .values({
         conversationId,
         senderId,
-        content: input.content,
+        content: input.content ?? '',
       })
       .returning();
 
@@ -236,14 +244,53 @@ export async function createMessage(
     return message;
   });
 
-  const dto = await toMessageDto(created);
+  const media =
+    input.uploadId !== undefined
+      ? await linkMessageMedia(created.id, senderId, input.uploadId)
+      : [];
+
+  const dto = await toMessageDto(created, media);
 
   broadcastMessageNew({
     conversationId,
     message: dto,
   });
 
+  void notifyDirectMessageRecipient(conversationId, created.id, senderId).catch(console.error);
+
   return dto;
+}
+
+async function notifyDirectMessageRecipient(
+  conversationId: string,
+  messageId: string,
+  senderId: string
+): Promise<void> {
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+  });
+  if (!conversation || conversation.type !== 'direct') {
+    return;
+  }
+
+  const members = await db.query.conversationMembers.findMany({
+    where: and(
+      eq(conversationMembers.conversationId, conversationId),
+      isNull(conversationMembers.leftAt)
+    ),
+  });
+
+  const recipient = members.find((member) => member.userId !== senderId);
+  if (!recipient) {
+    return;
+  }
+
+  await createMessageReceivedNotification(
+    conversationId,
+    messageId,
+    senderId,
+    recipient.userId
+  );
 }
 
 export async function markConversationRead(

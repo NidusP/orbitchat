@@ -150,6 +150,7 @@ describe('executeAgentTool', () => {
       username: 'alice',
       email: 'alice@example.com',
       isActive: true,
+      emailVerifiedAt: '2026-07-06T10:00:00.000Z',
       createdAt: '2026-07-06T10:00:00.000Z',
       updatedAt: '2026-07-06T10:00:00.000Z',
     }));

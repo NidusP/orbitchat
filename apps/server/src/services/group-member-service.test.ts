@@ -11,11 +11,13 @@ import { AppError } from '../lib/errors';
 import * as chatHub from '../realtime/chat-hub';
 import * as conversationLoaders from '../lib/conversation-loaders';
 import * as conversationService from './conversation-service';
+import * as uploadService from './upload-service';
 import * as userService from './user-service';
 import {
   addGroupMembers,
   leaveGroup,
   removeGroupMember,
+  setGroupAvatarFromUpload,
   transferGroupOwner,
   updateGroupMemberRole,
   updateGroupMetadata,
@@ -25,6 +27,7 @@ const GROUP_ID = '33333333-3333-4333-8333-333333333333';
 const OWNER_ID = '11111111-1111-4111-8111-111111111111';
 const ADMIN_ID = '22222222-2222-4222-8222-222222222222';
 const MEMBER_ID = '44444444-4444-4444-8444-444444444444';
+const UPLOAD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 const dbModule = await import('../db');
 
@@ -54,6 +57,7 @@ describe('group-member-service', () => {
           id: GROUP_ID,
           type: 'group',
           title: 'Weekend crew',
+          avatarUrl: null,
           announcement: null,
           createdByUserId: OWNER_ID,
           directKey: null,
@@ -253,5 +257,72 @@ describe('group-member-service', () => {
         statusCode: 409,
       })
     );
+  });
+
+  test('setGroupAvatarFromUpload commits upload and updates conversation avatar', async () => {
+    const commitSpy = spyOn(uploadService, 'commitUploads').mockImplementation(async () => {});
+    let capturedAvatarUrl: string | undefined;
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: (values: { avatarUrl?: string }) => {
+            capturedAvatarUrl = values.avatarUrl;
+            return {
+              where: () => ({
+                returning: () =>
+                  Promise.resolve([
+                    {
+                      id: GROUP_ID,
+                      avatarUrl: values.avatarUrl ?? null,
+                    },
+                  ]),
+              }),
+            };
+          },
+        }) as never
+    );
+
+    const avatarUrl = await setGroupAvatarFromUpload(GROUP_ID, OWNER_ID, UPLOAD_ID);
+
+    expect(commitSpy).toHaveBeenCalledWith([UPLOAD_ID], OWNER_ID, 'group_avatar');
+    expect(avatarUrl).toBe(`/api/v1/media/${UPLOAD_ID}`);
+    expect(capturedAvatarUrl).toBe(`/api/v1/media/${UPLOAD_ID}`);
+  });
+
+  test('setGroupAvatarFromUpload rejects non-admin member', async () => {
+    await expect(setGroupAvatarFromUpload(GROUP_ID, MEMBER_ID, UPLOAD_ID)).rejects.toEqual(
+      expect.objectContaining({
+        code: 'FORBIDDEN',
+        statusCode: 403,
+      })
+    );
+  });
+
+  test('updateGroupMetadata applies avatar upload without expectedVersion', async () => {
+    const avatarSpy = spyOn(uploadService, 'commitUploads').mockImplementation(async () => {});
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: () =>
+                Promise.resolve([
+                  {
+                    id: GROUP_ID,
+                    avatarUrl: `/api/v1/media/${UPLOAD_ID}`,
+                  },
+                ]),
+            }),
+          }),
+        }) as never
+    );
+    const getDtoSpy = spyOn(conversationService, 'getConversationDto').mockImplementation(
+      async () => ({}) as never
+    );
+
+    await updateGroupMetadata(GROUP_ID, ADMIN_ID, { avatarUploadId: UPLOAD_ID });
+
+    expect(avatarSpy).toHaveBeenCalledWith([UPLOAD_ID], ADMIN_ID, 'group_avatar');
+    expect(getDtoSpy).toHaveBeenCalledWith(GROUP_ID, ADMIN_ID);
   });
 });

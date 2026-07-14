@@ -1,4 +1,4 @@
-export type UploadPurpose = 'avatar' | 'post';
+export type UploadPurpose = 'avatar' | 'post' | 'message' | 'group_avatar';
 
 export type UploadStatus = 'pending' | 'committed' | 'deleted';
 

@@ -141,6 +141,34 @@
       "when": 1783520000000,
       "tag": "0019_uploads_post_media",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1783525000000,
+      "tag": "0020_message_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1783530000000,
+      "tag": "0021_group_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783535000000,
+      "tag": "0022_message_received_notification",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783540000000,
+      "tag": "0023_email_verification",
+      "breakpoints": true
     }
   ]
 }

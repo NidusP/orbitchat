@@ -11,6 +11,7 @@ import {
   type ConversationListCursor,
 } from '../lib/conversation-cursor';
 import {
+  loadMessageMediaByMessageIds,
   loadParticipantsByConversation,
   loadParticipantSummaries,
   loadViewerRole,
@@ -238,10 +239,13 @@ export async function getConversationDto(
   let lastMessage = null;
 
   if (lastRow) {
-    const senders = await loadParticipantSummaries([lastRow.senderId]);
+    const [senders, mediaMap] = await Promise.all([
+      loadParticipantSummaries([lastRow.senderId]),
+      loadMessageMediaByMessageIds([lastRow.id]),
+    ]);
     const sender = senders.get(lastRow.senderId);
     if (sender) {
-      lastMessage = toMessage(lastRow, sender);
+      lastMessage = toMessage(lastRow, sender, mediaMap.get(lastRow.id) ?? []);
     }
   }
 
@@ -308,7 +312,11 @@ export async function listConversations(
   ]);
 
   const senderIds = [...lastMessagesMap.values()].map((message) => message.senderId);
-  const senders = await loadParticipantSummaries(senderIds);
+  const lastMessageIds = [...lastMessagesMap.values()].map((message) => message.id);
+  const [senders, lastMessageMediaMap] = await Promise.all([
+    loadParticipantSummaries(senderIds),
+    loadMessageMediaByMessageIds(lastMessageIds),
+  ]);
 
   const items = pageRows.map((row) => {
     const participants = participantsMap.get(row.conversation.id) ?? [];
@@ -318,7 +326,7 @@ export async function listConversations(
     if (lastRow) {
       const sender = senders.get(lastRow.senderId);
       if (sender) {
-        lastMessage = toMessage(lastRow, sender);
+        lastMessage = toMessage(lastRow, sender, lastMessageMediaMap.get(lastRow.id) ?? []);
       }
     }
 

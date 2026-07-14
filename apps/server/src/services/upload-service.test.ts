@@ -10,11 +10,36 @@ process.env.STORAGE_ENABLED = 'false';
 import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { StorageService } from './storage-service';
 import * as storageServiceModule from './storage-service';
-import { createUpload, resolveMediaUrl } from './upload-service';
+import {
+  createUpload,
+  purgeExpiredPendingUploads,
+  resolveMediaUrl,
+  startExpiredPendingUploadCleanup,
+} from './upload-service';
 
 const dbModule = await import('../db');
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
+const UPLOAD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const OBJECT_KEY = `post/${USER_ID}/${UPLOAD_ID}.png`;
+
+function sampleExpiredPendingUpload(overrides: Partial<{
+  id: string;
+  objectKey: string;
+  expiresAt: Date;
+}> = {}) {
+  return {
+    id: overrides.id ?? UPLOAD_ID,
+    ownerId: USER_ID,
+    purpose: 'post',
+    objectKey: overrides.objectKey ?? OBJECT_KEY,
+    mimeType: 'image/png',
+    sizeBytes: 4,
+    status: 'pending',
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    expiresAt: overrides.expiresAt ?? new Date('2026-07-01T00:00:00.000Z'),
+  };
+}
 
 function mockStorage(): StorageService {
   return {
@@ -160,5 +185,192 @@ describe('upload-service', () => {
       sizeBytes: 4,
       purpose: 'post',
     });
+  });
+
+  test('purgeExpiredPendingUploads returns 0 when storage is disabled', async () => {
+    const findMany = spyOn(dbModule.db.query.uploads, 'findMany');
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(0);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  test('purgeExpiredPendingUploads deletes S3 objects and marks uploads deleted', async () => {
+    spyOn(storageServiceModule, 'isStorageEnabled').mockReturnValue(true);
+
+    const deleteObject = mock(async () => {});
+    storageServiceModule.setStorageService({
+      ...mockStorage(),
+      deleteObject,
+    });
+
+    spyOn(dbModule.db.query.uploads, 'findMany').mockImplementation(
+      (async () => [sampleExpiredPendingUpload()]) as never
+    );
+
+    const updateMock = spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: async () => [
+                {
+                  ...sampleExpiredPendingUpload(),
+                  status: 'deleted',
+                },
+              ],
+            }),
+          }),
+        }) as never
+    );
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(1);
+    expect(deleteObject).toHaveBeenCalledWith(OBJECT_KEY);
+    expect(updateMock).toHaveBeenCalled();
+  });
+
+  test('purgeExpiredPendingUploads skips S3 delete for placeholder object keys', async () => {
+    spyOn(storageServiceModule, 'isStorageEnabled').mockReturnValue(true);
+
+    const deleteObject = mock(async () => {});
+    storageServiceModule.setStorageService({
+      ...mockStorage(),
+      deleteObject,
+    });
+
+    spyOn(dbModule.db.query.uploads, 'findMany').mockImplementation(
+      (async () => [sampleExpiredPendingUpload({ objectKey: 'pending' })]) as never
+    );
+
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: async () => [
+                {
+                  ...sampleExpiredPendingUpload({ objectKey: 'pending' }),
+                  status: 'deleted',
+                },
+              ],
+            }),
+          }),
+        }) as never
+    );
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(1);
+    expect(deleteObject).not.toHaveBeenCalled();
+  });
+
+  test('purgeExpiredPendingUploads returns 0 when no expired pending uploads', async () => {
+    spyOn(storageServiceModule, 'isStorageEnabled').mockReturnValue(true);
+    storageServiceModule.setStorageService(mockStorage());
+
+    spyOn(dbModule.db.query.uploads, 'findMany').mockImplementation(
+      (async () => [] as ReturnType<typeof sampleExpiredPendingUpload>[]) as never
+    );
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(0);
+  });
+
+  test('purgeExpiredPendingUploads still marks deleted when S3 delete fails', async () => {
+    spyOn(storageServiceModule, 'isStorageEnabled').mockReturnValue(true);
+
+    const deleteObject = mock(async () => {
+      throw new Error('S3 unavailable');
+    });
+    storageServiceModule.setStorageService({
+      ...mockStorage(),
+      deleteObject,
+    });
+
+    spyOn(dbModule.db.query.uploads, 'findMany').mockImplementation(
+      (async () => [sampleExpiredPendingUpload()]) as never
+    );
+
+    spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: async () => [
+                {
+                  ...sampleExpiredPendingUpload(),
+                  status: 'deleted',
+                },
+              ],
+            }),
+          }),
+        }) as never
+    );
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(1);
+    expect(deleteObject).toHaveBeenCalledWith(OBJECT_KEY);
+  });
+
+  test('purgeExpiredPendingUploads ignores committed uploads that coexist with expired pending', async () => {
+    spyOn(storageServiceModule, 'isStorageEnabled').mockReturnValue(true);
+
+    const committedId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const committedObjectKey = `post/${USER_ID}/${committedId}.png`;
+    const pendingRow = sampleExpiredPendingUpload();
+    const committedRow = {
+      ...sampleExpiredPendingUpload({
+        id: committedId,
+        objectKey: committedObjectKey,
+      }),
+      status: 'committed' as const,
+    };
+
+    const deleteObject = mock(async () => {});
+    storageServiceModule.setStorageService({
+      ...mockStorage(),
+      deleteObject,
+    });
+
+    // DB where-clause only returns expired pending; committed coexists but is excluded.
+    spyOn(dbModule.db.query.uploads, 'findMany').mockImplementation(
+      (async () => [pendingRow]) as never
+    );
+
+    const updateMock = spyOn(dbModule.db, 'update').mockImplementation(
+      () =>
+        ({
+          set: () => ({
+            where: () => ({
+              returning: async () => [
+                {
+                  ...pendingRow,
+                  status: 'deleted',
+                },
+              ],
+            }),
+          }),
+        }) as never
+    );
+
+    const purged = await purgeExpiredPendingUploads();
+
+    expect(purged).toBe(1);
+    expect(deleteObject).toHaveBeenCalledTimes(1);
+    expect(deleteObject).toHaveBeenCalledWith(OBJECT_KEY);
+    expect(deleteObject).not.toHaveBeenCalledWith(committedObjectKey);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(committedRow.status).toBe('committed');
+  });
+
+  test('startExpiredPendingUploadCleanup is a no-op when storage is disabled', () => {
+    const stop = startExpiredPendingUploadCleanup();
+    expect(typeof stop).toBe('function');
+    stop();
   });
 });

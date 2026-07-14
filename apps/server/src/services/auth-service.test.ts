@@ -87,6 +87,7 @@ describe('auth-service', () => {
       email: 'orbit@example.com',
       passwordHash: 'hashed-password',
       isActive: true,
+      emailVerifiedAt: new Date('2026-06-20T00:00:00.000Z'),
       createdAt: new Date('2026-06-20T00:00:00.000Z'),
       updatedAt: new Date('2026-06-20T00:00:00.000Z'),
     }));
@@ -96,6 +97,7 @@ describe('auth-service', () => {
       email: 'orbit@example.com',
       passwordHash: 'hashed-password',
       isActive: true,
+      emailVerifiedAt: new Date('2026-06-20T00:00:00.000Z'),
       createdAt: new Date('2026-06-20T00:00:00.000Z'),
       updatedAt: new Date('2026-06-20T00:00:00.000Z'),
     }));
@@ -105,6 +107,7 @@ describe('auth-service', () => {
         username: 'orbit',
         email: 'orbit@example.com',
         isActive: true,
+        emailVerifiedAt: '2026-06-20T00:00:00.000Z',
         createdAt: '2026-06-20T00:00:00.000Z',
         updatedAt: '2026-06-20T00:00:00.000Z',
       },

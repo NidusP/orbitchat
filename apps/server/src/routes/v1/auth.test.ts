@@ -45,6 +45,7 @@ describe('authRouter', () => {
         username: 'orbit',
         email: 'orbit@example.com',
         isActive: true,
+        emailVerifiedAt: '2026-06-20T00:00:00.000Z',
         createdAt: '2026-06-20T00:00:00.000Z',
         updatedAt: '2026-06-20T00:00:00.000Z',
       },
@@ -84,6 +85,7 @@ describe('authRouter', () => {
         username: 'orbit',
         email: 'orbit@example.com',
         isActive: true,
+        emailVerifiedAt: '2026-06-20T00:00:00.000Z',
         createdAt: '2026-06-20T00:00:00.000Z',
         updatedAt: '2026-06-20T00:00:00.000Z',
       },
@@ -116,6 +118,11 @@ describe('authRouter', () => {
         createdAt: '2026-06-20T00:00:00.000Z',
       },
     }));
+    spyOn(authService, 'verifyEmail').mockImplementation(async () => ({
+      success: true,
+      emailVerifiedAt: '2026-07-13T12:00:00.000Z',
+    }));
+    spyOn(authService, 'resendVerification').mockImplementation(async () => ({ success: true }));
     spyOn(jwtLib, 'verifyAccessToken').mockImplementation(async () => ({
       sub: 'user-1',
       sid: 'session-1',
@@ -219,5 +226,43 @@ describe('authRouter', () => {
     expect(response.status).toBe(200);
     expect(logoutSpy).toHaveBeenCalledTimes(1);
     expect(response.headers.get('set-cookie')).toContain('refresh_token=');
+  });
+
+  test('verifies email with token in request body', async () => {
+    const verifyEmailSpy = spyOn(authService, 'verifyEmail');
+    const app = createApp('web');
+    const response = await app.request('/auth/verify-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token: 'verification-token' }),
+    });
+    const body = (await response.json()) as {
+      code: string;
+      data: { success: true; emailVerifiedAt: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(verifyEmailSpy).toHaveBeenCalledTimes(1);
+    expect(body.code).toBe('SUCCESS');
+    expect(body.data.emailVerifiedAt).toBe('2026-07-13T12:00:00.000Z');
+  });
+
+  test('resends verification email for authenticated users', async () => {
+    const resendVerificationSpy = spyOn(authService, 'resendVerification');
+    const app = createApp('web');
+    const response = await app.request('/auth/resend-verification', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-token',
+      },
+    });
+    const body = (await response.json()) as { code: string; data: { success: true } };
+
+    expect(response.status).toBe(200);
+    expect(resendVerificationSpy).toHaveBeenCalledTimes(1);
+    expect(body.code).toBe('SUCCESS');
+    expect(body.data.success).toBe(true);
   });
 });

@@ -8,6 +8,7 @@ export const conversations = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     type: conversationTypeEnum('type').notNull().default('direct'),
     title: varchar('title', { length: 120 }),
+    avatarUrl: varchar('avatar_url', { length: 512 }),
     announcement: text('announcement'),
     createdByUserId: uuid('created_by_user_id').references(() => users.id, {
       onDelete: 'set null',

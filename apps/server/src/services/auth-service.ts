@@ -4,11 +4,14 @@ import type {
   LogoutResponse,
   RefreshResponse,
   RegisterResponse,
+  ResendVerificationResponse,
   RevokeSessionResponse,
   SessionListResponse,
   TrustSessionResponse,
+  VerifyEmailResponse,
 } from '@orbitchat/shared-types';
 import { env } from '../env';
+import { isEmailVerificationEnabled } from '../lib/feature-flags';
 import { AppError } from '../lib/errors';
 import { verifyPassword } from '../lib/crypto';
 import { getAccessTokenTtlSeconds, signAccessToken } from '../lib/jwt';
@@ -27,6 +30,11 @@ import {
   updateSessionTrust,
 } from './session-service';
 import { assertActiveUser, findUserByEmail, registerUser } from './user-service';
+import {
+  createAndSendVerificationEmail,
+  resendVerificationEmail,
+  verifyEmail as verifyEmailToken,
+} from './email-verification-service';
 
 const REMEMBER_ME_REFRESH_TTL = '7d';
 
@@ -43,7 +51,21 @@ function resolveRefreshExpiry(rememberMe?: boolean): Date {
 }
 
 export async function register(input: RegisterInput): Promise<RegisterResponse> {
-  return registerUser(input);
+  const result = await registerUser(input);
+
+  if (isEmailVerificationEnabled()) {
+    await createAndSendVerificationEmail(result.user.id, result.user.email);
+  }
+
+  return result;
+}
+
+export async function verifyEmail(token: string): Promise<VerifyEmailResponse> {
+  return verifyEmailToken(token);
+}
+
+export async function resendVerification(userId: string): Promise<ResendVerificationResponse> {
+  return resendVerificationEmail(userId);
 }
 
 export async function login(

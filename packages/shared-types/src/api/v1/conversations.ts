@@ -24,7 +24,8 @@ export type CreateConversationRequest =
   | CreateGroupConversationRequest;
 
 export interface CreateMessageRequest {
-  content: string;
+  content?: string;
+  uploadId?: string;
 }
 
 export interface UpdateMessageRequest {
@@ -46,7 +47,10 @@ export type GetConversationResponse = Conversation;
 export type UpdateGroupConversationRequest = {
   title?: string;
   announcement?: string | null;
-  expectedVersion: number;
+  /** Commits a pending group_avatar upload; owner/admin only. */
+  avatarUploadId?: string;
+  /** Required when updating title or announcement (optimistic lock). */
+  expectedVersion?: number;
 };
 
 export type AddGroupMembersRequest = {

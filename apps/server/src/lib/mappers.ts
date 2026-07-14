@@ -13,6 +13,7 @@ export function toUserDto(user: DbUser): User {
     username: user.username,
     email: user.email,
     isActive: user.isActive,
+    emailVerifiedAt: user.emailVerifiedAt ? toIsoString(user.emailVerifiedAt) : null,
     createdAt: toIsoString(user.createdAt),
     updatedAt: toIsoString(user.updatedAt),
   };

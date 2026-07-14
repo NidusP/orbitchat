@@ -6,6 +6,7 @@ export interface User {
   username: string;
   email: string;
   isActive: boolean;
+  emailVerifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

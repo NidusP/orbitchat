@@ -1,8 +1,9 @@
-import { and, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { CursorPage, InteractionNotification } from '@orbitchat/shared-types';
 import { clampCursorLimit } from '@orbitchat/shared-types';
 import { db } from '../db';
 import { comments } from '../db/schema/comments';
+import { messages } from '../db/schema/messages';
 import { notifications } from '../db/schema/notifications';
 import { posts } from '../db/schema/posts';
 import {
@@ -25,8 +26,20 @@ function timelineBefore(cursor: TimelineCursor | undefined) {
 
 function visibleNotificationFilter() {
   return or(
-    eq(notifications.type, 'post_liked'),
-    and(eq(notifications.type, 'post_commented'), isNull(comments.deletedAt))
+    and(eq(notifications.type, 'post_liked'), isNotNull(notifications.postId), isNotNull(posts.id)),
+    and(
+      eq(notifications.type, 'post_commented'),
+      isNotNull(notifications.postId),
+      isNotNull(posts.id),
+      isNull(comments.deletedAt)
+    ),
+    and(
+      eq(notifications.type, 'message_received'),
+      isNotNull(notifications.conversationId),
+      isNotNull(notifications.messageId),
+      isNotNull(messages.id),
+      isNull(messages.deletedAt)
+    )
   );
 }
 
@@ -66,6 +79,25 @@ export async function createPostCommentedNotification(
   });
 }
 
+export async function createMessageReceivedNotification(
+  conversationId: string,
+  messageId: string,
+  actorId: string,
+  recipientId: string
+): Promise<void> {
+  if (actorId === recipientId) {
+    return;
+  }
+
+  await db.insert(notifications).values({
+    recipientId,
+    actorId,
+    type: 'message_received',
+    conversationId,
+    messageId,
+  });
+}
+
 export async function listNotifications(
   recipientId: string,
   params: { cursor?: string; limit?: number }
@@ -78,10 +110,12 @@ export async function listNotifications(
       notification: notifications,
       postContent: posts.content,
       commentContent: comments.content,
+      messageContent: messages.content,
     })
     .from(notifications)
-    .innerJoin(posts, and(eq(notifications.postId, posts.id), isNull(posts.deletedAt)))
+    .leftJoin(posts, and(eq(notifications.postId, posts.id), isNull(posts.deletedAt)))
     .leftJoin(comments, eq(notifications.commentId, comments.id))
+    .leftJoin(messages, and(eq(notifications.messageId, messages.id), isNull(messages.deletedAt)))
     .where(
       and(
         eq(notifications.recipientId, recipientId),
@@ -106,14 +140,15 @@ export async function listNotifications(
       row.notification,
       actor,
       row.postContent,
-      row.commentContent
+      row.commentContent,
+      row.messageContent
     );
   });
 
   return {
     items,
     nextCursor: buildNextCursor(
-      pageRows.map((row) => row.notification),
+      rows.map((row) => row.notification),
       limit
     ),
   };
@@ -123,8 +158,9 @@ export async function getUnreadNotificationCount(recipientId: string): Promise<n
   const [result] = await db
     .select({ value: count() })
     .from(notifications)
-    .innerJoin(posts, and(eq(notifications.postId, posts.id), isNull(posts.deletedAt)))
+    .leftJoin(posts, and(eq(notifications.postId, posts.id), isNull(posts.deletedAt)))
     .leftJoin(comments, eq(notifications.commentId, comments.id))
+    .leftJoin(messages, and(eq(notifications.messageId, messages.id), isNull(messages.deletedAt)))
     .where(
       and(
         eq(notifications.recipientId, recipientId),

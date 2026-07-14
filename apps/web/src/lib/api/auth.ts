@@ -6,10 +6,13 @@ import type {
   RefreshResponse,
   RegisterRequest,
   RegisterResponse,
+  ResendVerificationResponse,
   RevokeSessionResponse,
   SessionListResponse,
   TrustSessionRequest,
   TrustSessionResponse,
+  VerifyEmailRequest,
+  VerifyEmailResponse,
 } from '@orbitchat/shared-types';
 import { apiRequest, setAccessToken } from './client';
 
@@ -68,6 +71,20 @@ export async function revokeSession(sessionId: string): Promise<RevokeSessionRes
 
 export async function logoutAll(): Promise<LogoutAllResponse> {
   return apiRequest<LogoutAllResponse>('/api/v1/auth/logout-all', {
+    method: 'POST',
+  });
+}
+
+export async function verifyEmail(body: VerifyEmailRequest): Promise<VerifyEmailResponse> {
+  return apiRequest<VerifyEmailResponse>('/api/v1/auth/verify-email', {
+    method: 'POST',
+    body,
+    skipAuthRetry: true,
+  });
+}
+
+export async function resendVerification(): Promise<ResendVerificationResponse> {
+  return apiRequest<ResendVerificationResponse>('/api/v1/auth/resend-verification', {
     method: 'POST',
   });
 }

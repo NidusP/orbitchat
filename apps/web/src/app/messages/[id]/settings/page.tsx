@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { GroupInvite, GroupMember, GroupMemberRole, UserSearchResult } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { ApiError } from '@/lib/api/errors';
 import {
   addGroupMembers,
@@ -21,6 +22,9 @@ import {
   revokeGroupInvite,
 } from '@/lib/api/conversations';
 import { searchUsers } from '@/lib/api/social';
+import { uploadFile } from '@/lib/api/uploads';
+
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp';
 
 function roleLabel(
   role: GroupMemberRole,
@@ -47,6 +51,8 @@ export default function GroupSettingsPage() {
   const { t } = useI18n();
 
   const [title, setTitle] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [metadataVersion, setMetadataVersion] = useState(1);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -58,10 +64,14 @@ export default function GroupSettingsPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [invites, setInvites] = useState<GroupInvite[]>([]);
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -77,6 +87,7 @@ export default function GroupSettingsPage() {
         return;
       }
       setTitle(conversation.title ?? '');
+      setAvatarUrl(conversation.avatarUrl);
       setAnnouncement(conversation.announcement ?? '');
       setMetadataVersion(conversation.version);
       setViewerRole(conversation.viewerRole);
@@ -128,10 +139,64 @@ export default function GroupSettingsPage() {
     }
   }
 
-  function applyMetadata(updated: { title: string | null; announcement: string | null; version: number }): void {
+  function applyMetadata(updated: {
+    title: string | null;
+    announcement: string | null;
+    avatarUrl: string | null;
+    version: number;
+  }): void {
     setTitle(updated.title ?? '');
+    setAvatarUrl(updated.avatarUrl);
     setAnnouncement(updated.announcement ?? '');
     setMetadataVersion(updated.version);
+  }
+
+  async function handleAvatarSelected(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || !canManageGroup(viewerRole)) {
+      return;
+    }
+
+    setError(null);
+    setAvatarSuccess(null);
+    setIsAvatarUploading(true);
+
+    const localPreview = URL.createObjectURL(file);
+    setAvatarPreviewUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return localPreview;
+    });
+
+    try {
+      const uploaded = await uploadFile(file, 'group_avatar');
+      const updated = await updateGroupMetadata(conversationId, { avatarUploadId: uploaded.id });
+      applyMetadata(updated);
+      setAvatarPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return null;
+      });
+      setAvatarSuccess(t('groupSettings.success.avatarUpdated'));
+    } catch (err) {
+      setAvatarPreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return null;
+      });
+      setError(
+        err instanceof ApiError
+          ? t('groupSettings.errors.avatarUploadWithMessage', { message: err.message })
+          : t('groupSettings.errors.avatarUpload')
+      );
+    } finally {
+      setIsAvatarUploading(false);
+    }
   }
 
   async function handleSaveAnnouncement(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -285,6 +350,46 @@ export default function GroupSettingsPage() {
       </header>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {avatarSuccess && <div className="alert alert-success">{avatarSuccess}</div>}
+
+      {canManage && (
+        <section className="card form-stack" style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.groupAvatar')}</h2>
+          <div className="profile-avatar-field">
+            <div className="profile-avatar-row">
+              <UserAvatar
+                displayName={title.trim() || t('messagesList.fallbackGroupName')}
+                userId={conversationId}
+                avatarUrl={avatarPreviewUrl ?? avatarUrl}
+                size="lg"
+              />
+              <div className="profile-avatar-actions">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES}
+                  hidden
+                  data-testid="group-avatar-input"
+                  onChange={(event) => {
+                    void handleAvatarSelected(event);
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  data-testid="group-avatar-change"
+                  disabled={isAvatarUploading}
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  {isAvatarUploading
+                    ? t('groupSettings.actions.uploadingAvatar')
+                    : t('groupSettings.actions.changeAvatar')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="card form-stack" style={{ marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: '1.125rem' }}>{t('groupSettings.sections.groupName')}</h2>

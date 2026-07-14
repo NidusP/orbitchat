@@ -8,7 +8,7 @@
 
 Orbit Guide（小轨）需要在**跨 AI 会话**中记住少量与用户相关的事实（称呼、偏好、稳定信息），以便新建会话时仍能「懂用户」。Phase 4A 仅有 `ai_conversations` / `ai_messages` 会话内上下文，关闭会话后无法延续。
 
-M1 目标是：**可审计、可删除、显式写入** 的用户级记忆，为后续 RAG（M2）与摘要压缩（M3）留出清晰边界。详见 [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md) 与 [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md) § Wave 2。
+M1 目标是：**可审计、可删除、显式写入** 的用户级记忆，为后续 RAG（M2）与摘要压缩（M3）留出清晰边界。详见 [archive/agent-capability-plans.md](../archive/agent-capability-plans.md)（Wave 2 ≡ M1）。
 
 ## 选项
 
@@ -74,7 +74,7 @@ M1 目标是：**可审计、可删除、显式写入** 的用户级记忆，为
 
 ## 相关
 
-- [phase-4-agent-memory-rag-plan.md](../phase-4-agent-memory-rag-plan.md)
-- [phase-4-orbit-guide-plan.md](../phase-4-orbit-guide-plan.md)
+- [archive/agent-capability-plans.md](../archive/agent-capability-plans.md)
+- [archive/phase-4-agent-memory-rag-plan.md](../archive/phase-4-agent-memory-rag-plan.md)
 - [ADR 17 — AI Agent 架构](./17-ai-agent-architecture.md)
 - [db-schema.md](../db-schema.md) — `user_agent_memories`

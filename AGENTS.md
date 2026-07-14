@@ -26,23 +26,25 @@
 
 ### 项目名称
 
-**Orbitchat** - 一个学习型社交平台项目
+**Orbitchat** - 独立开发的社交产品（IM + Feed + AI 助手）
 
 ### 项目阶段
 
-**Phase 4 Orbit Guide（Wave 0–5 代码完成，待交付）**（2026-07-10）
+**产品化基线已合入 `master`（2026-07-13，PR #7）**；当前迭代 **P1/P2** 见 [phase-indie-product-plan.md](./docs/phase-indie-product-plan.md)。
 
-分支 `feat/api-robustness-concurrency`：API 健壮性 + 群管理扩展 + 小轨 Wave 1–5（平台感知 / M1 记忆 / M2 RAG / M3 摘要 / UX）。**本地未 commit**，自动化：**217 server tests + 37 E2E** 通过。
-
-**下一步（Wave 0）**：拆 PR → push → 合 `master`；可选 UI 改版后手测。
+| 自动化 | 状态 |
+|--------|------|
+| Server 单测 | 231 pass |
+| E2E | 38 pass（`CI=true pnpm e2e`） |
+| CI 流水线 | 后续再做 |
 
 ### 项目特征
 
-- ✅ 长期演进项目（不是一次性产品）
+- ✅ 独立产品长期演进（可上线为目标）
 - ✅ 文档驱动开发（代码遵循文档）
 - ✅ TypeScript First（strict mode 必须）
 - ✅ AI Agent 友好（清晰的结构和命名）
-- ✅ Agentic Engineering（AI 协作开发）
+- ✅ 交付过程中积累 IM / 存储 / Agent 工程能力
 
 ---
 
@@ -201,23 +203,22 @@ app.onError((err, c) => {
 
 ---
 
-## 当前阶段范围（Phase 3B + 4B 已交付）
+## 当前阶段范围（独立产品基线 + P1/P2）
 
 ### ✅ 已完成
 
-- Phase 1–2、Phase 3A 1:1 私聊
-- **Phase 3B**：群聊 MVP + 群管理（角色/踢人/转让/改群名）+ **私聊 typing**
-- Phase 4A AI Chat MVP
-- **Phase 4B**：FC 写工具（`send_dm`、`create_post`、`follow`/`unfollow`）+ **`play_tictactoe`**
+- Phase 1–2、3A/3B、4A/4B、小轨 Wave 1–5
+- 产品 Shell（Tab / i18n / 暗色 / onboarding）、站内通知、发帖配图与头像上传
+- **P1**：pending 上传清理、聊天发图、通知单测
+- **P2**：群头像、新消息站内通知、邮箱验证（可开关）
 
-### ❌ 暂不做 / 后续
+### ❌ 暂不做 / 后续（P3+）
 
-- 群邀请链接（3B.1 P1）、presence、群头像
-- Redis Pub/Sub 多实例、WebRTC（4C）、推送（3.1）
-- M1 长期记忆 / M2 RAG（见 [phase-4-agent-memory-rag-plan.md](./docs/phase-4-agent-memory-rag-plan.md)）
-- 生产部署编排
+- Presence、WebRTC 音视频、视频上传
+- Web Push / FCM（Phase 3.1）
+- Redis Pub/Sub 多实例、CI 流水线、生产部署编排
 
-**下一步**：UI 改版 + 整体手测；或按 [phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) 选轨推进。
+**迭代计划**：[phase-indie-product-plan.md](./docs/phase-indie-product-plan.md)
 
 ---
 
@@ -248,7 +249,7 @@ app.onError((err, c) => {
 | `docs/sql-learning.md` | SQL / 索引学习与实战对照 | 写查询、Feed、调性能时 |
 | `docs/roadmap.md` | 项目路线图、分阶段计划 |
 | `docs/orbit-guide-agent-implementation.md` | **小轨 Agent 实现学习指南**（架构、链路、Tool、Wave 1–5） |
-| `docs/phase-4-orbit-guide-plan.md` | 小轨能力演进路线图与验收 |
+| `docs/archive/agent-capability-plans.md` | 小轨能力演进（Wave 0–5 / M1–M3，归档） |
 | `docs/decisions/` | 架构决策记录（ADR 01–22） |
 
 ---
@@ -292,15 +293,14 @@ app.onError((err, c) => {
 
 ### Q3: 为什么有这么多文档？
 
-**A**：因为这是一个学习项目，文档帮助：
+**A**：独立产品长期演进需要可检索的「项目记忆」，文档帮助：
 - AI Agent 快速理解意图
-- 团队成员保持一致
-- 决策过程可追溯
-- 代码实现有章可循
+- 决策可追溯、契约（API/DB）不漂移
+- 多人 / 多会话协作时保持一致
 
 ### Q4: 当前阶段应该专注什么？
 
-**A**：Phase 1 完整验收已完成；下一步 **push + PR** 合 `main`，或进入 Phase 2 规划（见 roadmap）。
+**A**：见 [phase-indie-product-plan.md](./docs/phase-indie-product-plan.md)。CI 暂缓；优先产品完整度与可上线路径。
 
 ### Q5: 我发现代码和文档不一致怎么办？
 
@@ -397,16 +397,16 @@ app.onError((err, c) => {
 
 ### 会话交接（下次继续）
 
-**结论（2026-07-10）**：`feat/api-robustness-concurrency` 本地完成 Wave 0–5 + 测试补齐；**未 push/合 main**。
+**结论（2026-07-14）**：定位已改为**独立产品**；P1/P2 在分支 `feat/indie-p1-p2` 实现中（相对 master 未合入前以该分支为准）。
 
 | 维度 | 状态 |
 |------|------|
-| API 健壮性 + 群公告/邀请/消息策略（0009–0013） | ✅ 代码 |
-| 小轨 Wave 1–5（Tool / 记忆 / RAG / 摘要 / UX） | ✅ 代码 |
-| 单测 + E2E | ✅ 217 + 37 |
-| 迁移 journal + pgvector 容错 | ✅ |
-| Git 交付（commit / PR / merge） | ⏸ 待做 |
-| 手测 / UI 改版 | ⏸ 用户计划 |
+| 产品化基线（PR #7） | ✅ master |
+| P1（上传清理 / 聊天发图 / 通知单测） | ✅ 代码 + 单测 |
+| P2（群头像 / 消息通知 / 邮箱验证） | ✅ 代码 + 单测 |
+| 文档定位同步 | ✅ |
+| 过程文档归档（Phase/Wave 分节） | ✅ `docs/archive/` |
+| CI | ⏸ 后续 |
 
 **本地开发速查**
 
@@ -414,13 +414,12 @@ app.onError((err, c) => {
 |----|------|
 | 启动 | 根目录 `pnpm dev` |
 | API / Web | http://localhost:3001/health 、http://localhost:3000 |
-| DB 迁移 | `pnpm --filter @orbitchat/server db:migrate`（**0009–0016**） |
-| E2E | `CI=true pnpm e2e`（`LLM_E2E_MOCK=true`，`RAG_ENABLED=false`） |
-| RAG 全量重建 | `cd apps/server && bun scripts/reindex-rag.ts`（需 `RAG_ENABLED=true` + pgvector） |
+| DB 迁移 | `pnpm --filter @orbitchat/server db:migrate`（至 **0023**） |
+| E2E | `CI=true pnpm e2e` |
+| 上传 | `STORAGE_ENABLED=true` + MinIO（见 `docs/env.md`） |
+| 邮箱验证 | `EMAIL_VERIFICATION_ENABLED`（默认 false，见 `docs/env.md`） |
 
-**建议下一迭代**：见 [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md) § Wave 0；学习指南 [orbit-guide-agent-implementation.md](./docs/orbit-guide-agent-implementation.md)。
-
-**关键回顾**：[phase-3b-4b-closeout.md](./docs/phase-3b-4b-closeout.md) · [phase-4-orbit-guide-plan.md](./docs/phase-4-orbit-guide-plan.md)
+**迭代计划**：[phase-indie-product-plan.md](./docs/phase-indie-product-plan.md)
 
 ### 联系和反馈
 
@@ -433,9 +432,8 @@ app.onError((err, c) => {
 
 ## 最后的话
 
-> 这个项目的目标不是快速完成功能，而是建立一个清晰、可维护、易于理解的系统。  
-> 每一行代码都应该反映我们的设计意图。  
-> 文档和代码一样重要，甚至更重要。
+> Orbitchat 的目标是交付一款可上线的独立社交产品。  
+> 每一行代码应反映设计意图；文档与契约与代码同等重要。
 
 **欢迎加入 Orbitchat 的开发 🚀**
 
@@ -444,5 +442,5 @@ app.onError((err, c) => {
 ## 版本
 
 - **当前版本**：0.1.0
-- **最后更新**：2026-07-07（3B+4B 合入 master；见 phase-3b-4b-closeout）
-- **下次审查**：UI 改版后整体手测，或启动 3B.1 邀请链接 / M1 记忆轨
+- **最后更新**：2026-07-14（独立产品定位 + P1/P2；见 phase-indie-product-plan）
+- **下次审查**：合入 P1/P2 后手测；或启动 P3（Push / Presence / WebRTC）

@@ -60,6 +60,7 @@ describe('usersRouter', () => {
       username: 'orbit',
       email: 'orbit@example.com',
       isActive: true,
+      emailVerifiedAt: '2026-06-20T00:00:00.000Z',
       createdAt: '2026-06-20T00:00:00.000Z',
       updatedAt: '2026-06-20T00:00:00.000Z',
     }));
@@ -77,6 +78,7 @@ describe('usersRouter', () => {
       username: input.username ?? 'orbit',
       email: input.email ?? 'orbit@example.com',
       isActive: true,
+      emailVerifiedAt: '2026-06-20T00:00:00.000Z',
       createdAt: '2026-06-20T00:00:00.000Z',
       updatedAt: '2026-06-20T00:00:00.000Z',
     }));

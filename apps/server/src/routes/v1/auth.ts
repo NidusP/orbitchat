@@ -22,14 +22,17 @@ import {
   logoutAll,
   refreshSession,
   register,
+  resendVerification,
   revokeSession,
   trustSession,
+  verifyEmail,
 } from '../../services/auth-service';
 import {
   loginSchema,
   refreshSchema,
   registerSchema,
   trustSessionSchema,
+  verifyEmailSchema,
 } from '../../schemas/auth';
 
 export const authRouter = new Hono();
@@ -71,6 +74,18 @@ authRouter.post('/register', zValidator('json', registerSchema, zodValidationHoo
   const input = c.req.valid('json');
   const result = await register(input);
   return c.json(successResponse(result), 201);
+});
+
+authRouter.post('/verify-email', zValidator('json', verifyEmailSchema, zodValidationHook), async (c) => {
+  const input = c.req.valid('json');
+  const result = await verifyEmail(input.token);
+  return c.json(successResponse(result), 200);
+});
+
+authRouter.post('/resend-verification', authMiddleware, async (c) => {
+  const auth = c.get('auth');
+  const result = await resendVerification(auth.userId);
+  return c.json(successResponse(result), 200);
 });
 
 authRouter.post('/login', zValidator('json', loginSchema, zodValidationHook), async (c) => {

@@ -7,10 +7,11 @@ import { isValidPassword } from '@orbitchat/shared-utils';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
+import { login as apiLogin } from '@/lib/api/auth';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, login } = useAuth();
+  const { register, setAuthFromLogin } = useAuth();
   const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -38,11 +39,19 @@ export default function RegisterPage() {
         password,
         displayName,
       });
-      await login({
+      const loginResult = await apiLogin({
         email,
         password,
         trustDevice,
       });
+      setAuthFromLogin(loginResult);
+      if (loginResult.user.emailVerifiedAt === null) {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('orbitchat.verifyPending', '1');
+        }
+        router.push('/profile');
+        return;
+      }
       router.push('/profile');
     } catch (err) {
       if (err instanceof ApiError) {

@@ -35,6 +35,16 @@ const envSchema = z
     S3_ACCESS_KEY: z.string().min(1).optional(),
     S3_SECRET_KEY: z.string().min(1).optional(),
     S3_BUCKET: z.string().min(1).default('orbitchat'),
+    EMAIL_VERIFICATION_ENABLED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    APP_PUBLIC_URL: z.string().url().optional(),
+    SMTP_HOST: z.string().min(1).optional(),
+    SMTP_PORT: z.coerce.number().int().positive().optional(),
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASS: z.string().min(1).optional(),
+    SMTP_FROM: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.STORAGE_ENABLED) {
@@ -42,23 +52,70 @@ const envSchema = z
     }
     if (!data.S3_ENDPOINT) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['S3_ENDPOINT'],
         message: 'S3_ENDPOINT is required when STORAGE_ENABLED=true',
       });
     }
     if (!data.S3_ACCESS_KEY) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['S3_ACCESS_KEY'],
         message: 'S3_ACCESS_KEY is required when STORAGE_ENABLED=true',
       });
     }
     if (!data.S3_SECRET_KEY) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['S3_SECRET_KEY'],
         message: 'S3_SECRET_KEY is required when STORAGE_ENABLED=true',
+      });
+    }
+  })
+  .superRefine((data, ctx) => {
+    if (!data.EMAIL_VERIFICATION_ENABLED) {
+      return;
+    }
+    if (!data.APP_PUBLIC_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['APP_PUBLIC_URL'],
+        message: 'APP_PUBLIC_URL is required when EMAIL_VERIFICATION_ENABLED=true',
+      });
+    }
+    if (!data.SMTP_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_HOST'],
+        message: 'SMTP_HOST is required when EMAIL_VERIFICATION_ENABLED=true',
+      });
+    }
+    if (!data.SMTP_PORT) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_PORT'],
+        message: 'SMTP_PORT is required when EMAIL_VERIFICATION_ENABLED=true',
+      });
+    }
+    if (!data.SMTP_USER) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_USER'],
+        message: 'SMTP_USER is required when EMAIL_VERIFICATION_ENABLED=true',
+      });
+    }
+    if (!data.SMTP_PASS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_PASS'],
+        message: 'SMTP_PASS is required when EMAIL_VERIFICATION_ENABLED=true',
+      });
+    }
+    if (!data.SMTP_FROM) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SMTP_FROM'],
+        message: 'SMTP_FROM is required when EMAIL_VERIFICATION_ENABLED=true',
       });
     }
   });

@@ -1,7 +1,7 @@
 # 小轨（Orbit Guide）Agent 实现学习指南
 
 > **读者**：想理解 Orbitchat 内置 AI 助手「小轨」如何从 HTTP 请求一路走到 LLM、Tool、落库的开发者。  
-> **前置阅读**：[AGENTS.md](../AGENTS.md)、[phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md)、[ADR 17](./decisions/17-ai-agent-architecture.md)  
+> **前置阅读**：[AGENTS.md](../AGENTS.md)、[archive/agent-capability-plans.md](./archive/agent-capability-plans.md)、[ADR 17](./decisions/17-ai-agent-architecture.md)  
 > **API 契约**：见 [api-spec.md § AI](./api-spec.md)（本文不重复完整 endpoint 定义）
 
 **最后更新**：2026-07-09（Wave 1–5 已落地）
@@ -20,7 +20,7 @@
 | 游戏/娱乐 | 井字棋状态持久化在 `ai_conversations.tictactoe_data` | 无 |
 | 部署 | 本地 Ollama / OpenAI-compatible API | 云服务 |
 
-**产品边界**（详见 [phase-4-orbit-guide-plan.md §1](./phase-4-orbit-guide-plan.md)）：
+**产品边界**（详见 [archive/phase-4-orbit-guide-plan.md §1](./archive/phase-4-orbit-guide-plan.md)）：
 
 - ✅ 帮用户在本站聊天、查资料、下棋、经确认后代操作
 - ❌ 通用搜索引擎、自动发帖机器、未经同意的隐私采集
@@ -227,7 +227,7 @@ Orchestrator `buildMessages()` 将以下层次合并进 **一条** `system` mess
 
 ## 7. Wave 1–4 能力
 
-路线图详见 [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md)；此处对照 **代码落点**。
+路线图详见 [archive/agent-capability-plans.md](./archive/agent-capability-plans.md)；此处对照 **代码落点**。
 
 ### Wave 1 — 平台感知（只读）✅
 
@@ -283,7 +283,7 @@ ADR：[22-agent-rag-boundaries.md](./decisions/22-agent-rag-boundaries.md)
 | `remember_fact` 卡片说明 + 记忆页链接 | `page.tsx` pending 卡片 |
 | Prompt 分模块 | `prompt-modules.ts` → `composeToolHint()` |
 
-详见 [phase-4-orbit-guide-plan.md §9](./phase-4-orbit-guide-plan.md)。
+详见 [archive/phase-4-orbit-guide-plan.md §9](./archive/phase-4-orbit-guide-plan.md)。
 
 ---
 
@@ -435,8 +435,9 @@ bun scripts/reindex-rag.ts        # 重索引所有活跃帖子 + help docs
 | [ADR 20 — AI SSE 流式](./decisions/20-ai-sse-streaming.md) | 事件契约、Phase A/B/C 验收 |
 | [ADR 21 — Agent 长期记忆](./decisions/21-agent-memory-model.md) | `user_agent_memories`、显式写入 |
 | [ADR 22 — RAG 边界](./decisions/22-agent-rag-boundaries.md) | collection、pgvector、权限 |
-| [phase-4-orbit-guide-plan.md](./phase-4-orbit-guide-plan.md) | Wave 0–5 路线图与验收 |
-| [phase-4-agent-memory-rag-plan.md](./phase-4-agent-memory-rag-plan.md) | M1/M2/M3 技术深描 |
+| [archive/agent-capability-plans.md](./archive/agent-capability-plans.md) | Wave 0–5 / M1–M3 索引 |
+| [archive/phase-4-orbit-guide-plan.md](./archive/phase-4-orbit-guide-plan.md) | Wave 全文 |
+| [archive/phase-4-agent-memory-rag-plan.md](./archive/phase-4-agent-memory-rag-plan.md) | Memory/RAG 全文 |
 | [api-spec.md](./api-spec.md) | `/api/v1/ai/*` HTTP 契约 |
 | [db-schema.md](./db-schema.md) | `ai_*`、`user_agent_memories`、`knowledge_chunks` |
 | [env.md](./env.md) | `LLM_*`、`EMBEDDING_*`、`RAG_ENABLED` |

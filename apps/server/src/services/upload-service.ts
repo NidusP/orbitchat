@@ -1,7 +1,8 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import type { PostMediaItem, UploadPurpose, UploadSummary } from '@orbitchat/shared-types';
 import { db } from '../db';
 import { postMedia } from '../db/schema/post-media';
+import { messageMedia } from '../db/schema/message-media';
 import { profiles } from '../db/schema/profiles';
 import { uploads } from '../db/schema/uploads';
 import { AppError } from '../lib/errors';
@@ -12,10 +13,13 @@ type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
 const MAX_BYTES_BY_PURPOSE: Record<UploadPurpose, number> = {
   avatar: 5 * 1024 * 1024,
+  group_avatar: 5 * 1024 * 1024,
   post: 10 * 1024 * 1024,
+  message: 10 * 1024 * 1024,
 };
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+const PURGE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_POST_MEDIA = 4;
 
 const MIME_EXTENSION: Record<AllowedMimeType, string> = {
@@ -149,8 +153,14 @@ async function getOwnedPendingUploads(
   });
 
   if (rows.length !== uploadIds.length) {
+    const field =
+      purpose === 'post'
+        ? 'uploadIds'
+        : purpose === 'message'
+          ? 'uploadId'
+          : 'avatarUploadId';
     throw new AppError('VALIDATION_ERROR', 'One or more uploads are invalid or not owned by you', 400, {
-      field: purpose === 'post' ? 'uploadIds' : 'avatarUploadId',
+      field,
     });
   }
 
@@ -301,4 +311,108 @@ export async function linkPostMedia(
       sortOrder: row.sortOrder,
     };
   });
+}
+
+export async function linkMessageMedia(
+  messageId: string,
+  userId: string,
+  uploadId: string
+): Promise<PostMediaItem[]> {
+  await getOwnedPendingUploads([uploadId], userId, 'message');
+
+  const mediaRows = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(messageMedia)
+      .values({
+        messageId,
+        uploadId,
+        sortOrder: 0,
+      })
+      .returning();
+
+    await tx
+      .update(uploads)
+      .set({
+        status: 'committed',
+        expiresAt: null,
+      })
+      .where(and(eq(uploads.id, uploadId), eq(uploads.ownerId, userId)));
+
+    return inserted;
+  });
+
+  const uploadRow = await db.query.uploads.findFirst({
+    where: eq(uploads.id, uploadId),
+  });
+  if (!uploadRow) {
+    throw new AppError('INTERNAL_ERROR', 'Upload metadata missing after commit', 500);
+  }
+
+  return mediaRows.map((row) => ({
+    id: row.id,
+    uploadId: row.uploadId,
+    url: resolveMediaUrl(row.uploadId),
+    mimeType: uploadRow.mimeType,
+    sizeBytes: uploadRow.sizeBytes,
+    sortOrder: row.sortOrder,
+  }));
+}
+
+export async function purgeExpiredPendingUploads(): Promise<number> {
+  if (!isStorageEnabled()) {
+    return 0;
+  }
+
+  const now = new Date();
+  const expiredRows = await db.query.uploads.findMany({
+    where: and(eq(uploads.status, 'pending'), lt(uploads.expiresAt, now)),
+  });
+
+  if (expiredRows.length === 0) {
+    return 0;
+  }
+
+  const storage = getStorageService();
+  let purged = 0;
+
+  for (const row of expiredRows) {
+    if (row.objectKey !== 'pending') {
+      try {
+        await storage.deleteObject(row.objectKey);
+      } catch {
+        // Object may already be missing; still mark upload deleted.
+      }
+    }
+
+    const [updated] = await db
+      .update(uploads)
+      .set({ status: 'deleted' })
+      .where(and(eq(uploads.id, row.id), eq(uploads.status, 'pending')))
+      .returning();
+
+    if (updated) {
+      purged += 1;
+    }
+  }
+
+  return purged;
+}
+
+/** Run purge on startup and every hour when object storage is enabled. */
+export function startExpiredPendingUploadCleanup(): () => void {
+  if (!isStorageEnabled()) {
+    return () => {};
+  }
+
+  void purgeExpiredPendingUploads().catch((error: unknown) => {
+    console.error('[upload-cleanup] initial purge failed:', error);
+  });
+
+  const intervalId = setInterval(() => {
+    void purgeExpiredPendingUploads().catch((error: unknown) => {
+      console.error('[upload-cleanup] scheduled purge failed:', error);
+    });
+  }, PURGE_INTERVAL_MS);
+
+  return () => clearInterval(intervalId);
 }

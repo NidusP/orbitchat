@@ -9,7 +9,7 @@ import { BottomTabNav } from '@/components/layout/bottom-tab-nav';
 import { WelcomeGuide } from '@/components/onboarding/welcome-guide';
 import { hasCompletedOnboarding, markOnboardingComplete } from '@/lib/onboarding';
 
-const NO_CHROME_EXACT_PATHS = new Set(['/', '/login', '/register']);
+const NO_CHROME_EXACT_PATHS = new Set(['/', '/login', '/register', '/verify-email']);
 
 function shouldHideChrome(pathname: string): boolean {
   if (NO_CHROME_EXACT_PATHS.has(pathname)) {

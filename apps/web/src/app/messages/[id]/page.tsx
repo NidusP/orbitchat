@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message, MessageEditRecord, MessageRecall } from '@orbitchat/shared-types';
 import { useAuth } from '@/contexts/auth-context';
 import { useChatWs } from '@/contexts/chat-ws-context';
@@ -18,9 +18,18 @@ import {
   sendMessage,
   updateMessage,
 } from '@/lib/api/conversations';
+import { uploadFile } from '@/lib/api/uploads';
+import { resolveMediaUrl } from '@/lib/media-url';
+import { UserAvatar } from '@/components/ui/user-avatar';
 
 const MESSAGE_RECALL_WINDOW_MS = 3 * 60 * 1000;
 const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp';
+
+interface PendingImage {
+  file: File;
+  previewUrl: string;
+}
 
 type TimelineItem =
   | { kind: 'message'; message: Message }
@@ -97,6 +106,8 @@ export default function ConversationPage() {
   const [isRetryingSend, setIsRetryingSend] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
+  const [lastFailedUploadId, setLastFailedUploadId] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [historyMessageId, setHistoryMessageId] = useState<string | null>(null);
@@ -108,6 +119,7 @@ export default function ConversationPage() {
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isTypingRef = useRef(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -135,6 +147,61 @@ export default function ConversationPage() {
     : null;
 
   const timeline = useMemo(() => buildTimeline(messages, recalls), [messages, recalls]);
+  const canSubmit = draft.trim().length > 0 || pendingImage !== null;
+
+  useEffect(() => {
+    return () => {
+      if (pendingImage) {
+        URL.revokeObjectURL(pendingImage.previewUrl);
+      }
+    };
+  }, [pendingImage]);
+
+  function clearPendingImage() {
+    setPendingImage((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+      return null;
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+
+  function handlePickImage() {
+    fileInputRef.current?.click();
+  }
+
+  function handleImageSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setPendingImage((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+      };
+    });
+    event.target.value = '';
+  }
+
+  async function submitMessage(content: string, uploadId?: string): Promise<void> {
+    const message = await sendMessage(conversationId, {
+      ...(content.length > 0 ? { content } : {}),
+      ...(uploadId ? { uploadId } : {}),
+    });
+    setMessages((current) => mergeMessages(current, [message]));
+    setDraft('');
+    clearPendingImage();
+    setLastFailedContent(null);
+    setLastFailedUploadId(null);
+  }
 
   const loadInitial = useCallback(async () => {
     setError(null);
@@ -304,7 +371,7 @@ export default function ConversationPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const content = draft.trim();
-    if (!content || isSending || isRetryingSend) {
+    if ((!content && !pendingImage) || isSending || isRetryingSend) {
       return;
     }
 
@@ -312,36 +379,53 @@ export default function ConversationPage() {
     setError(null);
     setSendError(null);
     stopTyping();
+    let resolvedUploadId: string | undefined;
     try {
-      const message = await sendMessage(conversationId, { content });
-      setMessages((current) => mergeMessages(current, [message]));
-      setDraft('');
-      setLastFailedContent(null);
-    } catch {
-      setSendError(t('messages.errors.send'));
+      if (pendingImage) {
+        const uploaded = await uploadFile(pendingImage.file, 'message');
+        resolvedUploadId = uploaded.id;
+        clearPendingImage();
+      } else {
+        resolvedUploadId = lastFailedUploadId ?? undefined;
+      }
+      await submitMessage(content, resolvedUploadId);
+    } catch (err) {
+      setSendError(
+        pendingImage || resolvedUploadId
+          ? t('messages.errors.upload')
+          : err instanceof ApiError
+            ? err.message
+            : t('messages.errors.send')
+      );
       setLastFailedContent(content);
+      setLastFailedUploadId(resolvedUploadId ?? null);
     } finally {
       setIsSending(false);
     }
   }
 
   async function handleRetrySend(): Promise<void> {
-    if (!lastFailedContent || isSending || isRetryingSend) {
+    const retryContent = lastFailedContent ?? '';
+    const retryUploadId = lastFailedUploadId ?? undefined;
+    if ((!retryContent && !retryUploadId && !pendingImage) || isSending || isRetryingSend) {
       return;
     }
 
-    const retryContent = lastFailedContent;
     setIsRetryingSend(true);
     setError(null);
     setSendError(null);
     stopTyping();
+    let resolvedUploadId: string | undefined = retryUploadId;
     try {
-      const message = await sendMessage(conversationId, { content: retryContent });
-      setMessages((current) => mergeMessages(current, [message]));
+      if (pendingImage) {
+        const uploaded = await uploadFile(pendingImage.file, 'message');
+        resolvedUploadId = uploaded.id;
+        clearPendingImage();
+      }
+      await submitMessage(retryContent, resolvedUploadId);
       setDraft((currentDraft) =>
         currentDraft.trim() === retryContent ? '' : currentDraft
       );
-      setLastFailedContent(null);
     } catch {
       setSendError(t('messages.errors.send'));
     } finally {
@@ -440,12 +524,31 @@ export default function ConversationPage() {
           {t('messages.backLabel')}
         </Link>
         <div className="chat-conversation-title-block">
-          <h1>{headerTitle}</h1>
-          {conversation.type === 'group' ? (
-            <p className="text-muted">{t('messages.memberCount', { count: memberCount ?? 0 })}</p>
-          ) : otherParticipant ? (
-            <p className="text-muted">@{otherParticipant.username}</p>
-          ) : null}
+          <div className="chat-conversation-title-row">
+            {conversation.type === 'group' ? (
+              <UserAvatar
+                displayName={headerTitle}
+                userId={conversationId}
+                avatarUrl={conversation.avatarUrl}
+                size="md"
+              />
+            ) : otherParticipant ? (
+              <UserAvatar
+                displayName={otherParticipant.displayName}
+                userId={otherParticipant.id}
+                avatarUrl={otherParticipant.avatarUrl}
+                size="md"
+              />
+            ) : null}
+            <div className="chat-conversation-title-text">
+              <h1>{headerTitle}</h1>
+              {conversation.type === 'group' ? (
+                <p className="text-muted">{t('messages.memberCount', { count: memberCount ?? 0 })}</p>
+              ) : otherParticipant ? (
+                <p className="text-muted">@{otherParticipant.username}</p>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="chat-conversation-actions">
           {connectionStatusLabel ? (
@@ -547,7 +650,27 @@ export default function ConversationPage() {
                       </div>
                     ) : (
                       <>
-                        <p className="chat-bubble-content">{message.content}</p>
+                        {message.media && message.media.length > 0 && (
+                          <div className="chat-bubble-media">
+                            {message.media.map((item) => (
+                              <a
+                                key={item.id}
+                                href={resolveMediaUrl(item.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <img
+                                  src={resolveMediaUrl(item.url)}
+                                  alt=""
+                                  className="chat-bubble-image"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                        {message.content.length > 0 && (
+                          <p className="chat-bubble-content">{message.content}</p>
+                        )}
                         <div className="chat-bubble-meta">
                           <time className="chat-bubble-time" dateTime={message.createdAt}>
                             {formatMessageTime(message.createdAt)}
@@ -611,7 +734,7 @@ export default function ConversationPage() {
             <button
               type="button"
               className="btn btn-secondary btn-sm"
-              disabled={!lastFailedContent || isRetryingSend || isSending}
+              disabled={!lastFailedContent && !lastFailedUploadId && !pendingImage || isRetryingSend || isSending}
               onClick={() => void handleRetrySend()}
             >
               {isRetryingSend ? t('messages.actions.retrying') : t('messages.actions.retry')}
@@ -620,29 +743,67 @@ export default function ConversationPage() {
         )}
 
         <form className="chat-composer" onSubmit={(event) => void handleSubmit(event)}>
-          <textarea
-            className="chat-input"
-            rows={2}
-            value={draft}
-            placeholder={t('messages.inputPlaceholder')}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              notifyTyping();
-            }}
-            onBlur={() => stopTyping()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
+          <div className="chat-composer-main">
+            {pendingImage && (
+              <div className="chat-composer-preview" aria-label={t('messages.imagePreviewLabel')}>
+                <img src={pendingImage.previewUrl} alt="" />
+                <button
+                  type="button"
+                  className="chat-composer-remove-image"
+                  aria-label={t('messages.removeImage')}
+                  onClick={clearPendingImage}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="chat-composer-input-row">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES}
+                hidden
+                data-testid="chat-composer-file-input"
+                onChange={handleImageSelected}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                data-testid="chat-composer-attach-image"
+                disabled={isSending || isRetryingSend || pendingImage !== null}
+                onClick={handlePickImage}
+              >
+                {t('messages.attachImage')}
+              </button>
+              <textarea
+                className="chat-input"
+                rows={2}
+                value={draft}
+                placeholder={t('messages.inputPlaceholder')}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  notifyTyping();
+                }}
+                onBlur={() => stopTyping()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+              />
+            </div>
+          </div>
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={isSending || isRetryingSend || !draft.trim()}
+            disabled={isSending || isRetryingSend || !canSubmit}
           >
-            {isSending ? t('messages.actions.sending') : t('messages.actions.send')}
+            {isSending
+              ? pendingImage
+                ? t('messages.actions.uploading')
+                : t('messages.actions.sending')
+              : t('messages.actions.send')}
           </button>
         </form>
       </div>

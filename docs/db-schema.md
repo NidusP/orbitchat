@@ -43,8 +43,21 @@
 | email | VARCHAR UNIQUE | |
 | password_hash | VARCHAR | bcrypt / argon2id |
 | is_active | BOOLEAN | 默认 true |
+| email_verified_at | TIMESTAMPTZ | 可空；邮箱验证时间（[ADR 25](./decisions/25-email-verification.md)） |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
+
+### email_verification_tokens（P2-C）
+
+> [ADR 25](./decisions/25-email-verification.md)
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| user_id | UUID FK → users | |
+| token_hash | VARCHAR(64) UNIQUE | SHA-256 |
+| expires_at | TIMESTAMPTZ | 默认 24h |
+| created_at | TIMESTAMPTZ | |
 
 ### profiles
 
@@ -159,8 +172,29 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 | 表 | 用途 |
 |----|------|
 | blocks | 黑名单 |
-| notifications | 站内通知 |
 | tags / post_tags | 话题标签 |
+
+### notifications（站内通知，P2-B）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| recipient_id | UUID FK → users | 通知接收者 |
+| actor_id | UUID FK → users | 触发者 |
+| type | ENUM | `post_liked` \| `post_commented` \| `message_received` |
+| post_id | UUID FK → posts | 可空；点赞/评论通知必填 |
+| comment_id | UUID FK → comments | 可空；仅 `post_commented` |
+| conversation_id | UUID FK → conversations | 可空；仅 `message_received` |
+| message_id | UUID FK → messages | 可空；仅 `message_received` |
+| read_at | TIMESTAMPTZ | 可空 |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：
+- 互动类（`post_liked` / `post_commented`）：`post_id` 必填
+- 消息类（`message_received`）：`conversation_id` + `message_id` 必填；`post_id` 为 NULL
+- **群聊消息通知**：MVP 延后，仅 1:1 `direct` 会话发消息时写入
+
+**索引**：`(recipient_id, created_at DESC, id DESC)`；`(recipient_id)` WHERE `read_at IS NULL`
 
 ### uploads（Phase 4C）
 
@@ -170,7 +204,7 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 |------|------|------|
 | id | UUID PK | |
 | owner_id | UUID FK → users | 上传者 |
-| purpose | VARCHAR | `avatar` \| `post` |
+| purpose | VARCHAR | `avatar` \| `post` \| `message` |
 | object_key | VARCHAR UNIQUE | S3 key |
 | mime_type | VARCHAR | |
 | size_bytes | INTEGER | |
@@ -192,6 +226,20 @@ Phase 2 **无** `parent_id`（扁平评论）；楼中楼留后续迁移。
 
 **约束**：`UNIQUE (post_id, upload_id)`；每帖最多 4 行（应用层 + 校验）
 
+### message_media（P1-B）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | UUID PK | |
+| message_id | UUID FK → messages ON DELETE CASCADE | |
+| upload_id | UUID FK → uploads | |
+| sort_order | SMALLINT | MVP 固定 0 |
+| created_at | TIMESTAMPTZ | |
+
+**约束**：`UNIQUE (message_id, upload_id)`；每消息最多 1 行（应用层 + 校验）
+
+`uploads.purpose` 扩展：`message`（聊天配图，10MB，MIME 同 post）
+
 ---
 
 ## Phase 3：聊天（3A 已定稿）
@@ -207,6 +255,7 @@ Phase 3A 只实现 1:1 私聊。群聊、逐条已读、推送通知延后。
 | id | UUID PK | |
 | type | ENUM | `direct` \| `group` |
 | title | VARCHAR(120) | 群名称；`direct` 为 NULL |
+| avatar_url | VARCHAR(512) | 群头像 URL（`/api/v1/media/{id}`）；`direct` 为 NULL |
 | announcement | TEXT | 群公告（≤1000 字）；`direct` 为 NULL；与 title 共享 `metadata_version` |
 | created_by_user_id | UUID FK → users | 群主；`direct` 为 NULL |
 | direct_key | VARCHAR UNIQUE | `minUserId:maxUserId`；仅 direct 会话 |

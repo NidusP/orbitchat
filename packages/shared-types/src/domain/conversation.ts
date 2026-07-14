@@ -1,4 +1,5 @@
 import type { ClientPlatform } from './client';
+import type { PostMediaItem } from './upload';
 
 export type ConversationType = 'direct' | 'group';
 
@@ -16,6 +17,8 @@ export interface Message {
   conversationId: string;
   sender: ConversationParticipant;
   content: string;
+  /** Attached images when present (MVP: at most one per message). */
+  media?: PostMediaItem[];
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
@@ -76,6 +79,8 @@ export interface Conversation {
   id: string;
   type: ConversationType;
   title: string | null;
+  /** Group avatar media URL; null for direct chats or groups without a custom avatar. */
+  avatarUrl: string | null;
   announcement: string | null;
   participants: ConversationParticipant[];
   viewerRole: GroupMemberRole | null;

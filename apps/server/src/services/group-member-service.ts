@@ -10,6 +10,7 @@ import {
   assertConversationMember,
   getConversationDto,
 } from './conversation-service';
+import { commitUploads, resolveMediaUrl } from './upload-service';
 import {
   broadcastMemberJoined,
   broadcastMemberLeft,
@@ -151,14 +152,70 @@ export async function leaveGroup(conversationId: string, userId: string): Promis
   broadcastMemberLeft({ conversationId, userId, reason: 'left' });
 }
 
+export async function setGroupAvatarFromUpload(
+  conversationId: string,
+  actorId: string,
+  uploadId: string
+): Promise<string> {
+  await getActiveGroupConversation(conversationId);
+  const actor = await getActiveMembership(conversationId, actorId);
+  assertCanManageGroup(actor.role!);
+
+  await commitUploads([uploadId], actorId, 'group_avatar');
+  const avatarUrl = resolveMediaUrl(uploadId);
+
+  const [updated] = await db
+    .update(conversations)
+    .set({
+      avatarUrl,
+      updatedAt: new Date(),
+    })
+    .where(eq(conversations.id, conversationId))
+    .returning();
+
+  if (!updated) {
+    throw new AppError('NOT_FOUND', 'Group conversation not found', 404);
+  }
+
+  return avatarUrl;
+}
+
 export async function updateGroupMetadata(
   conversationId: string,
   actorUserId: string,
-  input: { title?: string; announcement?: string | null; expectedVersion: number }
+  input: {
+    title?: string;
+    announcement?: string | null;
+    avatarUploadId?: string;
+    expectedVersion?: number;
+  }
 ): Promise<Awaited<ReturnType<typeof getConversationDto>>> {
   const conversation = await getActiveGroupConversation(conversationId);
   const actor = await getActiveMembership(conversationId, actorUserId);
   assertCanManageGroup(actor.role!);
+
+  if (input.avatarUploadId !== undefined) {
+    await setGroupAvatarFromUpload(conversationId, actorUserId, input.avatarUploadId);
+  }
+
+  const hasTitleOrAnnouncement =
+    input.title !== undefined || input.announcement !== undefined;
+
+  if (!hasTitleOrAnnouncement) {
+    if (input.avatarUploadId === undefined) {
+      throw new AppError('VALIDATION_ERROR', 'Group settings are unchanged', 400);
+    }
+    return getConversationDto(conversationId, actorUserId);
+  }
+
+  if (input.expectedVersion === undefined) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'expectedVersion is required when updating title or announcement',
+      400,
+      { field: 'expectedVersion' }
+    );
+  }
 
   const nextTitle = input.title !== undefined ? input.title : conversation.title;
   const nextAnnouncement =
@@ -168,7 +225,10 @@ export async function updateGroupMetadata(
   const announcementUnchanged =
     input.announcement === undefined || input.announcement === conversation.announcement;
   if (titleUnchanged && announcementUnchanged) {
-    throw new AppError('VALIDATION_ERROR', 'Group settings are unchanged', 400);
+    if (input.avatarUploadId === undefined) {
+      throw new AppError('VALIDATION_ERROR', 'Group settings are unchanged', 400);
+    }
+    return getConversationDto(conversationId, actorUserId);
   }
 
   const now = new Date();

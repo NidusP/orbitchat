@@ -20,6 +20,12 @@ export const messageContentSchema = z
   .min(1, 'Content is required')
   .max(2000, 'Content must be at most 2000 characters');
 
+const optionalMessageContentSchema = z
+  .string()
+  .trim()
+  .max(2000, 'Content must be at most 2000 characters')
+  .optional();
+
 export const createDirectConversationSchema = z.object({
   participantUserId: z.string().uuid('Invalid participant user id'),
 });
@@ -42,9 +48,19 @@ export const createConversationSchema = z.union([
   createGroupConversationSchema,
 ]);
 
-export const createMessageSchema = z.object({
-  content: messageContentSchema,
-});
+export const createMessageSchema = z
+  .object({
+    content: optionalMessageContentSchema,
+    uploadId: z.string().uuid('Invalid upload id').optional(),
+  })
+  .refine(
+    (data) => {
+      const hasContent = data.content !== undefined && data.content.length > 0;
+      const hasUpload = data.uploadId !== undefined;
+      return hasContent || hasUpload;
+    },
+    { message: 'Content or uploadId is required', path: ['content'] }
+  );
 
 export const updateMessageSchema = z.object({
   content: messageContentSchema,
@@ -68,14 +84,34 @@ export const updateGroupConversationSchema = z
       .max(1000, 'Announcement must be at most 1000 characters')
       .nullable()
       .optional(),
+    avatarUploadId: z.string().uuid('Invalid avatar upload id').optional(),
     expectedVersion: z
       .number()
       .int('expectedVersion must be an integer')
-      .positive('expectedVersion must be a positive integer'),
+      .positive('expectedVersion must be a positive integer')
+      .optional(),
   })
-  .refine((data) => data.title !== undefined || data.announcement !== undefined, {
-    message: 'At least one of title or announcement is required',
-  });
+  .refine(
+    (data) =>
+      data.title !== undefined ||
+      data.announcement !== undefined ||
+      data.avatarUploadId !== undefined,
+    {
+      message: 'At least one of title, announcement, or avatarUploadId is required',
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.title !== undefined || data.announcement !== undefined) {
+        return data.expectedVersion !== undefined;
+      }
+      return true;
+    },
+    {
+      message: 'expectedVersion is required when updating title or announcement',
+      path: ['expectedVersion'],
+    }
+  );
 
 export const addGroupMembersSchema = z.object({
   userIds: z
