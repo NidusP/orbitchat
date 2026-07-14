@@ -4,6 +4,7 @@ import type {
   GroupMember,
   GroupMemberRole,
   Message,
+  PostMediaItem,
 } from '@orbitchat/shared-types';
 import type { Conversation as DbConversation } from '../db/schema/conversations';
 import type { Message as DbMessage } from '../db/schema/messages';
@@ -28,13 +29,15 @@ export function toConversationParticipant(row: {
 
 export function toMessage(
   row: DbMessage,
-  sender: ConversationParticipant
+  sender: ConversationParticipant,
+  media: PostMediaItem[] = []
 ): Message {
   return {
     id: row.id,
     conversationId: row.conversationId,
     sender,
     content: row.content,
+    ...(media.length > 0 ? { media } : {}),
     createdAt: toIsoString(row.createdAt),
     editedAt: row.editedAt ? toIsoString(row.editedAt) : null,
     deletedAt: row.deletedAt ? toIsoString(row.deletedAt) : null,
@@ -52,6 +55,7 @@ export function toConversation(
     id: row.id,
     type: row.type,
     title: row.title,
+    avatarUrl: row.avatarUrl,
     announcement: row.announcement,
     participants,
     viewerRole,

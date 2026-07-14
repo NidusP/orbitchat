@@ -218,6 +218,7 @@ conversationsRouter.patch(
     const conversation = await updateGroupMetadata(conversationId, auth.userId, {
       title: input.title,
       announcement: input.announcement,
+      avatarUploadId: input.avatarUploadId,
       expectedVersion: input.expectedVersion,
     });
     return c.json(successResponse(conversation), 200);

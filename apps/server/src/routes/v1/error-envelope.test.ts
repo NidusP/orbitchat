@@ -71,6 +71,7 @@ describe('Phase 1 error envelopes', () => {
         username: 'orbit',
         email: 'orbit@example.com',
         isActive: true,
+        emailVerifiedAt: '2026-06-20T00:00:00.000Z',
         createdAt: '2026-06-20T00:00:00.000Z',
         updatedAt: '2026-06-20T00:00:00.000Z',
       },
@@ -108,6 +109,7 @@ describe('Phase 1 error envelopes', () => {
       username: input.username ?? 'orbit',
       email: input.email ?? 'orbit@example.com',
       isActive: true,
+      emailVerifiedAt: '2026-06-20T00:00:00.000Z',
       createdAt: '2026-06-20T00:00:00.000Z',
       updatedAt: '2026-06-20T00:00:00.000Z',
     }));

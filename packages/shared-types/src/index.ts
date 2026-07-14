@@ -34,6 +34,9 @@ export type {
   SessionListResponse,
   TrustSessionRequest,
   TrustSessionResponse,
+  VerifyEmailRequest,
+  VerifyEmailResponse,
+  ResendVerificationResponse,
 } from './api/v1/auth';
 export type {
   AgentListResponse,
@@ -156,6 +159,7 @@ export type { Follow, UserSearchResult } from './domain/follow';
 export type {
   InteractionNotification,
   InteractionNotificationCommentPreview,
+  InteractionNotificationMessagePreview,
   InteractionNotificationPostPreview,
   InteractionNotificationType,
 } from './domain/notification';

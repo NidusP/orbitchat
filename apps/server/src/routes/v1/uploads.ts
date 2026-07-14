@@ -8,7 +8,7 @@ import { createUpload } from '../../services/upload-service';
 
 export const uploadsRouter = new Hono();
 
-const VALID_PURPOSES: UploadPurpose[] = ['avatar', 'post'];
+const VALID_PURPOSES: UploadPurpose[] = ['avatar', 'post', 'message', 'group_avatar'];
 
 function parsePurpose(value: unknown): UploadPurpose {
   if (typeof value !== 'string' || !VALID_PURPOSES.includes(value as UploadPurpose)) {

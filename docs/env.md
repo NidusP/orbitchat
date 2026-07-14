@@ -32,6 +32,13 @@
 | `S3_ACCESS_KEY` | server | STORAGE 时 | |
 | `S3_SECRET_KEY` | server | STORAGE 时 | |
 | `S3_BUCKET` | server | 否 | 默认 `orbitchat` |
+| `EMAIL_VERIFICATION_ENABLED` | server | 否 | 邮箱验证开关，默认 `false` |
+| `APP_PUBLIC_URL` | server | 验证开启时 | Web 公网 URL，用于验证链接 |
+| `SMTP_HOST` | server | 验证开启时 | SMTP 主机 |
+| `SMTP_PORT` | server | 验证开启时 | SMTP 端口（如 Mailpit `1025`） |
+| `SMTP_USER` | server | 验证开启时 | SMTP 用户名 |
+| `SMTP_PASS` | server | 验证开启时 | SMTP 密码 |
+| `SMTP_FROM` | server | 验证开启时 | 发件人地址 |
 | `NEXT_PUBLIC_API_URL` | web | 是 | Hono API 基址 |
 | `NEXT_PUBLIC_APP_VERSION` | web | 否 | 客户端 semver，Header 用 |
 
@@ -220,6 +227,24 @@ S3_BUCKET=orbitchat
 MinIO 随 `pnpm docker:up` 启动（见根目录 `docker-compose.yml`）。控制台：http://localhost:9001
 
 E2E / 默认单测环境保持 `STORAGE_ENABLED=false`（或未设置），上传路由返回 `503 SERVICE_UNAVAILABLE`。
+
+### 邮箱验证（P2-C，可选）
+
+默认关闭（`EMAIL_VERIFICATION_ENABLED=false` 或未设置），注册行为与 Phase 1 一致。
+
+开启验证示例（本地可用 [Mailpit](https://github.com/axllent/mailpit) 等 SMTP 捕获工具）：
+
+```bash
+EMAIL_VERIFICATION_ENABLED=true
+APP_PUBLIC_URL=http://localhost:3000
+SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_USER=test
+SMTP_PASS=test
+SMTP_FROM=noreply@orbitchat.local
+```
+
+单测 / E2E 保持默认关闭，无需 SMTP 配置。
 
 ### 端口冲突
 

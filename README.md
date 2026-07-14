@@ -1,6 +1,6 @@
 # Orbitchat 🚀
 
-一个用于学习现代全栈 TypeScript 开发和 AI 协作开发（Agentic Engineering）的长期演进学习项目。
+独立开发的社交产品（IM + Feed + AI 助手）。终极目标是可上线、可持续演进；在交付过程中积累 Agent 工程、IM 与会话设计、对象存储等能力。
 
 > ⭐ **AI Agent 必读**：请先阅读 [AGENTS.md](./AGENTS.md)
 
@@ -8,20 +8,15 @@
 
 ## 🎯 项目概览
 
-**Orbitchat** 是一个学习型社交平台项目，旨在通过构建完整的、生产级别的应用，学习：
+**Orbitchat** 以独立产品交付为目标，技术栈为 TypeScript 全栈 Monorepo：
 
-- ✅ 现代 TypeScript 开发
-- ✅ 全栈系统设计
-- ✅ AI 协作开发流程（Agentic Engineering）
-- ✅ Clean Architecture 最佳实践
-- ✅ 文档驱动开发
+- ✅ 用户 / Feed / IM / 通知 / 多媒体 / AI 助手
+- ✅ Clean Architecture + 文档驱动
+- ✅ 多端契约（`@orbitchat/shared-types`）
+- ✅ TypeScript strict mode
+- ✅ Agentic Engineering 协作开发
 
-**特征**：
-- 🏗️ 完整的 Monorepo 结构
-- 📚 文档驱动的开发方式
-- 🤖 AI Agent 友好的代码组织
-- 🔒 TypeScript strict mode + 完整类型系统
-- 📝 清晰的架构和编码规范
+**当前迭代**：[docs/phase-indie-product-plan.md](./docs/phase-indie-product-plan.md)（P1/P2）
 
 ---
 
@@ -348,7 +343,7 @@ import { isValidEmail } from '@orbitchat/shared-utils';
 
 ### Q: 为什么有这么多文档？
 
-**A**: 因为这是一个学习项目，文档帮助：
+**A**: 独立产品长期演进需要可检索的文档系统，帮助：
 - AI Agent 快速理解意图
 - 新人快速上手
 - 架构决策可追溯

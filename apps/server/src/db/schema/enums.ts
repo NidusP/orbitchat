@@ -47,7 +47,11 @@ export const knowledgeChunkSourceTypeEnum = pgEnum('knowledge_chunk_source_type'
   'doc',
 ]);
 
-export const notificationTypeEnum = pgEnum('notification_type', ['post_liked', 'post_commented']);
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'post_liked',
+  'post_commented',
+  'message_received',
+]);
 
 export type DbClientPlatform = (typeof clientPlatformEnum.enumValues)[number];
 export type DbConversationMemberRole = (typeof conversationMemberRoleEnum.enumValues)[number];

@@ -66,7 +66,7 @@ apps/server/src/
 | 包 | 用途 |
 |----|------|
 | `@hono/zod-validator` | 请求体验证，与 shared-types 对齐 |
-| `zod` | runtime schema，可复用于 shared-utils |
+| `zod` | **Zod 4** runtime schema，可复用于 shared-utils |
 | `@hono/zod-openapi` | OpenAPI spec 生成（多端 codegen） |
 | `hono/jwt` 或 `jose` | JWT 认证 |
 

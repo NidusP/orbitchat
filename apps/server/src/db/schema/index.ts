@@ -1,3 +1,8 @@
+export {
+  emailVerificationTokens,
+  type EmailVerificationToken,
+  type NewEmailVerificationToken,
+} from './email-verification-tokens';
 export { comments, type Comment, type NewComment } from './comments';
 export {
   aiMessageRoleEnum,
@@ -48,6 +53,7 @@ export {
   type NewKnowledgeChunk,
 } from './knowledge-chunks';
 export { likes, type Like, type NewLike } from './likes';
+export { messageMedia, type MessageMedia, type NewMessageMedia } from './message-media';
 export { messages, type Message, type NewMessage } from './messages';
 export { notifications, type Notification, type NewNotification } from './notifications';
 export { messageEdits, type MessageEdit, type NewMessageEdit } from './message-edits';

@@ -7,6 +7,7 @@ import { UserAvatar } from '@/components/ui/user-avatar';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { ApiError } from '@/lib/api/errors';
+import { resendVerification } from '@/lib/api/auth';
 import { uploadFile } from '@/lib/api/uploads';
 import { getProfile, updateProfile, updateUser } from '@/lib/api/users';
 
@@ -33,6 +34,19 @@ export default function ProfilePage() {
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [verificationBannerError, setVerificationBannerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    if (window.sessionStorage.getItem('orbitchat.verifyPending') === '1') {
+      setVerificationNotice(t('auth.registerVerificationPending'));
+      window.sessionStorage.removeItem('orbitchat.verifyPending');
+    }
+  }, [t]);
 
   useEffect(() => {
     return () => {
@@ -196,6 +210,24 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleResendVerification(): Promise<void> {
+    setVerificationBannerError(null);
+    setIsResendingVerification(true);
+
+    try {
+      await resendVerification();
+      setVerificationNotice(t('profile.emailUnverifiedResent'));
+    } catch (err) {
+      setVerificationBannerError(
+        err instanceof ApiError
+          ? err.message
+          : t('auth.verifyEmail.resendFailed')
+      );
+    } finally {
+      setIsResendingVerification(false);
+    }
+  }
+
   async function handleLogout(): Promise<void> {
     setIsLoggingOut(true);
     try {
@@ -230,6 +262,38 @@ export default function ProfilePage() {
           </Link>
         </div>
       </header>
+
+      {verificationNotice && (
+        <div className="alert alert-success" style={{ marginBottom: 16 }}>
+          {verificationNotice}
+        </div>
+      )}
+
+      {user.emailVerifiedAt === null && (
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>{t('profile.emailUnverifiedBanner')}</p>
+          {verificationBannerError && (
+            <p style={{ margin: '8px 0 0' }}>{verificationBannerError}</p>
+          )}
+          <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={isResendingVerification}
+              onClick={() => {
+                void handleResendVerification();
+              }}
+            >
+              {isResendingVerification
+                ? t('profile.emailUnverifiedResending')
+                : t('profile.emailUnverifiedResend')}
+            </button>
+            <Link href="/verify-email" className="btn btn-secondary btn-sm">
+              {t('auth.verifyEmail.submit')}
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2 className="section-title">{t('profile.account.title')}</h2>

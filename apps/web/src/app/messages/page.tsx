@@ -176,7 +176,7 @@ export default function MessagesPage() {
                 : otherParticipant?.id ?? conversation.id;
             const avatarUrl =
               conversation.type === 'group'
-                ? null
+                ? conversation.avatarUrl
                 : otherParticipant?.avatarUrl ?? null;
             const preview = conversation.lastMessage?.content ?? t('messagesList.noMessagesYet');
             const memberHint =

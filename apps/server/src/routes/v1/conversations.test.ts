@@ -28,6 +28,7 @@ const sampleConversation: Conversation = {
   id: CONVERSATION_ID,
   type: 'direct',
   title: null,
+  avatarUrl: null,
   announcement: null,
   participants: [
     {

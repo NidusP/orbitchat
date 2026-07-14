@@ -35,12 +35,17 @@ export const refreshSchema = z.object({
 
 export const trustSessionSchema = z.object({
   trust: z.boolean({
-    required_error: 'Trust flag is required',
-    invalid_type_error: 'Trust flag must be true or false',
+    error: (issue) =>
+      issue.input === undefined ? 'Trust flag is required' : 'Trust flag must be true or false',
   }),
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, 'Verification token is required'),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type TrustSessionInput = z.infer<typeof trustSessionSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;

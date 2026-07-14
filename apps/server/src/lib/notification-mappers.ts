@@ -15,16 +15,37 @@ export function truncateNotificationPreview(content: string): string {
 export function toInteractionNotification(
   row: DbNotification,
   actor: PostAuthorSummary,
-  postContent: string,
-  commentContent: string | null
+  postContent: string | null,
+  commentContent: string | null,
+  messageContent: string | null
 ): InteractionNotification {
+  if (row.type === 'message_received') {
+    const notification: InteractionNotification = {
+      id: row.id,
+      type: 'message_received',
+      actor,
+      conversationId: row.conversationId ?? undefined,
+      readAt: row.readAt ? row.readAt.toISOString() : null,
+      createdAt: row.createdAt.toISOString(),
+    };
+
+    if (row.messageId && messageContent !== null) {
+      notification.message = {
+        id: row.messageId,
+        contentPreview: truncateNotificationPreview(messageContent),
+      };
+    }
+
+    return notification;
+  }
+
   const notification: InteractionNotification = {
     id: row.id,
     type: row.type,
     actor,
     post: {
-      id: row.postId,
-      contentPreview: truncateNotificationPreview(postContent),
+      id: row.postId!,
+      contentPreview: truncateNotificationPreview(postContent ?? ''),
     },
     readAt: row.readAt ? row.readAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),

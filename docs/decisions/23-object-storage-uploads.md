@@ -59,7 +59,7 @@ Phase 2 动态为纯文字（ADR 10）。产品化需要头像与动态配图。
 
 `pending` → `committed`（绑定帖子或头像）→ `deleted`（软删，对象可异步清理）
 
-未提交的 `pending` 记录 `expires_at = created_at + 24h`（清理 job 可后续补）。
+未提交的 `pending` 记录 `expires_at = created_at + 24h`；进程启动时 + 每 1h 执行 `purgeExpiredPendingUploads`（删对象 + 标记 `deleted`）。
 
 ### API（概要）
 
@@ -72,10 +72,42 @@ Phase 2 动态为纯文字（ADR 10）。产品化需要头像与动态配图。
 
 ### 不在 v1
 
-- 聊天图片消息
+- 聊天图片消息（见下方 v1.1）
 - 视频 / 音频
 - 预签名 URL
 - 图片裁剪 / 多尺寸
+
+## v1.1 — 聊天发图（P1-B）
+
+在 v1 基础上扩展：
+
+| purpose | MIME | 最大体积 | 绑定 |
+|---------|------|----------|------|
+| `message` | `image/jpeg`, `image/png`, `image/webp` | 10 MB | `message_media` |
+
+- 元数据表 `message_media`：`message_id`, `upload_id`, `sort_order`（MVP 每消息最多 **1** 张图）
+- `POST /api/v1/conversations/:id/messages` 扩展可选 `uploadId`；`content` 与 `uploadId` 至少其一非空
+- `uploadId` 须为本人 `pending` + `purpose=message`；写入消息后 `commit` 并插入 `message_media`
+- 消息列表 / WS `message.new` 的 `Message` DTO 含可选 `media: PostMediaItem[]`
+- 读取仍走 `GET /api/v1/media/:uploadId`
+
+### 不在 v1.1
+
+- 多图消息（>1）
+- 编辑消息时换图
+- 群聊专属限制（与 DM 相同校验）
+
+## v1.2 — 群头像（P2-A）
+
+| purpose | MIME | 最大体积 | 绑定 |
+|---------|------|----------|------|
+| `group_avatar` | `image/jpeg`, `image/png`, `image/webp` | 5 MB | `conversations.avatar_url` |
+
+- 迁移 `0021`：`conversations.avatar_url` VARCHAR(512) 可空；仅 `type=group` 使用
+- `PATCH /api/v1/conversations/:id` 扩展 `avatarUploadId?: string`；须 **owner** 或 **admin**
+- `uploadId` 须为本人 `pending` + `purpose=group_avatar`；提交后 `avatarUrl` 设为 `/api/v1/media/{id}`
+- 头像更新**不**递增 `metadata_version`（与群名/公告乐观锁独立）
+- 会话列表 / 群设置 / 群聊页头展示 `avatarUrl`
 
 ## 后果
 

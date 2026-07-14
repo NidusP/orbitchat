@@ -2,6 +2,7 @@ import { eq, or } from 'drizzle-orm';
 import { db } from '../db';
 import { profiles } from '../db/schema/profiles';
 import { users } from '../db/schema/users';
+import { isEmailVerificationEnabled } from '../lib/feature-flags';
 import { AppError } from '../lib/errors';
 import { hashPassword } from '../lib/crypto';
 import { toProfileDto, toUserDto } from '../lib/mappers';
@@ -155,6 +156,7 @@ export async function registerUser(input: RegisterInput) {
   }
 
   const passwordHash = await hashPassword(input.password);
+  const emailVerifiedAt = isEmailVerificationEnabled() ? null : new Date();
 
   const created = await db.transaction(async (tx) => {
     const [user] = await tx
@@ -163,6 +165,7 @@ export async function registerUser(input: RegisterInput) {
         username: input.username,
         email: input.email,
         passwordHash,
+        emailVerifiedAt,
       })
       .returning();
 

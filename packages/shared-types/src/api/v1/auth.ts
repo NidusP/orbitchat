@@ -69,3 +69,18 @@ export interface TrustSessionResponse {
 export interface RevokeSessionResponse {
   success: true;
 }
+
+/** POST /api/v1/auth/verify-email */
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface VerifyEmailResponse {
+  success: true;
+  emailVerifiedAt: string;
+}
+
+/** POST /api/v1/auth/resend-verification */
+export interface ResendVerificationResponse {
+  success: true;
+}

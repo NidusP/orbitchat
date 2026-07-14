@@ -13,11 +13,31 @@ function formatNotificationMessage(
   notification: InteractionNotification,
   t: ReturnType<typeof useI18n>['t']
 ): string {
+  if (notification.type === 'message_received') {
+    return t('notifications.sentYouAMessage', { name: notification.actor.displayName });
+  }
+
   if (notification.type === 'post_commented') {
     return t('notifications.commentedOnYourPost', { name: notification.actor.displayName });
   }
 
   return t('notifications.likedYourPost', { name: notification.actor.displayName });
+}
+
+function notificationHref(notification: InteractionNotification): string {
+  if (notification.type === 'message_received' && notification.conversationId) {
+    return `/messages/${notification.conversationId}`;
+  }
+
+  return `/posts/${notification.post?.id ?? ''}`;
+}
+
+function notificationPreview(notification: InteractionNotification): string | null {
+  if (notification.type === 'message_received') {
+    return notification.message?.contentPreview ?? null;
+  }
+
+  return notification.post?.contentPreview ?? null;
 }
 
 export function InteractionNotificationList({ items }: InteractionNotificationListProps) {
@@ -27,6 +47,7 @@ export function InteractionNotificationList({ items }: InteractionNotificationLi
     <ul className="interaction-notification-list" data-testid="interaction-notification-list">
       {items.map((notification) => {
         const isUnread = notification.readAt === null;
+        const preview = notificationPreview(notification);
 
         return (
           <li
@@ -34,7 +55,7 @@ export function InteractionNotificationList({ items }: InteractionNotificationLi
             className={`interaction-notification-item ${isUnread ? 'interaction-notification-unread' : ''}`}
             data-testid={`interaction-notification-${notification.id}`}
           >
-            <Link href={`/posts/${notification.post.id}`} className="interaction-notification-link">
+            <Link href={notificationHref(notification)} className="interaction-notification-link">
               <UserAvatar
                 displayName={notification.actor.displayName}
                 userId={notification.actor.id}
@@ -45,7 +66,7 @@ export function InteractionNotificationList({ items }: InteractionNotificationLi
                 <p className="interaction-notification-title">
                   {formatNotificationMessage(notification, t)}
                 </p>
-                <p className="interaction-notification-preview">{notification.post.contentPreview}</p>
+                {preview && <p className="interaction-notification-preview">{preview}</p>}
                 {notification.comment && (
                   <p className="interaction-notification-comment-preview">
                     {notification.comment.contentPreview}
