@@ -32,10 +32,10 @@
     "@types/bun": "^1.2.0",
     "@types/node": "^20.18.0",
     "@types/nodemailer": "^8.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.64.0",
+    "@typescript-eslint/parser": "^8.64.0",
     "drizzle-kit": "^0.31.0",
-    "eslint": "^9.0.0",
+    "eslint": "^10.7.0",
     "typescript": "^5.7.0"
   }
 }

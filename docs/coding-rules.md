@@ -495,7 +495,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
 ### ESLint
 
-使用项目根目录的 `.eslintrc.json` 配置。
+使用项目根目录的 `eslint.config.js`（flat config）配置。
 
 ```bash
 pnpm lint
